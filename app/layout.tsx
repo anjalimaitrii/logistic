@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Sora, DM_Sans } from "next/font/google";
 import "./globals.css";
+import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 
 const sora = Sora({
   variable: "--font-sora",
@@ -48,6 +49,7 @@ export default function RootLayout({
         <main className="relative z-10 flex-1 flex flex-col">
           {children}
         </main>
+        <PwaInstallPrompt />
       </body>
     </html>
   );
