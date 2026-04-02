@@ -1,0 +1,57 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #FF6B00;
+  --color-primary-mid: #FF8C38;
+  --color-primary-light: #FFF3E8;
+  
+  --color-secondary: #0A2540;
+  --color-secondary-mid: #1E3A5F;
+  
+  --color-success: #10B981;
+  --color-success-light: #ECFDF5;
+  
+  --color-neutral-50: #F8FAFC;
+  --color-neutral-100: #F1F5F9;
+  --color-neutral-200: #E2E8F0;
+  --color-neutral-300: #CBD5E1;
+  --color-neutral-400: #94A3B8;
+  --color-neutral-500: #64748B;
+  --color-neutral-900: #0F172A;
+
+  --font-display: var(--font-sora);
+  --font-sans: var(--font-dm-sans);
+
+  --shadow-fleet: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-fleet-lg: 0 20px 60px rgba(15, 23, 42, 0.14);
+}
+
+:root {
+  --background: var(--color-neutral-50);
+  --foreground: var(--color-neutral-900);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: var(--color-neutral-900);
+    --foreground: var(--color-neutral-50);
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Africa map background pattern */
+.africa-pattern {
+  position: fixed;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(255, 107, 0, 0.04) 1.5px, transparent 1.5px);
+  background-size: 36px 36px;
+  pointer-events: none;
+  z-index: 0;
+}
