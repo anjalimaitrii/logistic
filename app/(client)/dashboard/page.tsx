@@ -17,7 +17,7 @@ export default function DashboardPage() {
                 <path d="M20 8H17L15 4H9L7 8H4C2.9 8 2 8.9 2 10V19C2 19.55 2.45 20 3 20H5C5 21.1 5.9 22 7 22C8.1 22 9 21.1 9 20H15C15 21.1 15.9 22 17 22C18.1 22 19 21.1 19 20H21C21.55 20 22 19.55 22 19V10C22 8.9 21.1 8 20 8ZM7 20C6.45 20 6 19.55 6 19C6 18.45 6.45 18 7 18C7.55 18 8 18.45 8 19C8 19.55 7.55 20 7 20ZM17 20C16.45 20 16 19.55 16 19C16 18.45 16.45 18 17 18C17.55 18 18 18.45 18 19C18 19.55 17.55 20 17 20ZM4 16V10H7.5L9.5 6H14.5L16.5 10H20V16H4Z" />
               </svg>
             </div>
-            <span className="font-display font-extrabold text-lg text-white tracking-tight">FleetLink</span>
+            <span className="font-display font-extrabold text-lg text-white tracking-tight">FleetTrack</span>
           </div>
           <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center relative">
             <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
@@ -33,7 +33,7 @@ export default function DashboardPage() {
         </div>
 
         <Link href="/bookings/new">
-          <button className="w-full bg-gradient-to-r from-primary to-primary-mid text-white font-display font-bold py-4 rounded-2xl shadow-xl shadow-primary/40 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform active:scale-[0.98]">
+          <button className="w-full bg-linear-to-r from-primary to-primary-mid text-white font-display font-bold py-4 rounded-2xl shadow-xl shadow-primary/40 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform active:scale-[0.98]">
             <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
               <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
             </svg>
@@ -73,7 +73,7 @@ export default function DashboardPage() {
             <Link href="/jobs/track" key={i}>
               <div className="bg-white p-4 rounded-2xl border border-neutral-200 flex items-center gap-4 active:bg-neutral-100 transition-colors cursor-pointer mb-3">
                 <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 
-                  ${job.type === 'transit' ? 'bg-primary-light text-primary' : 
+                  ${job.type === 'transit' ? 'bg-primary-light text-primary' :
                     job.type === 'delivered' ? 'bg-success-light text-success' : 'bg-sky-50 text-sky-600'}`}>
                   <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
                     <path d="M20 8H17L15 4H9L7 8H4C2.9 8 2 8.9 2 10V19C2 19.55 2.45 20 3 20H5C5 21.1 5.9 22 7 22C8.1 22 9 21.1 9 20H15C15 21.1 15.9 22 17 22C18.1 22 19 21.1 19 20H21C21.55 20 22 19.55 22 19V10C22 8.9 21.1 8 20 8Z" />
@@ -84,7 +84,7 @@ export default function DashboardPage() {
                   <p className="text-xs text-neutral-500 truncate mt-0.5 font-medium">{job.route}</p>
                 </div>
                 <span className={`text-[10px] font-extrabold px-3 py-1.5 rounded-full uppercase tracking-widest
-                  ${job.type === 'transit' ? 'bg-primary-light text-primary' : 
+                  ${job.type === 'transit' ? 'bg-primary-light text-primary' :
                     job.type === 'delivered' ? 'bg-success-light text-success' : 'bg-sky-50 text-sky-600'}`}>
                   {job.status}
                 </span>

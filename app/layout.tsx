@@ -22,12 +22,12 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "FleetLink - Premium Logistics & Fleet Management",
-  description: "Modern fleet management and logistics platform for African businesses.",
+  title: "FleetTrack - Premium Logistics & Fleet Management",
+  description: "Modern logistics and fleet management platform for global businesses.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "FleetLink",
+    title: "FleetTrack",
   },
   formatDetection: {
     telephone: false,

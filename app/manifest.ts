@@ -2,9 +2,9 @@ import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'FleetLink - Premium Logistics',
-    short_name: 'FleetLink',
-    description: 'Modern fleet management and logistics platform for African businesses.',
+    name: 'FleetTrack - Global Logistics',
+    short_name: 'FleetTrack',
+    description: 'Modern logistics and fleet management platform for global businesses.',
     start_url: '/',
     display: 'standalone',
     background_color: '#F8FAFC',

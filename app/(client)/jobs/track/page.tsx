@@ -11,13 +11,13 @@ export default function TrackPage() {
             <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
           </svg>
         </Link>
-        <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-mid rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+        <div className="w-10 h-10 bg-linear-to-br from-primary to-primary-mid rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
           <svg className="w-6 h-6 fill-white" viewBox="0 0 24 24">
             <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
           </svg>
         </div>
         <div className="flex-1">
-          <h4 className="font-display font-bold text-sm text-neutral-900 tracking-tight leading-none">FleetLink Ops Team</h4>
+          <h4 className="font-display font-bold text-sm text-neutral-900 tracking-tight leading-none">FleetTrack Ops Team</h4>
           <p className="text-[10px] font-bold text-success flex items-center gap-1.5 mt-1 animate-pulse">
             <span className="w-1.5 h-1.5 bg-success rounded-full" /> Online now
           </p>
@@ -80,7 +80,7 @@ export default function TrackPage() {
 
       {/* Confirmation Area */}
       <div className="px-4 py-6 bg-neutral-50">
-        <button className="w-full bg-gradient-to-r from-success to-[#0D9668] text-white font-display font-extrabold py-4 rounded-2xl shadow-xl shadow-success/20 flex items-center justify-center gap-2 mb-6 transform active:scale-95 transition-transform hover:brightness-110">
+        <button className="w-full bg-linear-to-r from-success to-[#0D9668] text-white font-display font-extrabold py-4 rounded-2xl shadow-xl shadow-success/20 flex items-center justify-center gap-2 mb-6 transform active:scale-95 transition-transform hover:brightness-110">
           <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
             <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
           </svg>
@@ -95,7 +95,7 @@ export default function TrackPage() {
 
         {/* Job Detail Card */}
         <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden shadow-fleet mb-4">
-          <div className="bg-secondary p-4 flex justify-between items-center bg-gradient-to-r from-secondary to-secondary-mid">
+          <div className="bg-secondary p-4 flex justify-between items-center bg-linear-to-r from-secondary to-secondary-mid">
             <span className="font-display font-extrabold text-white text-lg tracking-tight leading-none">JOB-004</span>
             <span className="bg-success/20 text-success border border-success/30 px-3 py-1.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest">● Confirmed</span>
           </div>
@@ -116,7 +116,7 @@ export default function TrackPage() {
             </div>
 
             {/* Mini Map Placeholder */}
-            <div className="h-20 bg-gradient-to-br from-sky-50 to-neutral-50 rounded-2xl relative overflow-hidden border border-neutral-100 mt-2">
+            <div className="h-20 bg-linear-to-br from-sky-50 to-neutral-50 rounded-2xl relative overflow-hidden border border-neutral-100 mt-2">
               <svg className="w-full h-full p-2" viewBox="0 0 260 60" xmlns="http://www.w3.org/2000/svg">
                 <path d="M20,30 Q80,10 130,30 Q170,45 220,20" stroke="#FF8C38" strokeWidth="2" fill="none" strokeDasharray="4,3" opacity="0.6" />
                 <circle cx="20" cy="30" r="4" fill="#FF6B00" />
