@@ -32,32 +32,32 @@ export default function Home() {
   return (
     <div className="flex flex-col min-h-screen bg-neutral-50 font-sans">
       {/* ─── PREMIUM VISUAL HEADER ─── */}
-      <div className="w-full h-56 bg-secondary relative overflow-hidden flex flex-col justify-end p-6 pb-8 shrink-0">
+      <div className="w-full h-56 bg-secondary-light relative overflow-hidden flex flex-col justify-end p-6 pb-8 shrink-0">
         {/* Background Gradients and Shapes */}
-        <div className="absolute inset-0 bg-gradient-to-br from-secondary via-secondary-mid to-secondary" />
-        <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-primary/20 rounded-full blur-3xl opacity-60" />
-        <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-sky-500/10 rounded-full blur-2xl opacity-40" />
+        <div className="absolute inset-0 bg-linear-to-br from-secondary-light via-white to-secondary-light/60" />
+        <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-primary/10 rounded-full blur-3xl opacity-60" />
+        <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-secondary/10 rounded-full blur-2xl opacity-40" />
 
         {/* Abstract Logistics SVG Pattern */}
         <div className="absolute inset-0 opacity-10 pointer-events-none"
-          style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '18px 18px' }} />
+          style={{ backgroundImage: 'radial-gradient(circle, #4F46E5 1px, transparent 1px)', backgroundSize: '18px 18px' }} />
 
         {/* Subtle Route SVG */}
         <svg className="absolute top-1/4 left-1/4 w-full h-auto opacity-10" viewBox="0 0 400 100" fill="none">
-          <path d="M0,50 Q100,10 200,50 T400,50" stroke="white" strokeWidth="2" strokeDasharray="10,8" />
-          <path d="M50,80 Q150,40 250,80 T450,40" stroke="white" strokeWidth="1" strokeDasharray="5,10" />
+          <path d="M0,50 Q100,10 200,50 T400,50" stroke="#4F46E5" strokeWidth="2" strokeDasharray="10,8" />
+          <path d="M50,80 Q150,40 250,80 T450,40" stroke="#4F46E5" strokeWidth="1" strokeDasharray="5,10" />
         </svg>
 
         {/* Branding */}
         <div className="relative z-10 flex items-center gap-3 animate-fade-in-down">
           <div className="w-11 h-11 bg-primary rounded-xl flex items-center justify-center shadow-2xl shadow-primary/40">
             <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24">
-              <path d="M20 8H17L15 4H9L7 8H4C2.9 8 2 8.9 2 10V19C2 19.55 2.45 20 3 20H5C5 21.1 5.9 22 7 22C8.1 22 9 21.1 9 20H15C15 21.1 15.9 22 17 22C18.1 22 19 21.1 19 20H21C21.55 20 22 19.55 22 19V10C22 8.9 21.1 8 20 8M7 20C6.45 20 6 19.55 6 19s.45-1 1-1 1 .45 1 1-.45 1-1 1M17 20c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1" />
+              <path d="M20 8H17 L15 4H9L7 8H4C2.9 8 2 8.9 2 10V19C2 19.55 2.45 20 3 20H5C5 21.1 5.9 22 7 22C8.1 22 9 21.1 9 20H15C15 21.1 15.9 22 17 22C18.1 22 19 21.1 19 20H21C21.55 20 22 19.55 22 19V10C22 8.9 21.1 8 20 8M7 20C6.45 20 6 19.55 6 19s.45-1 1-1 1 .45 1 1-.45 1-1 1M17 20c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1" />
             </svg>
           </div>
           <div className="flex flex-col">
-            <span className="font-display font-extrabold text-2xl text-white tracking-tight leading-none">FleetTrack</span>
-            <span className="text-[10px] font-bold text-white/50 uppercase tracking-[2px] mt-1">Global Logistics</span>
+            <span className="font-display font-extrabold text-2xl text-secondary tracking-tight leading-none">FleetTrack</span>
+            <span className="text-[10px] font-bold text-secondary-mid uppercase tracking-[2px] mt-1">Global Logistics</span>
           </div>
         </div>
       </div>

@@ -1,112 +1,123 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import Link from "next/link";
 
+const TRUCK_TYPES = [
+   { name: "Light Bakkie", icon: "🛻", desc: "Up to 1 Ton" },
+   { name: "Mini Truck", icon: "🚚", desc: "1 - 2 Tons" },
+   { name: "Small Truck", icon: "🚛", desc: "3 - 5 Tons" },
+   { name: "Medium Truck", icon: "📦", desc: "8 - 12 Tons" },
+   { name: "Large Rigid", icon: "🏢", desc: "14+ Tons" },
+];
+
 export default function NewBookingPage() {
-  return (
-    <div className="flex flex-col min-h-screen bg-neutral-50 pb-12">
-      {/* Header Section */}
-      <div className="bg-gradient-to-br from-secondary to-secondary-mid p-6 pb-8 text-white">
-        <Link href="/dashboard" className="inline-flex items-center gap-2 text-white/70 text-sm font-medium mb-4 hover:text-white transition-colors">
-          <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
-            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
-          </svg>
-          Dashboard
-        </Link>
-        <h3 className="font-display font-extrabold text-2xl tracking-tight">New Booking Request</h3>
-        <p className="text-white/60 text-xs mt-1">Fill in job details below to get a quick quote</p>
-      </div>
+   const [selectedTruck, setSelectedTruck] = useState("Mini Truck");
 
-      {/* Route Preview SVG */}
-      <div className="mx-4 mt-6 mb-8 rounded-2xl bg-secondary h-28 relative overflow-hidden flex items-center justify-center border border-primary/20 shadow-fleet-lg">
-        {/* Abstract Grid Pattern */}
-        <div className="absolute inset-0 opacity-10 pointer-events-none" 
-             style={{ backgroundImage: 'radial-gradient(circle, white 1px, transparent 1px)', backgroundSize: '20px 20px' }} />
-        
-        <svg className="w-full h-full p-4" viewBox="0 0 280 80" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <marker id="arrow" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
-              <path d="M0,0 L6,3 L0,6 Z" fill="#FF8C38" />
-            </marker>
-          </defs>
-          <path d="M40,40 Q100,15 160,40 Q200,55 240,35" stroke="#FF8C38" strokeWidth="2.5" fill="none" strokeDasharray="6,4" markerEnd="url(#arrow)" />
-          <circle cx="40" cy="40" r="6" fill="#FF6B00" />
-          <circle cx="40" cy="40" r="12" fill="#FF6B00" opacity="0.2" />
-          <circle cx="240" cy="35" r="6" fill="#10B981" />
-          <circle cx="240" cy="35" r="12" fill="#10B981" opacity="0.2" />
-          <text x="140" y="30" fontSize="16" textAnchor="middle" opacity="0.6">🚛</text>
-        </svg>
-        <span className="absolute bottom-3 bg-primary text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-widest shadow-lg">Route Preview</span>
-      </div>
+   return (
+      <div className="flex flex-col min-h-screen bg-[#FDFDFD] pb-12 font-sans">
+         {/* Header Section */}
+         <div className="bg-secondary-light p-6 pb-12 relative overflow-hidden">
+            <div className="absolute -top-10 -right-10 w-32 h-32 bg-primary/10 rounded-full blur-2xl" />
+            
+            <Link href="/dashboard" className="inline-flex items-center gap-2 text-secondary/60 text-[11px] font-extrabold uppercase tracking-widest mb-4 hover:text-secondary transition-all relative z-10">
+               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path d="M19 12H5m7-7l-7 7 7 7"/></svg>
+               Dashboard
+            </Link>
+            <h3 className="font-display font-extrabold text-2xl tracking-tight text-secondary relative z-10">Enhanced Booking</h3>
+            <p className="text-secondary/60 text-[11px] mt-1 font-bold tracking-tight relative z-10 uppercase opacity-70">Complete your logistics requirement profile</p>
+         </div>
 
-      {/* Form Fields */}
-      <div className="px-5 space-y-5">
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest ml-1">Pickup Location</label>
-          <div className="flex items-center gap-3 bg-primary-light border-2 border-primary/20 p-4 rounded-2xl">
-            <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-            </svg>
-            <span className="text-sm font-bold text-neutral-900 flex-1 uppercase tracking-tight">Lagos, Nigeria</span>
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest ml-1">Drop Location</label>
-          <div className="flex items-center gap-3 bg-neutral-100 border-2 border-neutral-200 p-4 rounded-2xl group focus-within:border-primary transition-colors">
-            <svg className="w-5 h-5 text-neutral-400 group-focus-within:text-primary" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-            </svg>
-            <input type="text" placeholder="Enter destination..." className="bg-transparent border-none outline-none text-sm font-medium text-neutral-900 w-full placeholder:text-neutral-400" />
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest ml-1">Goods Type</label>
-          <div className="flex items-center gap-3 bg-neutral-100 border-2 border-neutral-200 p-4 rounded-2xl">
-            <svg className="w-5 h-5 text-neutral-400 font-bold" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M20 6h-2.18c.07-.44.18-.87.18-1.32C18 2.55 16.45 1 14.55 1c-1.26 0-2.36.64-3.07 1.6L11 3.29l-.48-.69C9.81 1.64 8.71 1 7.45 1 5.55 1 4 2.55 4 4.68c0 .45.11.88.18 1.32H2L1 19h22L22 6h-2z" />
-            </svg>
-            <span className="text-sm font-bold text-neutral-900 flex-1 uppercase tracking-tight">Ceramic Tiles</span>
-            <svg className="w-5 h-5 text-neutral-400" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M7 10l5 5 5-5z" />
-            </svg>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest ml-1">Quantity</label>
-            <div className="flex items-center gap-3 bg-neutral-100 border-2 border-neutral-200 p-4 rounded-2xl">
-              <span className="text-sm font-bold text-neutral-900 uppercase">2 Trucks</span>
+         {/* Form Context */}
+         <div className="px-5 mt-[-20px] space-y-8 relative z-20">
+            
+            {/* 1. Pickup Details */}
+            <div className="space-y-4">
+               <div className="flex items-center gap-2 text-[10px] font-extrabold text-primary uppercase tracking-[0.2em] px-1">
+                  <span className="w-1.5 h-4 bg-primary rounded-full" />
+                  Pickup Address
+               </div>
+               <div className="bg-white border border-neutral-100 rounded-[24px] p-5 shadow-sm space-y-4">
+                  <div className="space-y-1.5">
+                     <label className="text-[10px] font-extrabold text-neutral-300 uppercase tracking-widest ml-1">Street / Building Name</label>
+                     <input type="text" placeholder="123 Harmony Estate" className="w-full bg-neutral-50/50 border border-neutral-100 rounded-xl px-4 py-3 text-[12px] font-bold text-secondary focus:border-primary/20 focus:bg-white outline-none transition-all" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-1.5">
+                        <label className="text-[10px] font-extrabold text-neutral-300 uppercase tracking-widest ml-1">Area / City</label>
+                        <input type="text" placeholder="Lagos Central" className="w-full bg-neutral-50/50 border border-neutral-100 rounded-xl px-4 py-3 text-[12px] font-bold text-secondary focus:border-primary/20 focus:bg-white outline-none transition-all" />
+                     </div>
+                     <div className="space-y-1.5">
+                        <label className="text-[10px] font-extrabold text-neutral-300 uppercase tracking-widest ml-1">Pincode</label>
+                        <input type="text" placeholder="10001" className="w-full bg-neutral-50/50 border border-neutral-100 rounded-xl px-4 py-3 text-[12px] font-bold text-secondary focus:border-primary/20 focus:bg-white outline-none transition-all" />
+                     </div>
+                  </div>
+               </div>
             </div>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest ml-1">Weight</label>
-            <div className="flex items-center gap-3 bg-neutral-100 border-2 border-neutral-200 p-4 rounded-2xl">
-              <span className="text-sm font-bold text-neutral-900 uppercase">5 Tons</span>
+
+            {/* 2. Drop-off Details */}
+            <div className="space-y-4">
+               <div className="flex items-center gap-2 text-[10px] font-extrabold text-secondary uppercase tracking-[0.2em] px-1">
+                  <span className="w-1.5 h-4 bg-secondary rounded-full opacity-30" />
+                  Drop-off Address
+               </div>
+               <div className="bg-white border border-neutral-100 rounded-[24px] p-5 shadow-sm space-y-4">
+                  <div className="space-y-1.5">
+                     <label className="text-[10px] font-extrabold text-neutral-300 uppercase tracking-widest ml-1">Street / Building Name</label>
+                     <input type="text" placeholder="Garki Sector 2" className="w-full bg-neutral-50/50 border border-neutral-100 rounded-xl px-4 py-3 text-[12px] font-bold text-secondary focus:border-primary/20 focus:bg-white outline-none transition-all" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                     <div className="space-y-1.5">
+                        <label className="text-[10px] font-extrabold text-neutral-300 uppercase tracking-widest ml-1">Area / City</label>
+                        <input type="text" placeholder="Abuja FCT" className="w-full bg-neutral-50/50 border border-neutral-100 rounded-xl px-4 py-3 text-[12px] font-bold text-secondary focus:border-primary/20 focus:bg-white outline-none transition-all" />
+                     </div>
+                     <div className="space-y-1.5">
+                        <label className="text-[10px] font-extrabold text-neutral-300 uppercase tracking-widest ml-1">Pincode</label>
+                        <input type="text" placeholder="90001" className="w-full bg-neutral-50/50 border border-neutral-100 rounded-xl px-4 py-3 text-[12px] font-bold text-secondary focus:border-primary/20 focus:bg-white outline-none transition-all" />
+                     </div>
+                  </div>
+               </div>
             </div>
-          </div>
-        </div>
 
-        <div className="space-y-1.5">
-          <label className="text-[10px] font-extrabold text-neutral-500 uppercase tracking-widest ml-1">Instructions <span className="lowercase font-medium text-neutral-400">(optional)</span></label>
-          <div className="flex items-start gap-3 bg-neutral-100 border-2 border-neutral-200 p-4 rounded-2xl min-h-[80px]">
-            <svg className="w-5 h-5 text-neutral-400 mt-1" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z" />
-            </svg>
-            <textarea placeholder="Handle with care, fragile top..." className="bg-transparent border-none outline-none text-sm font-medium text-neutral-900 w-full placeholder:text-neutral-400 resize-none" rows={2}></textarea>
-          </div>
-        </div>
-      </div>
+            {/* 3. Truck Selection */}
+            <div className="space-y-4">
+               <div className="flex items-center gap-2 text-[10px] font-extrabold text-secondary uppercase tracking-[0.2em] px-1">
+                  <span className="w-1.5 h-4 bg-secondary rounded-full opacity-30" />
+                  Select Truck Type
+               </div>
+               <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide -mx-5 px-5">
+                  {TRUCK_TYPES.map((truck, i) => (
+                     <div 
+                        key={i} 
+                        onClick={() => setSelectedTruck(truck.name)}
+                        className={`min-w-[140px] p-5 rounded-[24px] border transition-all cursor-pointer select-none group ${selectedTruck === truck.name ? 'bg-primary border-primary shadow-lg shadow-primary/20' : 'bg-white border-neutral-100 hover:border-primary/30'}`}
+                     >
+                        <div className={`text-2xl mb-3 transition-transform group-hover:scale-110 ${selectedTruck === truck.name ? 'grayscale-0' : 'grayscale opacity-50'}`}>{truck.icon}</div>
+                        <div className={`text-[12px] font-bold mb-1 ${selectedTruck === truck.name ? 'text-white' : 'text-secondary'}`}>{truck.name}</div>
+                        <div className={`text-[9px] font-extrabold uppercase tracking-widest ${selectedTruck === truck.name ? 'text-white/60' : 'text-neutral-300'}`}>{truck.desc}</div>
+                     </div>
+                  ))}
+               </div>
+            </div>
 
-      <div className="mt-8 px-5">
-        <button className="w-full bg-gradient-to-r from-primary to-primary-mid text-white font-display font-extrabold py-5 rounded-2xl shadow-xl shadow-primary/40 flex items-center justify-center gap-3 hover:scale-[1.01] transition-transform active:scale-[0.99]">
-          <svg className="w-5 h-5 fill-white" viewBox="0 0 24 24">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-          </svg>
-          Submit Booking Request
-        </button>
+            {/* 4. Additional Info */}
+            <div className="grid grid-cols-2 gap-4 pt-2">
+               <div className="space-y-1.5 text-center p-4 bg-white border border-neutral-100 rounded-[20px] shadow-sm">
+                  <label className="text-[9px] font-extrabold text-neutral-300 uppercase tracking-widest">Weight Class</label>
+                  <div className="text-[14px] font-display font-extrabold text-secondary">~5 Tons</div>
+               </div>
+               <div className="space-y-1.5 text-center p-4 bg-white border border-neutral-100 rounded-[20px] shadow-sm">
+                  <label className="text-[9px] font-extrabold text-neutral-300 uppercase tracking-widest">Expected Rate</label>
+                  <div className="text-[14px] font-display font-extrabold text-primary">₹28,500</div>
+               </div>
+            </div>
+
+            <button className="w-full bg-primary text-white font-display font-extrabold py-5 rounded-[24px] shadow-xl shadow-primary/40 flex items-center justify-center gap-3 hover:scale-[1.01] transition-transform active:scale-[0.98] text-[13px] uppercase tracking-[0.1em] mt-4">
+               Submit Booking Request
+               <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" /></svg>
+            </button>
+
+         </div>
       </div>
-    </div>
-  );
+   );
 }

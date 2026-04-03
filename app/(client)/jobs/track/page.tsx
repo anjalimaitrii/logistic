@@ -32,7 +32,7 @@ export default function TrackPage() {
       {/* Chat Messages Area */}
       <div className="flex-1 bg-neutral-50 p-4 space-y-4 overflow-y-auto">
         <div className="flex flex-col items-end gap-1.5">
-          <div className="bg-secondary text-white p-3 rounded-2xl rounded-br-none text-xs font-medium max-w-[85%] shadow-md">
+          <div className="bg-secondary-light text-secondary p-3 rounded-2xl rounded-br-none text-xs font-bold max-w-[85%] shadow-sm border border-secondary/10">
             Need 2 trucks for 5 ton ceramic tiles. Lagos → Abuja. Urgent!
           </div>
           <span className="text-[10px] text-neutral-400 font-bold">9:32 AM</span>
@@ -55,7 +55,7 @@ export default function TrackPage() {
         </div>
 
         <div className="flex flex-col items-end gap-1.5">
-          <div className="bg-secondary text-white p-3 rounded-2xl rounded-br-none text-xs font-medium max-w-[85%] shadow-md">
+          <div className="bg-secondary-light text-secondary p-3 rounded-2xl rounded-br-none text-xs font-bold max-w-[85%] shadow-sm border border-secondary/10">
             Can we do ₹27,000? I have a regular arrangement.
           </div>
           <span className="text-[10px] text-neutral-400 font-bold">9:38 AM</span>
@@ -95,8 +95,8 @@ export default function TrackPage() {
 
         {/* Job Detail Card */}
         <div className="bg-white rounded-3xl border border-neutral-200 overflow-hidden shadow-fleet mb-4">
-          <div className="bg-secondary p-4 flex justify-between items-center bg-linear-to-r from-secondary to-secondary-mid">
-            <span className="font-display font-extrabold text-white text-lg tracking-tight leading-none">JOB-004</span>
+          <div className="bg-secondary-light p-4 flex justify-between items-center border-b border-secondary/5">
+            <span className="font-display font-extrabold text-secondary text-lg tracking-tight leading-none">JOB-004</span>
             <span className="bg-success/20 text-success border border-success/30 px-3 py-1.5 rounded-full text-[10px] font-extrabold uppercase tracking-widest">● Confirmed</span>
           </div>
           <div className="p-4 space-y-4">
@@ -143,8 +143,8 @@ export default function TrackPage() {
             </svg>
             Invoices
           </button>
-          <button className="bg-secondary text-white font-display font-bold p-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs shadow-lg shadow-secondary/30 active:scale-95 transition-all">
-            <svg className="w-4 h-4 fill-white" viewBox="0 0 24 24">
+          <button className="bg-secondary-light text-secondary border border-secondary/20 font-display font-bold p-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs shadow-md active:scale-95 transition-all">
+            <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
               <path d="M20.94 11c-.46-4.17-3.77-7.48-7.94-7.94V1h-2v2.06C6.83 3.52 3.52 6.83 3.06 11H1v2h2.06c.46 4.17 3.77 7.48 7.94 7.94V23h2v-2.06c4.17-.46 7.48-3.77 7.94-7.94H23v-2h-2.06z" />
             </svg>
             Live Track
