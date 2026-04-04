@@ -153,9 +153,9 @@ export default function Home() {
             </Link>
 
             <Link href="/admin/dashboard" className="w-full">
-              <button className="w-full bg-secondary text-white font-display font-extrabold py-5 rounded-2xl shadow-xl shadow-secondary/20 flex items-center justify-center gap-3 group active:scale-95 transition-all hover:scale-[1.01] border border-white/10 uppercase tracking-wider">
+              <button className="w-full bg-secondary text-black font-display font-extrabold py-5 rounded-2xl shadow-xl shadow-secondary/20 flex items-center justify-center gap-3 group active:scale-95 transition-all hover:scale-[1.01] border border-white/10 uppercase tracking-wider">
                 LOGIN AS ADMIN
-                <svg className="w-5 h-5 fill-white group-hover:translate-x-1 transition-transform" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 fill-black group-hover:translate-x-1 transition-transform" viewBox="0 0 24 24">
                   <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
                 </svg>
               </button>
@@ -170,7 +170,7 @@ export default function Home() {
 
       {/* ─── PWA BADGE / FOOTER ─── */}
       <div className="py-8 mt-auto flex flex-col items-center gap-6">
-        <div className="flex items-center gap-2 bg-secondary text-white px-4 py-2 rounded-full text-[10px] font-bold tracking-[2px] shadow-xl uppercase animate-pulse">
+        <div className="flex items-center gap-2 bg-secondary text-black px-4 py-2 rounded-full text-[10px] font-bold tracking-[2px] shadow-xl uppercase animate-pulse">
           <svg className="w-4 h-4 fill-primary" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" /></svg>
           PWA • Install on any device
         </div>

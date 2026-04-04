@@ -8,7 +8,7 @@ export default function AdminDashboard() {
    const [isNotifOpen, setNotifOpen] = useState(false);
    const [searchQuery, setSearchQuery] = useState("");
    const [isCreateJobOpen, setCreateJobOpen] = useState(false);
-   
+
    // Secret Admin Access States
    const [adminClicks, setAdminClicks] = useState(0);
    const [showPinModal, setShowPinModal] = useState(false);
@@ -186,16 +186,16 @@ export default function AdminDashboard() {
 
                <div className="ml-auto flex items-center gap-3">
                   <div className="w-10 h-10 flex items-center justify-center rounded-xl bg-neutral-50 border border-(--border-light) text-secondary/60 hover:text-primary cursor-pointer relative group transition-all" onClick={toggleNotif}>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
+                     <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
                      <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-white ring-2 ring-primary/20 animate-pulse" />
                   </div>
 
                   <div className="h-6 w-[1px] bg-(--border-light)" />
 
                   <div className="flex items-center gap-2">
-                     <span 
+                     <span
                         onClick={handleAdminBadgeClick}
-                        className="bg-primary/10 text-primary border border-primary/20 text-[10px] font-extrabold px-2.5 py-1 rounded-full tracking-widest hidden sm:block uppercase cursor-pointer hover:bg-primary/20 transition-all active:scale-95 select-none"
+                        className="bg-primary/10 text-primary border border-primary/20 text-[10px] font-extrabold px-2.5 py-1 rounded-full tracking-widest  uppercase cursor-pointer hover:bg-primary/20 transition-all active:scale-95 select-none"
                      >
                         admin
                      </span>
@@ -241,36 +241,36 @@ export default function AdminDashboard() {
                   </div>
                   <h1 className="text-2xl font-bold tracking-tight text-(--text)">Fleet Overview</h1>
                   <p className="text-[13px] text-(--text-dim) mt-0.5">April 2026 · Global Logistics Hub · 40 trucks active</p>
-                       {/* KPI Grid */}
-               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {[
-                     { lbl: "Total Trucks", val: "40", icon: "🚛", sub: "32 active · 6 idle", trend: "↑ 100%", color: "text-primary" },
-                     { lbl: "Active Jobs", val: "12", icon: "📦", sub: "8 transit · 4 loading", trend: "↑ 4 today", color: "text-success", variant: "success" },
-                     { lbl: "Fuel Used", val: "2,840L", icon: "⛽", sub: "₦ 3.2M total cost", trend: "↑ 12% vs yest", variant: "warning" },
-                     { lbl: "Payments", val: "₦4.8M", icon: "💳", sub: "7 invoices pending", trend: "↓ 2 cleared", variant: "danger" },
-                  ].map((kpi, i) => (
-                     <div key={i} className="bg-white border border-(--border-light) rounded-2xl p-5 relative overflow-hidden group hover:-translate-y-1 transition-all animate-fade-up shadow-sm hover:shadow-xl hover:shadow-secondary/5">
-                        <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-primary to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div className="flex justify-between items-start mb-4">
-                           <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-inner ${kpi.variant === 'success' ? 'bg-success-light' : kpi.variant === 'warning' ? 'bg-amber-50' : kpi.variant === 'danger' ? 'bg-rose-50' : 'bg-primary-light'}`}>
-                              {kpi.icon}
+                  {/* KPI Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                     {[
+                        { lbl: "Total Trucks", val: "40", icon: "🚛", sub: "32 active · 6 idle", trend: "↑ 100%", color: "text-primary" },
+                        { lbl: "Active Jobs", val: "12", icon: "📦", sub: "8 transit · 4 loading", trend: "↑ 4 today", color: "text-success", variant: "success" },
+                        { lbl: "Fuel Used", val: "2,840L", icon: "⛽", sub: "₦ 3.2M total cost", trend: "↑ 12% vs yest", variant: "warning" },
+                        { lbl: "Payments", val: "₦4.8M", icon: "💳", sub: "7 invoices pending", trend: "↓ 2 cleared", variant: "danger" },
+                     ].map((kpi, i) => (
+                        <div key={i} className="bg-white border border-(--border-light) rounded-2xl p-5 relative overflow-hidden group hover:-translate-y-1 transition-all animate-fade-up shadow-sm hover:shadow-xl hover:shadow-secondary/5">
+                           <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-primary to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                           <div className="flex justify-between items-start mb-4">
+                              <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-inner ${kpi.variant === 'success' ? 'bg-success-light' : kpi.variant === 'warning' ? 'bg-amber-50' : kpi.variant === 'danger' ? 'bg-rose-50' : 'bg-primary-light'}`}>
+                                 {kpi.icon}
+                              </div>
+                              <div className={`text-[10px] font-extrabold px-2 py-1 rounded-full uppercase tracking-widest ${kpi.trend.includes('↑') ? 'text-success bg-success/10' : 'text-rose-500 bg-rose-50'}`}>
+                                 {kpi.trend}
+                              </div>
                            </div>
-                           <div className={`text-[10px] font-extrabold px-2 py-1 rounded-full uppercase tracking-widest ${kpi.trend.includes('↑') ? 'text-success bg-success/10' : 'text-rose-500 bg-rose-50'}`}>
-                              {kpi.trend}
+                           <div className="text-3xl font-display font-extrabold tracking-tight text-secondary">{kpi.val}</div>
+                           <div className="text-[12px] font-bold text-neutral-400 mt-1 uppercase tracking-wider">{kpi.lbl}</div>
+                           <div className="text-[11px] font-medium text-neutral-500 mt-2 flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-neutral-200" />
+                              {kpi.sub}
                            </div>
                         </div>
-                        <div className="text-3xl font-display font-extrabold tracking-tight text-secondary">{kpi.val}</div>
-                        <div className="text-[12px] font-bold text-neutral-400 mt-1 uppercase tracking-wider">{kpi.lbl}</div>
-                        <div className="text-[11px] font-medium text-neutral-500 mt-2 flex items-center gap-1.5">
-                           <span className="w-1.5 h-1.5 rounded-full bg-neutral-200" />
-                           {kpi.sub}
-                        </div>
-                     </div>
-                  ))}
+                     ))}
+                  </div>
                </div>
-            </div>
 
-            {/* Mid Section */}
+               {/* Mid Section */}
                <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
                   {/* Map View */}
                   <div className="xl:col-span-2 bg-white border border-(--border-light) rounded-2xl overflow-hidden animate-fade-up shadow-sm">
@@ -289,12 +289,12 @@ export default function AdminDashboard() {
                      </div>
                      <div className="h-[300px] bg-secondary-light relative flex items-center justify-center overflow-hidden">
                         {/* Actual Static Map Image */}
-                        <img 
-                           src="/static-map.png" 
-                           alt="Live Fleet Map" 
+                        <img
+                           src="/static-map.png"
+                           alt="Live Fleet Map"
                            className="w-full h-full object-cover opacity-80"
                         />
-                        
+
                         {/* Overlay to darken slightly for better pointer visibility */}
                         <div className="absolute inset-0 bg-secondary/5 pointer-events-none" />
 
@@ -576,7 +576,7 @@ export default function AdminDashboard() {
                   </div>
                   <h3 className="text-xl font-display font-extrabold text-secondary mb-2">Secret Access</h3>
                   <p className="text-sm text-neutral-400 mb-8 font-medium">Enter your 6-digit administrator PIN to proceed.</p>
-                  
+
                   <form onSubmit={handlePinSubmit} className="space-y-6">
                      <div className="relative">
                         <input
@@ -596,15 +596,15 @@ export default function AdminDashboard() {
                            <p className="text-[11px] font-bold text-rose-500 mt-2 uppercase tracking-widest">Invalid Security Pin</p>
                         )}
                      </div>
-                     
+
                      <div className="flex gap-3">
-                        <button 
+                        <button
                            type="submit"
                            className="flex-1 bg-primary text-white py-4 rounded-xl font-display font-extrabold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all text-sm uppercase tracking-widest"
                         >
                            Verify Pin
                         </button>
-                        <button 
+                        <button
                            type="button"
                            onClick={() => { setShowPinModal(false); setEnteredPin(""); setPinError(false); }}
                            className="px-6 bg-white border border-(--border-light) text-neutral-400 font-bold rounded-xl hover:bg-neutral-50 transition-all text-sm uppercase tracking-widest"
