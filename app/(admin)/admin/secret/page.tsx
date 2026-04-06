@@ -1,109 +1,149 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
+import AdminLayout from "@/components/admin/AdminLayout";
+import StatCard from "@/components/admin/StatCard";
+import CommonTable from "@/components/admin/CommonTable";
+import CreateSecretJobModal from "@/components/admin/CreateSecretJobModal";
 
-const NON_TAX_CLIENTS = [
-   { id: "CL-882", name: "Apex Logistics Ltd", contact: "+234 802 123 4567", category: "Internal-Branch", volume: "1,240 Tons", status: "Active" },
-   { id: "CL-914", name: "Global Freight Solutions", contact: "+234 703 987 6543", category: "Non-Taxable Entity", volume: "850 Tons", status: "Active" },
-   { id: "CL-756", name: "West-Hook Partners", contact: "+234 815 444 2222", category: "Charity/Exempt", volume: "420 Tons", status: "On Hold" },
-   { id: "CL-443", name: "Skyway Express", contact: "+234 901 333 1111", category: "Government-Contract", volume: "2,100 Tons", status: "Active" },
-   { id: "CL-229", name: "Bridge-Link Cargo", contact: "+234 809 111 0000", category: "Sister-Company", volume: "610 Tons", status: "Active" },
-];
+export default function AdminSecretDashboard() {
+   const [isCreateModalOpen, setCreateModalOpen] = useState(false);
 
-export default function AdminSecretPage() {
+   const specialKpis = [
+      { label: "Total Secret Jobs", value: "24", icon: "💎", subText: "Special assignments", trend: "↑ 2 today", variant: "primary" as const },
+      { label: "Tax-Exempt Vol.", value: "₦1.8M", icon: "📉", subText: "-18.5% total rev", trend: "↓ 4% vs last", variant: "warning" as const },
+      { label: "Elite Partners", value: "12", icon: "🎩", subText: "Non-Taxable Entities", trend: "Steady", variant: "success" as const },
+      { label: "Master Ledger", value: "v4.2", icon: "🛡️", subText: "Active protocol", trend: "Secure", variant: "danger" as const },
+   ];
+
+   const secretJobs = [
+      { id: "#SL-9921", client: "Apex Logistics", route: "Abuja → Lagos", tax: "Exempt", type: "warning" },
+      { id: "#SL-9918", client: "Global Freight", route: "Accra → Kumasi", tax: "With Tax", type: "primary" },
+      { id: "#SL-9915", client: "Skyway Express", route: "Nairobi → Mom.", tax: "Exempt", type: "warning" },
+   ];
+
+   const columns = [
+      { label: "Job ID", key: "id", render: (val: string) => <span className="font-bold text-indigo-600">{val}</span> },
+      { label: "Client", key: "client", render: (val: string) => <span className="font-bold text-neutral-900">{val}</span> },
+      { label: "Route", key: "route" },
+      { 
+         label: "Tax Status", 
+         key: "tax",
+         render: (val: string, row: any) => (
+            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+               val === 'Exempt' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-indigo-50 text-indigo-600 border-indigo-200'
+            }`}>
+               {val}
+            </span>
+         )
+      },
+      {
+         label: "Actions",
+         key: "actions",
+         align: "center" as const,
+         render: () => (
+            <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-neutral-100 text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all">
+               👁
+            </button>
+         )
+      }
+   ];
+
+   const handleCreateJob = (data: any) => {
+      alert(`Special job created! Tax Status: ${data.withTax ? 'With Tax' : 'Exempt'}`);
+      setCreateModalOpen(false);
+   };
+
    return (
-      <div className="min-h-screen bg-[#FDFDFD] text-secondary font-sans p-4 sm:p-6 lg:p-8">
-         <div className="max-w-4xl mx-auto space-y-6">
-            
-            {/* Header Area */}
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-5">
-               <div>
-                  <div className="flex items-center gap-1.5 text-[9px] font-extrabold text-primary uppercase tracking-[0.2em] mb-1">
-                     <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                     Special Client Ledger
-                  </div>
-                  <h1 className="text-xl font-display font-extrabold tracking-tight text-secondary">Non-Taxable Directory</h1>
+      <div className="p-6 pb-20 space-y-8 bg-[#F8FAFC] min-h-screen">
+         {/* Header with Secret Flavor */}
+         <div className="flex items-center justify-between font-sans">
+            <div>
+               <div className="flex items-center gap-1.5 text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                  Special Ledger Protocol
                </div>
-               
-               <Link href="/admin/dashboard" className="text-[11px] font-bold text-neutral-400 hover:text-primary transition-colors flex items-center gap-2 px-3 py-1.5 bg-neutral-50 rounded-lg border border-neutral-100 uppercase tracking-widest active:scale-95">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path d="M19 12H5m7-7l-7 7 7 7"/></svg>
-                  Exit Ledger
-               </Link>
+               <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Secret Dashboard</h1>
+               <p className="text-[12px] font-medium text-neutral-400 mt-1 uppercase tracking-widest">Master Admin Level Access Required</p>
             </div>
 
-            {/* Quick Metrics (Micro Blocks) */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-               {[
-                  { lbl: "Total Exempt", val: "12 Client(s)" },
-                  { lbl: "Exempt Volume", val: "5.2k Tons" },
-                  { lbl: "Ledger Type", val: "Without Tax" },
-                  { lbl: "Access Level", val: "Master Admin" },
-               ].map((m, i) => (
-                  <div key={i} className="bg-white border border-neutral-100 rounded-xl p-3.5 shadow-sm">
-                     <div className="text-[9px] font-extrabold text-neutral-300 uppercase tracking-widest">{m.lbl}</div>
-                     <div className="text-[13px] font-bold text-secondary mt-0.5">{m.val}</div>
-                  </div>
-               ))}
+            <div className="flex gap-2">
+               <button 
+                 onClick={() => setCreateModalOpen(true)}
+                 className="bg-indigo-600 text-white px-6 py-3 rounded-xl font-bold text-[11px] uppercase tracking-widest shadow-xl shadow-indigo-100 hover:-translate-y-0.5 transition-all active:scale-95"
+               >
+                  ＋ Create Special Job
+               </button>
             </div>
-
-            {/* Data Table (Super Compact) */}
-            <div className="bg-white border border-neutral-100 rounded-xl shadow-sm overflow-hidden mt-4">
-               <div className="bg-neutral-50/50 p-4 border-b border-neutral-100 flex items-center justify-between">
-                  <h3 className="text-[11px] font-extrabold text-secondary/60 uppercase tracking-widest">Client Distribution (Excluded from GST)</h3>
-                  <button className="text-[10px] font-bold text-primary hover:underline">Export CSV</button>
-               </div>
-               
-               <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                     <thead>
-                        <tr className="bg-neutral-50/30 border-b border-neutral-100">
-                           <th className="px-4 py-3 text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest">Client ID</th>
-                           <th className="px-4 py-3 text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest">Company Name</th>
-                           <th className="px-4 py-3 text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest">Contact</th>
-                           <th className="px-4 py-3 text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest">Category</th>
-                           <th className="px-4 py-3 text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest">Volume</th>
-                           <th className="px-4 py-3 text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest text-right">Status</th>
-                        </tr>
-                     </thead>
-                     <tbody className="divide-y divide-neutral-50">
-                        {NON_TAX_CLIENTS.map((client, i) => (
-                           <tr key={i} className="hover:bg-neutral-50/50 transition-colors group">
-                              <td className="px-4 py-3.5 text-[11px] font-bold text-neutral-300">{client.id}</td>
-                              <td className="px-4 py-3.5 text-[12px] font-bold text-secondary">{client.name}</td>
-                              <td className="px-4 py-3.5 text-[11px] font-medium text-neutral-400 group-hover:text-secondary transition-colors">{client.contact}</td>
-                              <td className="px-4 py-3.5">
-                                 <span className="text-[9px] font-extrabold bg-primary/5 text-primary border border-primary/10 px-2.5 py-0.5 rounded-full uppercase tracking-tighter">
-                                    {client.category}
-                                 </span>
-                              </td>
-                              <td className="px-4 py-3.5 text-[11px] font-bold text-secondary">{client.volume}</td>
-                              <td className="px-4 py-3.5 text-right">
-                                 <span className={`text-[10px] font-extrabold tracking-tighter ${client.status === 'Active' ? 'text-success' : 'text-amber-500'}`}>
-                                    {client.status}
-                                 </span>
-                              </td>
-                           </tr>
-                        ))}
-                     </tbody>
-                  </table>
-               </div>
-
-               <div className="p-4 bg-neutral-50/30 border-t border-neutral-100 flex items-center justify-between text-[10px] text-neutral-300 font-bold uppercase tracking-widest">
-                  Showing 5 of 12 Special Clients
-                  <div className="flex gap-2">
-                     <button className="px-3 py-1 bg-white border border-neutral-100 rounded text-neutral-400 hover:text-secondary disabled:opacity-50" disabled>Previous</button>
-                     <button className="px-3 py-1 bg-white border border-neutral-100 rounded text-neutral-400 hover:text-secondary">Next</button>
-                  </div>
-               </div>
-            </div>
-
-            {/* Subtle System Footer */}
-            <div className="text-[10px] font-bold text-neutral-300 text-center uppercase tracking-[0.3em] pt-10">
-               Master Log Protocol v4.2.0 • End-to-End Encrypted
-            </div>
-
          </div>
+
+         {/* Secret KPIs */}
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {specialKpis.map((kpi, i) => (
+               <StatCard key={i} {...kpi} />
+            ))}
+         </div>
+
+         {/* Main Content Area */}
+         <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="xl:col-span-2">
+               <CommonTable 
+                  title="Recent Special Operations"
+                  icon="🔐"
+                  columns={columns}
+                  data={secretJobs}
+                  action={
+                     <Link 
+                        href="/admin/secret/jobs" 
+                        className="text-[10px] font-bold text-indigo-600 hover:underline uppercase tracking-widest"
+                     >
+                        View Full Ledger
+                     </Link>
+                  }
+               />
+            </div>
+
+            <div className="space-y-4">
+               <div className="bg-white border border-neutral-100 rounded-2xl p-6 shadow-sm">
+                  <h3 className="text-sm font-bold text-neutral-900 mb-4">Master Controls</h3>
+                  <div className="space-y-2">
+                     <button className="w-full text-left p-3 rounded-xl border border-neutral-50 hover:bg-neutral-50 transition-all flex items-center gap-3">
+                        <span className="text-lg">📊</span>
+                        <div className="flex-1">
+                           <div className="text-[11px] font-bold text-neutral-900">Tax Exemption Audit</div>
+                           <div className="text-[9px] text-neutral-400 font-medium">Verify non-taxable entity certificates</div>
+                        </div>
+                     </button>
+                     <button className="w-full text-left p-3 rounded-xl border border-neutral-50 hover:bg-neutral-50 transition-all flex items-center gap-3">
+                        <span className="text-lg">📤</span>
+                        <div className="flex-1">
+                           <div className="text-[11px] font-bold text-neutral-900">Export Encrypted Log</div>
+                           <div className="text-[9px] text-neutral-400 font-medium">Generate PGP-signed CSV</div>
+                        </div>
+                     </button>
+                  </div>
+               </div>
+
+               <div className="bg-indigo-600 rounded-2xl p-6 text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">
+                  <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-2xl group-hover:scale-150 transition-transform duration-700" />
+                  <div className="relative z-10">
+                     <div className="text-[10px] font-black uppercase tracking-widest opacity-60 mb-1">System Health</div>
+                     <div className="text-xl font-bold mb-3">All Protocols Secure</div>
+                     <div className="h-1 bg-white/20 rounded-full mb-4">
+                        <div className="w-[92%] h-full bg-white rounded-full shadow-[0_0_8px_rgba(255,255,255,1)]" />
+                     </div>
+                     <button className="text-[10px] font-bold bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg transition-all uppercase tracking-widest">Check Services</button>
+                  </div>
+               </div>
+            </div>
+         </div>
+
+         <CreateSecretJobModal 
+            isOpen={isCreateModalOpen}
+            onClose={() => setCreateModalOpen(false)}
+            onSubmit={handleCreateJob}
+         />
       </div>
    );
 }
