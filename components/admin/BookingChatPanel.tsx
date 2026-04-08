@@ -40,7 +40,7 @@ export default function BookingChatPanel({ isOpen, onClose, request, onFinalize 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[500] pointer-events-none">
+    <div className="fixed inset-0 z-500 pointer-events-none">
       <div 
         className={`absolute inset-0 bg-neutral-900/20 backdrop-blur-sm transition-opacity duration-300 pointer-events-auto ${isOpen ? "opacity-100" : "opacity-0"}`}
         onClick={onClose}
@@ -66,18 +66,12 @@ export default function BookingChatPanel({ isOpen, onClose, request, onFinalize 
           </button>
         </div>
 
-        {/* Request Meta */}
-        <div className="p-4 bg-indigo-50/30 border-b border-indigo-100/50 flex items-center justify-between">
+        {/* Request Meta (Optional, keeping for context) */}
+        <div className="p-4 bg-indigo-50/30 border-b border-indigo-100/50">
            <div className="space-y-0.5">
-              <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.1em]">Target Route</div>
-              <div className="text-[12px] font-bold text-indigo-900">{request?.route || "..."}</div>
+              <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Target Route</div>
+              <div className="text-[12px] font-medium text-indigo-900">{request?.route || "..."}</div>
            </div>
-           <button 
-             onClick={onFinalize}
-             className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-xl shadow-indigo-600/20 hover:scale-105 transition-all"
-           >
-              Finalize Deal
-           </button>
         </div>
 
         {/* Chat Area */}

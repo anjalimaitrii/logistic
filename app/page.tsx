@@ -1,193 +1,500 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import Link from "next/link";
 
 export default function Home() {
   const [step, setStep] = useState<"ID" | "OTP">("ID");
-  const [phoneNumber, setPhoneNumber] = useState("712 345 678");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [otp, setOtp] = useState(["", "", "", ""]);
-  const otpRefs = [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)];
+  const otpRefs = [
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+    useRef<HTMLInputElement>(null),
+  ];
 
-  // Handle OTP focus management
   const handleOtpChange = (value: string, index: number) => {
     if (isNaN(Number(value))) return;
-
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
-
-    // Auto-focus next box
-    if (value !== "" && index < 3) {
-      otpRefs[index + 1].current?.focus();
-    }
+    if (value !== "" && index < 3) otpRefs[index + 1].current?.focus();
   };
 
   const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
-    if (e.key === "Backspace" && otp[index] === "" && index > 0) {
+    if (e.key === "Backspace" && otp[index] === "" && index > 0)
       otpRefs[index - 1].current?.focus();
-    }
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-neutral-50 font-sans">
-      {/* ─── PREMIUM VISUAL HEADER ─── */}
-      <div className="w-full h-56 bg-secondary-light relative overflow-hidden flex flex-col justify-end p-6 pb-8 shrink-0">
-        {/* Background Gradients and Shapes */}
-        <div className="absolute inset-0 bg-linear-to-br from-secondary-light via-white to-secondary-light/60" />
-        <div className="absolute top-[-20%] right-[-10%] w-64 h-64 bg-primary/10 rounded-full blur-3xl opacity-60" />
-        <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-secondary/10 rounded-full blur-2xl opacity-40" />
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-        {/* Abstract Logistics SVG Pattern */}
-        <div className="absolute inset-0 opacity-10 pointer-events-none"
-          style={{ backgroundImage: 'radial-gradient(circle, #4F46E5 1px, transparent 1px)', backgroundSize: '18px 18px' }} />
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-        {/* Subtle Route SVG */}
-        <svg className="absolute top-1/4 left-1/4 w-full h-auto opacity-10" viewBox="0 0 400 100" fill="none">
-          <path d="M0,50 Q100,10 200,50 T400,50" stroke="#4F46E5" strokeWidth="2" strokeDasharray="10,8" />
-          <path d="M50,80 Q150,40 250,80 T450,40" stroke="#4F46E5" strokeWidth="1" strokeDasharray="5,10" />
-        </svg>
+        .ft-root {
+          font-family: 'DM Sans', sans-serif;
+          min-height: 100vh;
+          background: #EEF0F4;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+        }
 
-        {/* Branding */}
-        <div className="relative z-10 flex items-center gap-3 animate-fade-in-down">
-          <div className="w-11 h-11 bg-primary rounded-xl flex items-center justify-center shadow-2xl shadow-primary/40">
-            <svg className="w-7 h-7 fill-white" viewBox="0 0 24 24">
-              <path d="M20 8H17 L15 4H9L7 8H4C2.9 8 2 8.9 2 10V19C2 19.55 2.45 20 3 20H5C5 21.1 5.9 22 7 22C8.1 22 9 21.1 9 20H15C15 21.1 15.9 22 17 22C18.1 22 19 21.1 19 20H21C21.55 20 22 19.55 22 19V10C22 8.9 21.1 8 20 8M7 20C6.45 20 6 19.55 6 19s.45-1 1-1 1 .45 1 1-.45 1-1 1M17 20c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1" />
-            </svg>
+        .ft-root::before {
+          content: '';
+          position: fixed; inset: 0; z-index: 0;
+          background:
+            radial-gradient(ellipse 70% 55% at 65% 50%, rgba(27,35,64,0.06) 0%, transparent 70%),
+            repeating-linear-gradient(0deg, transparent, transparent 39px, rgba(27,35,64,0.035) 39px, rgba(27,35,64,0.035) 40px),
+            repeating-linear-gradient(90deg, transparent, transparent 39px, rgba(27,35,64,0.035) 39px, rgba(27,35,64,0.035) 40px);
+        }
+
+        /* ─── SHELL (desktop two-column) ─── */
+        .ft-shell {
+          position: relative; z-index: 1;
+          display: flex;
+          width: 900px;
+          min-height: 560px;
+          border-radius: 22px;
+          overflow: hidden;
+          box-shadow: 0 32px 80px rgba(27,35,64,0.16), 0 8px 24px rgba(27,35,64,0.08);
+          animation: slideUp 0.55s cubic-bezier(0.22,1,0.36,1) both;
+        }
+
+        @keyframes slideUp {
+          from { opacity: 0; transform: translateY(28px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ─── LEFT PANEL ─── */
+        .ft-left {
+          width: 42%; flex-shrink: 0;
+          background: #1B2340;
+          padding: 48px 40px;
+          display: flex;
+          flex-direction: column;
+          justify-content: space-between;
+          position: relative;
+          overflow: hidden;
+        }
+
+        .ft-left::before {
+          content: ''; position: absolute;
+          bottom: -80px; right: -80px;
+          width: 300px; height: 300px; border-radius: 50%;
+          background: radial-gradient(circle, rgba(232,93,32,0.15) 0%, transparent 70%);
+        }
+
+        .ft-left::after {
+          content: ''; position: absolute;
+          top: -50px; left: -50px;
+          width: 220px; height: 220px; border-radius: 50%;
+          background: radial-gradient(circle, rgba(255,255,255,0.03) 0%, transparent 70%);
+        }
+
+        /* Brand */
+        .ft-brand { display: flex; align-items: center; gap: 12px; z-index: 1; }
+
+        .ft-brand-icon {
+          width: 42px; height: 42px; background: #E85D20;
+          border-radius: 10px; display: flex; align-items: center;
+          justify-content: center; flex-shrink: 0;
+        }
+
+        .ft-brand-name {
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 26px; font-weight: 800; color: #fff;
+          letter-spacing: 0.5px; line-height: 1;
+        }
+
+        .ft-brand-sub {
+          font-size: 10px; color: rgba(255,255,255,0.38);
+          letter-spacing: 2px; text-transform: uppercase;
+          margin-top: 3px; font-weight: 400;
+        }
+
+        /* Middle copy */
+        .ft-mid { z-index: 1; }
+
+        .ft-mid h2 {
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 36px; font-weight: 700; color: #fff;
+          line-height: 1.15; margin-bottom: 12px;
+        }
+
+        .ft-mid h2 em { color: #E85D20; font-style: normal; }
+
+        .ft-mid p {
+          font-size: 13.5px; color: rgba(255,255,255,0.42);
+          line-height: 1.7; max-width: 230px; font-weight: 400;
+        }
+
+        /* Road SVG */
+        .ft-road { margin-top: 22px; overflow: hidden; }
+        .ft-road svg { width: 100%; }
+
+        @keyframes drive {
+          from { transform: translateX(-130px); }
+          to   { transform: translateX(330px); }
+        }
+        .truck { animation: drive 4s linear infinite; }
+
+        /* Stat chips */
+        .ft-chips { display: flex; gap: 8px; z-index: 1; }
+
+        .ft-chip {
+          flex: 1; background: rgba(255,255,255,0.055);
+          border: 1px solid rgba(255,255,255,0.08);
+          border-radius: 10px; padding: 10px 12px;
+        }
+
+        .ft-chip-val {
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 20px; font-weight: 700; color: #fff; line-height: 1;
+        }
+
+        .ft-chip-val b { color: #E85D20; }
+        .ft-chip-lbl { font-size: 11px; color: rgba(255,255,255,0.32); margin-top: 3px; font-weight: 400; }
+
+        /* ─── RIGHT PANEL ─── */
+        .ft-right {
+          flex: 1; background: #fff;
+          position: relative; overflow: hidden;
+        }
+
+        /* Step containers */
+        .ft-step {
+          position: absolute; inset: 0;
+          padding: 52px 48px;
+          display: flex; flex-direction: column; justify-content: center;
+          transition: opacity 0.38s ease, transform 0.38s ease;
+        }
+
+        .ft-step.active    { opacity: 1; transform: translateX(0);     pointer-events: all; }
+        .ft-step.exit-left { opacity: 0; transform: translateX(-36px);  pointer-events: none; }
+        .ft-step.exit-right{ opacity: 0; transform: translateX(36px);   pointer-events: none; }
+
+        /* Step headings */
+        .ft-step h3 {
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 30px; font-weight: 700; color: #1B2340; margin-bottom: 6px;
+        }
+
+        .ft-subtitle { font-size: 14px; color: #9AA3B2; font-weight: 400; margin-bottom: 32px; }
+
+        /* Field label */
+        .ft-lbl {
+          display: block; font-size: 12px; font-weight: 600;
+          color: #4A5568; margin-bottom: 8px; letter-spacing: 0.2px;
+        }
+
+        /* Phone field */
+        .ft-phone-box {
+          display: flex; align-items: stretch;
+          background: #F4F6FB; border: 1.5px solid #DDE1EB;
+          border-radius: 12px; overflow: hidden;
+          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+          margin-bottom: 22px;
+        }
+
+        .ft-phone-box:focus-within {
+          border-color: #E85D20; background: #fff;
+          box-shadow: 0 0 0 3px rgba(232,93,32,0.09);
+        }
+
+        .ft-flag {
+          display: flex; align-items: center; gap: 7px;
+          padding: 0 14px; border-right: 1.5px solid #DDE1EB;
+          flex-shrink: 0; background: rgba(244,246,251,0.5);
+        }
+
+        .ft-flag .emoji { font-size: 20px; }
+        .ft-flag .code  { font-size: 13px; font-weight: 600; color: #2C3A5E; }
+
+        .ft-phone-box input {
+          flex: 1; padding: 14px 16px;
+          font-size: 15px; font-weight: 500; color: #1B2340;
+          background: transparent; border: none; outline: none;
+          letter-spacing: 0.5px;
+        }
+
+        .ft-phone-box input::placeholder { color: #C2C9D6; font-weight: 400; }
+
+        /* Buttons */
+        .ft-btn {
+          width: 100%; border: none; border-radius: 12px;
+          padding: 14px 20px; cursor: pointer;
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 17px; font-weight: 700; letter-spacing: 0.8px;
+          display: flex; align-items: center; justify-content: center; gap: 9px;
+          transition: background 0.22s, box-shadow 0.22s, transform 0.15s;
+        }
+
+        .ft-btn svg { width: 17px; height: 17px; transition: transform 0.2s; }
+        .ft-btn:hover svg { transform: translateX(3px); }
+        .ft-btn:active { transform: translateY(1px); }
+
+        .ft-btn-dark {
+          background: #1B2340; color: #fff;
+          fill: white;
+        }
+
+        .ft-btn-dark:hover {
+          background: #E85D20;
+          box-shadow: 0 8px 22px rgba(232,93,32,0.28);
+          transform: translateY(-1px);
+        }
+
+        .ft-btn-outline {
+          background: #F4F6FB; color: #1B2340;
+          border: 1.5px solid #DDE1EB; fill: #1B2340;
+          margin-top: 10px;
+        }
+
+        .ft-btn-outline:hover {
+          background: #EBEDF5; border-color: #C5CAD8;
+          transform: translateY(-1px);
+        }
+
+        /* Alt link */
+        .ft-alt {
+          text-align: center; margin-top: 22px;
+          font-size: 13px; color: #A8B0BF; font-weight: 400;
+        }
+
+        .ft-alt a { color: #E85D20; font-weight: 500; text-decoration: none; }
+        .ft-alt a:hover { text-decoration: underline; }
+
+        /* ── OTP step ── */
+        .ft-back-row {
+          display: flex; align-items: center; gap: 10px; margin-bottom: 24px;
+        }
+
+        .ft-back {
+          background: none; border: none; cursor: pointer;
+          width: 34px; height: 34px; border-radius: 8px;
+          display: flex; align-items: center; justify-content: center;
+          color: #8A93AA; transition: background 0.18s, color 0.18s;
+        }
+
+        .ft-back:hover { background: #F4F6FB; color: #1B2340; }
+        .ft-back svg { width: 20px; height: 20px; fill: currentColor; }
+
+        .ft-back-row h3 { margin-bottom: 0; }
+
+        .ft-num-card {
+          background: #F8F9FC; border: 1.5px solid #EAECF2;
+          border-radius: 12px; padding: 13px 16px;
+          display: flex; align-items: center; justify-content: space-between;
+          margin-bottom: 18px;
+        }
+
+        .ft-num-card .nl { font-size: 11px; color: #A8B0BF; font-weight: 400; margin-bottom: 3px; }
+        .ft-num-card .nv { font-size: 14.5px; color: #1B2340; font-weight: 600; }
+
+        .ft-change {
+          background: none; border: none; cursor: pointer;
+          font-size: 13px; color: #E85D20; font-weight: 500;
+          padding: 5px 10px; border-radius: 8px;
+          transition: background 0.18s;
+        }
+
+        .ft-change:hover { background: rgba(232,93,32,0.07); }
+
+        .ft-hint { font-size: 13px; color: #9AA3B2; line-height: 1.65; margin-bottom: 22px; font-weight: 400; }
+
+        .ft-otp-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 26px; }
+
+        .ft-otp-cell {
+          width: 100%; height: 62px; text-align: center;
+          font-family: 'Barlow Condensed', sans-serif;
+          font-size: 26px; font-weight: 700; color: #1B2340;
+          background: #F4F6FB; border: 1.5px solid #DDE1EB;
+          border-radius: 12px; outline: none;
+          transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+        }
+
+        .ft-otp-cell:focus {
+          border-color: #E85D20; background: #fff;
+          box-shadow: 0 0 0 3px rgba(232,93,32,0.09);
+        }
+
+        .ft-resend { text-align: center; margin-top: 18px; font-size: 13px; color: #A8B0BF; font-weight: 400; }
+        .ft-resend span { color: #1B2340; font-weight: 500; }
+
+        /* ─── MOBILE ─── */
+        @media (max-width: 680px) {
+          .ft-root { padding: 0; background: #1B2340; align-items: flex-start; }
+
+          .ft-shell {
+            flex-direction: column; width: 100%; min-height: 100svh;
+            border-radius: 0; box-shadow: none;
+          }
+
+          .ft-left {
+            width: 100%;
+            padding: 32px 24px 28px;
+            flex-direction: row; align-items: center;
+            justify-content: space-between;
+          }
+
+          .ft-mid, .ft-road, .ft-chips { display: none; }
+
+          .ft-right { border-radius: 28px 28px 0 0; flex: 1; }
+
+          .ft-step { padding: 36px 24px 40px; }
+        }
+      `}</style>
+
+      <div className="ft-root">
+        <div className="ft-shell">
+
+          {/* ── LEFT ── */}
+          <div className="ft-left">
+            <div className="ft-brand">
+              <div className="ft-brand-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
+                  <path d="M20 8H17L15 4H9L7 8H4C2.9 8 2 8.9 2 10V19C2 19.55 2.45 20 3 20H5C5 21.1 5.9 22 7 22C8.1 22 9 21.1 9 20H15C15 21.1 15.9 22 17 22C18.1 22 19 21.1 19 20H21C21.55 20 22 19.55 22 19V10C22 8.9 21.1 8 20 8M7 20C6.45 20 6 19.55 6 19s.45-1 1-1 1 .45 1 1-.45 1-1 1M17 20c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1" />
+                </svg>
+              </div>
+              <div>
+                <div className="ft-brand-name">FleetTrack</div>
+                <div className="ft-brand-sub">Global Logistics</div>
+              </div>
+            </div>
+
+            <div className="ft-mid">
+              <h2>Move loads.<br /><em>Stay ahead.</em></h2>
+              <p>Real-time tracking and management for your entire fleet — from pickup to delivery.</p>
+              <div className="ft-road">
+                <svg viewBox="0 0 260 70" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="0" y="42" width="260" height="18" rx="2" fill="#253055" />
+                  {[10, 50, 90, 130, 170, 210].map((x) => (
+                    <rect key={x} x={x} y="50" width="22" height="3" rx="1.5" fill="rgba(255,255,255,0.12)" />
+                  ))}
+                  <g className="truck">
+                    <rect x="0" y="26" width="38" height="16" rx="2" fill="#E85D20" />
+                    <rect x="4" y="20" width="24" height="22" rx="1.5" fill="#FF8050" />
+                    <rect x="28" y="28" width="10" height="14" rx="2" fill="#C94A10" />
+                    <rect x="30" y="30" width="6" height="6" rx="1" fill="rgba(255,255,255,0.5)" />
+                    <circle cx="10" cy="42" r="4" fill="#1B2340" />
+                    <circle cx="10" cy="42" r="2" fill="#8A93AA" />
+                    <circle cx="30" cy="42" r="4" fill="#1B2340" />
+                    <circle cx="30" cy="42" r="2" fill="#8A93AA" />
+                  </g>
+                </svg>
+              </div>
+            </div>
+
+            <div className="ft-chips">
+              {[
+                { v: "12", s: "k+", l: "Deliveries" },
+                { v: "98", s: "%", l: "On-Time Rate" },
+                { v: "340", s: "+", l: "Active Trucks" },
+              ].map((c) => (
+                <div className="ft-chip" key={c.l}>
+                  <div className="ft-chip-val">{c.v}<b>{c.s}</b></div>
+                  <div className="ft-chip-lbl">{c.l}</div>
+                </div>
+              ))}
+            </div>
           </div>
-          <div className="flex flex-col">
-            <span className="font-display font-extrabold text-2xl text-secondary tracking-tight leading-none">FleetTrack</span>
-            <span className="text-[10px] font-bold text-secondary-mid uppercase tracking-[2px] mt-1">Global Logistics</span>
-          </div>
-        </div>
-      </div>
 
-      {/* ─── LOGIN FORM BODY ─── */}
-      <div className="flex-1 bg-neutral-50 px-6 sm:px-8 py-10 -mt-6 rounded-t-[32px] relative z-20 shadow-2xl overflow-hidden max-w-md mx-auto w-full">
-        <div className={`transition-all duration-500 ease-in-out transform flex flex-col ${step === 'ID' ? 'translate-x-0 opacity-100' : '-translate-x-full opacity-0 absolute pointer-events-none'}`}>
-          <h1 className="font-display font-extrabold text-3xl text-neutral-900 tracking-tight leading-tight">Welcome Back</h1>
-          <p className="text-neutral-500 font-medium text-sm mt-2 mb-10">Sign in to manage your fleet across Africa.</p>
+          {/* ── RIGHT ── */}
+          <div className="ft-right">
 
-          <div className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-[10px] font-extrabold text-neutral-400 uppercase tracking-widest ml-1">Phone Number</label>
-              <div className="flex items-center bg-neutral-100 border-2 border-neutral-200 rounded-2xl overflow-hidden focus-within:border-primary focus-within:bg-white transition-all duration-200 shadow-sm focus-within:shadow-xl focus-within:shadow-primary/5">
-                <div className="flex items-center gap-2 px-4 py-4 border-r border-neutral-200 bg-neutral-100/50">
-                  <span className="text-2xl">🇰🇪</span>
-                  <span className="text-sm font-bold text-neutral-700">+254</span>
+            {/* Step 1 — Phone */}
+            <div className={`ft-step ${step === "ID" ? "active" : "exit-left"}`}>
+              <h3>Welcome back 👋</h3>
+              <p className="ft-subtitle">Sign in to manage your fleet.</p>
+
+              <label className="ft-lbl">Phone Number</label>
+              <div className="ft-phone-box">
+                <div className="ft-flag">
+                  <span className="emoji">🇰🇪</span>
+                  <span className="code">+254</span>
                 </div>
                 <input
                   type="tel"
                   value={phoneNumber}
                   onChange={(e) => setPhoneNumber(e.target.value)}
                   placeholder="712 345 678"
-                  className="w-full py-4 px-5 text-lg font-bold text-neutral-900 outline-none bg-transparent placeholder:text-neutral-300 tracking-wider"
                 />
               </div>
-            </div>
 
-            <button
-              onClick={() => setStep("OTP")}
-              className="w-full bg-linear-to-r from-primary to-primary-mid text-white font-display font-extrabold py-5 rounded-2xl shadow-xl shadow-primary/40 flex items-center justify-center gap-3 group active:scale-95 transition-all hover:scale-[1.01]"
-            >
-              NEXT
-              <svg className="w-5 h-5 fill-white group-hover:translate-x-1 transition-transform" viewBox="0 0 24 24">
-                <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
-              </svg>
-            </button>
-
-            <div className="text-center mt-6">
-              <p className="text-sm text-neutral-400 font-bold">
-                Or login with <span className="text-secondary cursor-pointer hover:text-primary transition-colors">Email + Password</span>
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* ─── STEP 2: OTP FLOW ─── */}
-        <div className={`transition-all duration-500 ease-in-out transform flex flex-col h-full ${step === 'OTP' ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 absolute pointer-events-none'}`}>
-          <div className="flex items-center gap-4 mb-6">
-            <button onClick={() => setStep("ID")} className="p-2 -ml-2 text-neutral-400 hover:text-neutral-900 transition-colors">
-              <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24">
-                <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" />
-              </svg>
-            </button>
-            <h2 className="font-display font-extrabold text-2xl text-neutral-900 tracking-tight">Enter OTP</h2>
-          </div>
-
-          <div className="bg-neutral-100 border border-neutral-200 rounded-2xl p-4 flex justify-between items-center mb-8 shadow-inner">
-            <div className="flex flex-col">
-              <span className="text-[10px] text-neutral-400 font-extrabold uppercase tracking-widest">Active Number</span>
-              <span className="font-display font-extrabold text-neutral-900 tracking-tight text-sm">+254 {phoneNumber}</span>
-            </div>
-            <button onClick={() => setStep("ID")} className="text-primary font-bold text-xs hover:bg-primary-light px-3 py-1.5 rounded-lg transition-colors">
-              Change
-            </button>
-          </div>
-
-          <p className="text-neutral-500 font-bold text-sm mb-8 leading-relaxed">We have sent a 4-digit verification code to your number.</p>
-
-          <div className="grid grid-cols-4 gap-4 mb-10">
-            {otp.map((digit, index) => (
-              <input
-                key={index}
-                ref={otpRefs[index]}
-                type="text"
-                maxLength={1}
-                value={digit}
-                onChange={(e) => handleOtpChange(e.target.value, index)}
-                onKeyDown={(e) => handleKeyDown(e, index)}
-                className="w-full h-16 text-center text-2xl font-display font-extrabold bg-white border-2 border-neutral-200 rounded-2xl focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/5 outline-none transition-all duration-200 shadow-sm"
-              />
-            ))}
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <Link href="/dashboard" className="w-full">
-              <button className="w-full bg-linear-to-r from-primary to-primary-mid text-white font-display font-extrabold py-5 rounded-2xl shadow-xl shadow-primary/40 flex items-center justify-center gap-3 group active:scale-95 transition-all hover:scale-[1.01]">
-                LOGIN AS CLIENT
-                <svg className="w-5 h-5 fill-white group-hover:translate-x-1 transition-transform" viewBox="0 0 24 24">
-                  <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
-                </svg>
+              <button className="ft-btn ft-btn-dark" onClick={() => setStep("OTP")}>
+                CONTINUE
+                <svg viewBox="0 0 24 24" fill="white"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
               </button>
-            </Link>
 
-            <Link href="/admin/dashboard" className="w-full">
-              <button className="w-full bg-secondary text-black font-display font-extrabold py-5 rounded-2xl shadow-xl shadow-secondary/20 flex items-center justify-center gap-3 group active:scale-95 transition-all hover:scale-[1.01] border border-white/10 uppercase tracking-wider">
-                LOGIN AS ADMIN
-                <svg className="w-5 h-5 fill-black group-hover:translate-x-1 transition-transform" viewBox="0 0 24 24">
-                  <path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" />
-                </svg>
-              </button>
-            </Link>
-          </div>
+              <p className="ft-alt">Prefer email? <a href="#">Login with password</a></p>
+            </div>
 
-          <div className="text-center mt-8">
-            <p className="text-sm font-bold text-neutral-400">Resend OTP in <span className="text-neutral-900">30 seconds</span></p>
+            {/* Step 2 — OTP */}
+            <div className={`ft-step ${step === "OTP" ? "active" : "exit-right"}`}>
+              <div className="ft-back-row">
+                <button className="ft-back" onClick={() => setStep("ID")}>
+                  <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
+                </button>
+                <h3>Verify OTP</h3>
+              </div>
+
+              <div className="ft-num-card">
+                <div>
+                  <div className="nl">Sending code to</div>
+                  <div className="nv">+254 {phoneNumber || "—"}</div>
+                </div>
+                <button className="ft-change" onClick={() => setStep("ID")}>Change</button>
+              </div>
+
+              <p className="ft-hint">Enter the 4-digit code sent to your number.</p>
+
+              <div className="ft-otp-row">
+                {otp.map((digit, i) => (
+                  <input
+                    key={i}
+                    ref={otpRefs[i]}
+                    type="text"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleOtpChange(e.target.value, i)}
+                    onKeyDown={(e) => handleKeyDown(e, i)}
+                    className="ft-otp-cell"
+                  />
+                ))}
+              </div>
+
+              <Link href="/dashboard" style={{ display: "block" }}>
+                <button className="ft-btn ft-btn-dark" style={{ width: "100%" }}>
+                  LOGIN AS CLIENT
+                  <svg viewBox="0 0 24 24" fill="white"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
+                </button>
+              </Link>
+
+              <Link href="/admin/dashboard" style={{ display: "block" }}>
+                <button className="ft-btn ft-btn-outline" style={{ width: "100%" }}>
+                  LOGIN AS ADMIN
+                  <svg viewBox="0 0 24 24" fill="#1B2340"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
+                </button>
+              </Link>
+
+              <Link href="/driver/dashboard" style={{ display: "block" }}>
+                <button className="ft-btn ft-btn-outline" style={{ width: "100%", marginTop: "10px" }}>
+                  LOGIN AS DRIVER
+                  <svg viewBox="0 0 24 24" fill="#1B2340"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
+                </button>
+              </Link>
+
+              <p className="ft-resend">Resend code in <span>30s</span></p>
+            </div>
+
           </div>
         </div>
       </div>
-
-      {/* ─── PWA BADGE / FOOTER ─── */}
-      <div className="py-8 mt-auto flex flex-col items-center gap-6">
-        <div className="flex items-center gap-2 bg-secondary text-black px-4 py-2 rounded-full text-[10px] font-bold tracking-[2px] shadow-xl uppercase animate-pulse">
-          <svg className="w-4 h-4 fill-primary" viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" /></svg>
-          PWA • Install on any device
-        </div>
-        <p className="text-[10px] font-bold text-neutral-300 uppercase tracking-[1px]">© 2026 FleetTrack Global</p>
-      </div>
-
-      {/* Global CSS for minor custom animations */}
-      <style jsx global>{`
-        @keyframes fade-in-down {
-          0% { opacity: 0; transform: translateY(-30px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        .animate-fade-in-down {
-          animation: fade-in-down 0.8s ease-out;
-        }
-      `}</style>
-    </div>
+    </>
   );
 }
-

@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Sora, DM_Sans } from "next/font/google";
+import { Sora, DM_Sans, Geist } from "next/font/google";
 import "./globals.css";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const sora = Sora({
   variable: "--font-sora",
@@ -42,7 +45,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${sora.variable} ${dmSans.variable} h-full antialiased`}
+      className={cn("h-full", "antialiased", sora.variable, dmSans.variable, "font-sans", geist.variable)}
     >
       <body className="min-h-full flex flex-col relative">
         <div className="africa-pattern" />

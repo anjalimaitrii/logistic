@@ -27,20 +27,19 @@ export default function StatCard({ label, value, icon, subText, trend, variant =
   const trendColor = trend.includes("↑") ? trendColorMap.success : trendColorMap.danger;
 
   return (
-    <div className="bg-white border border-neutral-100 rounded-2xl p-5 relative overflow-hidden group hover:-translate-y-1 transition-all shadow-sm hover:shadow-xl hover:shadow-[#0F172A]/5">
-      <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+    <div className="bg-white border border-neutral-100 rounded-2xl p-4 relative overflow-hidden group hover:shadow-md transition-all shadow-sm">
       <div className="flex justify-between items-start mb-4">
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl shadow-inner ${bgColorMap[variant]}`}>
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-lg shadow-inner ${bgColorMap[variant]}`}>
           {icon}
         </div>
-        <div className={`text-[10px] font-extrabold px-2 py-1 rounded-full uppercase tracking-widest ${trendColor}`}>
+        <div className={`text-[9px] font-medium px-2 py-0.5 rounded-full uppercase tracking-widest ${trendColor}`}>
           {trend}
         </div>
       </div>
-      <div className="text-3xl font-bold tracking-tight text-[#0F172A]">{value}</div>
-      <div className="text-[12px] font-bold text-neutral-400 mt-1 uppercase tracking-wider">{label}</div>
-      <div className="text-[11px] font-medium text-neutral-500 mt-2 flex items-center gap-1.5">
-        <span className="w-1.5 h-1.5 rounded-full bg-neutral-200" />
+      <div className="text-xl font-semibold tracking-tight text-slate-900">{value}</div>
+      <div className="text-[10px] font-medium text-neutral-400 mt-0.5 uppercase tracking-wider">{label}</div>
+      <div className="text-[9px] font-normal text-neutral-400 mt-2 flex items-center gap-1.5 italic">
+        <div className="w-1 h-1 rounded-full bg-neutral-100" />
         {subText}
       </div>
     </div>

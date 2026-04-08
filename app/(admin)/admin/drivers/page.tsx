@@ -5,6 +5,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateDriverModal from "@/components/admin/CreateDriverModal";
+import { ChevronRight, Eye, Phone } from "lucide-react";
 
 export default function AdminDrivers() {
   const [isModalOpen, setModalOpen] = useState(false);
@@ -25,13 +26,13 @@ export default function AdminDrivers() {
   ];
 
   const columns = [
-    { label: "Driver ID", key: "id", render: (val: string) => <span className="font-bold text-primary">{val}</span> },
+    { label: "Driver ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
     { label: "Full Name", key: "name", render: (val: string) => (
        <div className="flex items-center gap-2.5">
           <div className="w-7 h-7 rounded-full bg-neutral-100 flex items-center justify-center font-bold text-[10px] text-neutral-400">
              {val.split(' ').map(n => n[0]).join('')}
           </div>
-          <span className="font-bold text-[#0F172A]">{val}</span>
+          <span className="font-bold text-neutral-900">{val}</span>
        </div>
     )},
     {
@@ -39,24 +40,24 @@ export default function AdminDrivers() {
       key: "status",
       render: (val: string, row: any) => (
         <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${
             row.type === "success"
-              ? "bg-[#ECFDF5] text-[#10B981]"
+              ? "bg-emerald-50 text-emerald-600"
               : row.type === "warning"
               ? "bg-amber-50 text-amber-500"
               : "bg-rose-50 text-rose-500"
           }`}
         >
           <span
-            className={`w-1.5 h-1.5 rounded-full ${
-              row.type === "success" ? "bg-[#10B981]" : row.type === "warning" ? "bg-amber-500" : "bg-rose-500"
+            className={`w-1 h-1 rounded-full ${
+              row.type === "success" ? "bg-emerald-500" : row.type === "warning" ? "bg-amber-500" : "bg-rose-500"
             }`}
           />
           {val}
         </span>
       ),
     },
-    { label: "Assigned Truck", key: "truck", render: (val: string) => <span className="font-bold">{val}</span> },
+    { label: "Assigned Truck", key: "truck", render: (val: string) => <span className="font-semibold text-slate-700">{val}</span> },
     { label: "Contact", key: "contact", render: (val: string) => <span className="text-neutral-500">{val}</span> },
     {
       label: "Actions",
@@ -64,11 +65,11 @@ export default function AdminDrivers() {
       align: "center" as const,
       render: (val: any, row: any) => (
         <div className="flex gap-2 justify-center">
-          <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-neutral-100 text-neutral-400 hover:text-primary hover:bg-primary-light transition-all">
-            👁
+          <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-emerald-600 transition-all shadow-sm">
+            <Eye className="w-3.5 h-3.5" />
           </button>
-          <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-neutral-100 text-neutral-400 hover:text-primary hover:bg-primary-light transition-all">
-            📞
+          <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-emerald-600 transition-all shadow-sm">
+            <Phone className="w-3.5 h-3.5" />
           </button>
         </div>
       ),
@@ -78,19 +79,19 @@ export default function AdminDrivers() {
   return (
     <AdminLayout>
       <div className="p-6 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
            <div>
-              <div className="flex items-center gap-1.5 text-[10px] text-neutral-400 mb-1.5 font-bold uppercase tracking-widest">
-                 <span>FleetTrack</span>
-                 <span>›</span>
-                 <span className="text-primary">Drivers</span>
+              <div className="flex items-center gap-1.5 text-[9px] text-neutral-400 mb-1 font-medium uppercase tracking-widest">
+                 <span className="hover:text-primary cursor-pointer transition-colors">Admin</span>
+                 <ChevronRight className="w-2.5 h-2.5" />
+                 <span className="text-primary/80">Drivers</span>
               </div>
-              <h1 className="text-2xl font-bold tracking-tight text-[#0F172A]">Driver Management</h1>
-              <p className="text-[12px] text-neutral-500 mt-0.5">Oversee driver performance, assignments and compliance.</p>
+              <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Driver Management</h1>
+              <p className="text-[11px] text-neutral-400 mt-0.5">Oversee driver performance, assignments and compliance.</p>
            </div>
            <button 
               onClick={() => setModalOpen(true)}
-              className="bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-[11px] uppercase tracking-widest shadow-lg shadow-primary/20 hover:-translate-y-0.5 transition-all"
+              className="bg-slate-900 text-white px-5 py-2 rounded-lg font-semibold text-[10px] uppercase tracking-widest shadow-sm hover:brightness-110 transition-all w-fit"
            >
               ＋ Add Driver
            </button>
