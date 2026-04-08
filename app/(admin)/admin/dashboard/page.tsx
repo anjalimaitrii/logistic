@@ -110,11 +110,16 @@ export default function AdminDashboard() {
                         </svg>
                      </button>
                   </div>
-                  <div className="h-[280px] bg-neutral-100 relative overflow-hidden">
-                     <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'radial-gradient(#0F172A 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
-                     <div className="absolute top-[40%] left-[30%] w-5 h-5 bg-emerald-500 rounded-lg rotate-45 border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-125 transition-transform"></div>
-                     <div className="absolute top-[25%] left-[60%] w-5 h-5 bg-emerald-500 rounded-lg rotate-45 border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-125 transition-transform"></div>
-                     <div className="absolute top-4 left-4 bg-white/90 border border-neutral-100 rounded-xl p-3 backdrop-blur-md shadow-lg space-y-1.5">
+                  <div className="h-[280px] bg-neutral-50 relative overflow-hidden">
+                     <img 
+                        src="/images/fleet-map.png" 
+                        alt="Fleet Map" 
+                        className="absolute inset-0 w-full h-full object-cover opacity-80"
+                     />
+                     <div className="absolute inset-0 bg-gradient-to-t from-white/20 to-transparent"></div>
+                     <div className="absolute top-[40%] left-[30%] w-5 h-5 bg-emerald-500 rounded-lg rotate-45 border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-125 transition-transform z-10"></div>
+                     <div className="absolute top-[25%] left-[60%] w-5 h-5 bg-emerald-500 rounded-lg rotate-45 border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-125 transition-transform z-10"></div>
+                     <div className="absolute top-4 left-4 bg-white/90 border border-neutral-100 rounded-xl p-3 backdrop-blur-md shadow-lg space-y-1.5 z-20">
                         <div className="text-[9px] text-emerald-600 font-medium uppercase tracking-widest flex items-center gap-2 text-nowrap">
                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> 28 In Transit
                         </div>
@@ -176,12 +181,7 @@ export default function AdminDashboard() {
 
 
             <div className="flex flex-wrap gap-2.5">
-               <button 
-                  onClick={() => setCreateJobOpen(true)}
-                  className="bg-primary text-white px-5 py-2 rounded-lg font-semibold text-[10px] uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary/20"
-               >
-                  ＋ Create New Job
-               </button>
+
                <button className="bg-white border border-neutral-100 text-neutral-500 px-5 py-2 rounded-lg font-semibold text-[10px] uppercase tracking-widest hover:bg-neutral-50 transition-all shadow-sm">
                   🚛 Dispatch Truck
                </button>
