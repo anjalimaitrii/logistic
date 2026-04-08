@@ -46,7 +46,7 @@ export default function CreateJobModal({ isOpen, onClose, onSubmit }: CreateJobM
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[600] pointer-events-none">
+    <div className="fixed inset-0 z-600 pointer-events-none">
       <AnimatePresence>
         {isOpen && (
           <>

@@ -5,7 +5,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateDriverModal from "@/components/admin/CreateDriverModal";
-import { ChevronRight, Eye, Phone } from "lucide-react";
+import { ChevronRight, Eye, Phone, Plus } from "lucide-react";
 
 export default function AdminDrivers() {
   const [isModalOpen, setModalOpen] = useState(false);
@@ -28,12 +28,12 @@ export default function AdminDrivers() {
   const columns = [
     { label: "Driver ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
     { label: "Full Name", key: "name", render: (val: string) => (
-       <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-full bg-neutral-100 flex items-center justify-center font-bold text-[10px] text-neutral-400">
-             {val.split(' ').map(n => n[0]).join('')}
-          </div>
-          <span className="font-bold text-neutral-900">{val}</span>
-       </div>
+      <div className="flex items-center gap-2.5">
+         <div className="w-7 h-7 rounded-full bg-neutral-100 flex items-center justify-center font-semibold text-[10px] text-neutral-400">
+            {val.split(' ').map(n => n[0]).join('')}
+         </div>
+         <span className="font-semibold text-neutral-900">{val}</span>
+      </div>
     )},
     {
       label: "Status",
@@ -78,22 +78,25 @@ export default function AdminDrivers() {
 
   return (
     <AdminLayout>
-      <div className="p-6 space-y-6">
+      <div className="p-6 pb-20 space-y-8 bg-neutral-50 min-h-screen">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
            <div>
-              <div className="flex items-center gap-1.5 text-[9px] text-neutral-400 mb-1 font-medium uppercase tracking-widest">
-                 <span className="hover:text-primary cursor-pointer transition-colors">Admin</span>
+              <div className="flex items-center gap-2 text-[9px] font-medium text-neutral-400 uppercase tracking-widest mb-1.5">
+                 <span className="hover:text-primary cursor-pointer transition-colors">Operations</span>
                  <ChevronRight className="w-2.5 h-2.5" />
-                 <span className="text-primary/80">Drivers</span>
+                 <span className="text-primary/80">Drivers Directory</span>
               </div>
-              <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Driver Management</h1>
+              <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Manage Personnel</h1>
               <p className="text-[11px] text-neutral-400 mt-0.5">Oversee driver performance, assignments and compliance.</p>
            </div>
            <button 
               onClick={() => setModalOpen(true)}
-              className="bg-slate-900 text-white px-5 py-2 rounded-lg font-semibold text-[10px] uppercase tracking-widest shadow-sm hover:brightness-110 transition-all w-fit"
+              className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-semibold text-[10px] uppercase tracking-widest shadow-xl shadow-slate-200 hover:brightness-110 transition-all w-fit flex items-center gap-2"
            >
-              ＋ Add Driver
+              <div className="p-0.5 rounded-md bg-white/20">
+                <Plus className="w-3 h-3" />
+              </div>
+              Add New Driver
            </button>
         </div>
 
@@ -111,11 +114,16 @@ export default function AdminDrivers() {
           onRowClick={(row) => console.log(row)}
           action={
              <div className="flex gap-2">
-                <input
-                   type="text"
-                   placeholder="Search drivers..."
-                   className="bg-white border border-neutral-100 rounded-lg px-3 py-1.5 text-[10px] font-bold outline-none focus:border-primary transition-all w-48 shadow-inner"
-                />
+                <div className="relative group">
+                   <input
+                      type="text"
+                      placeholder="Search drivers..."
+                      className="bg-white border border-neutral-100 rounded-xl px-4 py-2 text-[11px] font-medium outline-none focus:border-primary/20 transition-all w-56 shadow-sm"
+                   />
+                   <div className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">
+                      🔍
+                   </div>
+                </div>
              </div>
           }
         />
@@ -124,8 +132,8 @@ export default function AdminDrivers() {
       <CreateDriverModal 
         isOpen={isModalOpen} 
         onClose={() => setModalOpen(false)} 
-        onSubmit={() => {
-          alert('Driver Added Successfully');
+        onSubmit={(data) => {
+          console.log("Driver Added:", data);
           setModalOpen(false);
         }} 
       />

@@ -22,12 +22,18 @@ export default function CreateTruckModal({ isOpen, onClose, onSubmit }: CreateTr
   const [formData, setFormData] = useState({
     truckId: "",
     model: "",
-    capacity: "",
+    capacity: "", // Tonnage
     year: "2024",
     fuelType: "Diesel",
     health: "Excellent",
+    truckType: "Medium",
+    length: "",
+    width: "",
+    height: "",
     maintenanceDate: new Date().toISOString().split('T')[0]
   });
+
+  const calculatedVolume = (parseFloat(formData.length) || 0) * (parseFloat(formData.width) || 0) * (parseFloat(formData.height) || 0);
 
   const handleFormSubmit = () => {
     onSubmit(formData);
@@ -37,7 +43,7 @@ export default function CreateTruckModal({ isOpen, onClose, onSubmit }: CreateTr
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[600] pointer-events-none">
+    <div className="fixed inset-0 z-600 pointer-events-none">
       <AnimatePresence>
         {isOpen && (
           <>
@@ -103,10 +109,83 @@ export default function CreateTruckModal({ isOpen, onClose, onSubmit }: CreateTr
                           className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-slate-900 focus:border-primary/20 outline-none transition-all"
                         />
                       </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest ml-1">Vehicle Type</label>
+                        <select 
+                          className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-slate-900 focus:border-primary/20 outline-none transition-all cursor-pointer"
+                          value={formData.truckType}
+                          onChange={(e) => setFormData({...formData, truckType: e.target.value})}
+                        >
+                           <option value="Mini">Mini Truck</option>
+                           <option value="Small">Small LCV</option>
+                           <option value="Medium">Medium Duty</option>
+                           <option value="Heavy">Heavy Duty</option>
+                           <option value="Trailer">Flatbed / Trailer</option>
+                        </select>
+                      </div>
                    </div>
                 </section>
 
-                {/* Section 2: Technical & Health */}
+                {/* Section 2: Dimensions & Cargo */}
+                <section className="space-y-4">
+                   <div className="flex items-center gap-2 px-1">
+                      <div className="p-1.5 rounded-lg bg-orange-50 text-orange-600">
+                         <Weight className="w-3.5 h-3.5" />
+                      </div>
+                      <h3 className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">Dimensions & Cargo Specs</h3>
+                   </div>
+
+                   <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100">
+                        <label className="text-[9px] font-bold text-neutral-400 uppercase mb-1">
+                          Length (ft)
+                        </label>
+                        <input
+                          type="number"
+                          className="bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full"
+                          placeholder="L"
+                          value={formData.length}
+                          onChange={(e) => setFormData({...formData, length: e.target.value})}
+                        />
+                      </div>
+                      <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100">
+                        <label className="text-[9px] font-bold text-neutral-400 uppercase mb-1">
+                          Width (ft)
+                        </label>
+                        <input
+                          type="number"
+                          className="bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full"
+                          placeholder="W"
+                          value={formData.width}
+                          onChange={(e) => setFormData({...formData, width: e.target.value})}
+                        />
+                      </div>
+                      <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100">
+                        <label className="text-[9px] font-bold text-neutral-400 uppercase mb-1">
+                          Height (ft)
+                        </label>
+                        <input
+                          type="number"
+                          className="bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full"
+                          placeholder="H"
+                          value={formData.height}
+                          onChange={(e) => setFormData({...formData, height: e.target.value})}
+                        />
+                      </div>
+                   </div>
+
+                   <div className="bg-slate-900 rounded-2xl p-4 flex items-center justify-between shadow-lg shadow-slate-200">
+                      <div>
+                         <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Calculated Volume</p>
+                         <h4 className="text-lg font-bold text-white tracking-tight">{calculatedVolume.toLocaleString()} <span className="text-[10px] text-slate-500 font-medium">Cu. Ft.</span></h4>
+                      </div>
+                      <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center text-white">
+                         📦
+                      </div>
+                   </div>
+                </section>
+
+                {/* Section 3: Technical & Health */}
                 <section className="space-y-4">
                    <div className="flex items-center gap-2 px-1">
                       <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
@@ -118,7 +197,7 @@ export default function CreateTruckModal({ isOpen, onClose, onSubmit }: CreateTr
                    <div className="grid grid-cols-2 gap-3">
                       <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100">
                         <label className="text-[9px] font-bold text-neutral-400 uppercase mb-1 flex items-center gap-1.5">
-                          <Weight className="w-3 h-3" /> Capacity (Tons)
+                          <Weight className="w-3 h-3" /> Max Capacity (Tons)
                         </label>
                         <input
                           type="number"

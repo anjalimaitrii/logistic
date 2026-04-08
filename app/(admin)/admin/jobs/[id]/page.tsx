@@ -3,12 +3,12 @@
 import { useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { 
-  ArrowLeft, 
-  MapPin, 
-  Truck, 
-  User, 
-  Fuel, 
+import {
+  ArrowLeft,
+  MapPin,
+  Truck,
+  User,
+  Fuel,
   Receipt,
   CheckCircle2,
   ChevronRight,
@@ -63,7 +63,7 @@ export default function JobDetailReport() {
     const pAmt = (pKm / mil) * pRate;
     const dAmt = (dKm / mil) * dRate;
     const fuelTotal = pAmt + dAmt;
-    
+
     const transactionTotal = transactions.reduce((acc, t) => acc + t.amount, 0);
     const totalTripCost = fuelTotal + transactionTotal;
 
@@ -174,7 +174,7 @@ export default function JobDetailReport() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="mt-8 md:mt-10 pt-6 border-t border-neutral-50 grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                   <div>
                     <div className="text-[8px] md:text-[9px] font-medium text-neutral-400 uppercase tracking-widest mb-0.5">Cargo</div>
@@ -277,6 +277,24 @@ export default function JobDetailReport() {
                     <p className="text-[10px] text-neutral-500 leading-relaxed">
                       This trip has been marked as completed. All expenses have been verified and the final settlement is processed.
                     </p>
+                  </div>
+
+                  {/* Route Map Integration */}
+                  <div className="mt-4 rounded-xl border border-neutral-100 overflow-hidden shadow-sm relative group">
+                    <div className="absolute top-3 left-3 z-10 bg-white/90 backdrop-blur-md px-2 py-1 rounded-md border border-neutral-100 shadow-sm">
+                      <div className="text-[8px] font-bold text-slate-900 uppercase tracking-widest flex items-center gap-1.5">
+                        <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                        Route Breakdown
+                      </div>
+                    </div>
+                    <div className="h-[180px] bg-neutral-50 relative">
+                      <img
+                        src="/images/fleet-map.png"
+                        alt="Trip Route"
+                        className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-700"
+                      />
+                      <div className="absolute inset-0 bg-neutral-900/5 group-hover:bg-transparent transition-colors" />
+                    </div>
                   </div>
                 </div>
               </div>

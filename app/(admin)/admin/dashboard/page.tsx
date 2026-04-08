@@ -116,7 +116,7 @@ export default function AdminDashboard() {
                         alt="Fleet Map" 
                         className="absolute inset-0 w-full h-full object-cover opacity-80"
                      />
-                     <div className="absolute inset-0 bg-gradient-to-t from-white/20 to-transparent"></div>
+                     <div className="absolute inset-0 bg-linear-to-t from-white/20 to-transparent"></div>
                      <div className="absolute top-[40%] left-[30%] w-5 h-5 bg-emerald-500 rounded-lg rotate-45 border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-125 transition-transform z-10"></div>
                      <div className="absolute top-[25%] left-[60%] w-5 h-5 bg-emerald-500 rounded-lg rotate-45 border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-125 transition-transform z-10"></div>
                      <div className="absolute top-4 left-4 bg-white/90 border border-neutral-100 rounded-xl p-3 backdrop-blur-md shadow-lg space-y-1.5 z-20">
