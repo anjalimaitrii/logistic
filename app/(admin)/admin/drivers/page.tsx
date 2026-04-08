@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
@@ -9,6 +10,7 @@ import { ChevronRight, Eye, Phone, Plus } from "lucide-react";
 
 export default function AdminDrivers() {
   const [isModalOpen, setModalOpen] = useState(false);
+  const router = useRouter();
 
   const kpis = [
     { label: "Total Drivers", value: "48", icon: "👤", subText: "Active on roster", trend: "↑ 4 new", variant: "primary" as const },
@@ -28,7 +30,7 @@ export default function AdminDrivers() {
   const columns = [
     { label: "Driver ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
     { label: "Full Name", key: "name", render: (val: string) => (
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2.5 text-nowrap">
          <div className="w-7 h-7 rounded-full bg-neutral-100 flex items-center justify-center font-semibold text-[10px] text-neutral-400">
             {val.split(' ').map(n => n[0]).join('')}
          </div>
@@ -65,7 +67,13 @@ export default function AdminDrivers() {
       align: "center" as const,
       render: (val: any, row: any) => (
         <div className="flex gap-2 justify-center">
-          <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-emerald-600 transition-all shadow-sm">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/admin/drivers/${row.id}`);
+            }}
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-primary transition-all shadow-sm"
+          >
             <Eye className="w-3.5 h-3.5" />
           </button>
           <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-emerald-600 transition-all shadow-sm">
@@ -111,7 +119,7 @@ export default function AdminDrivers() {
           icon="👥" 
           columns={columns} 
           data={driversData} 
-          onRowClick={(row) => console.log(row)}
+          onRowClick={(row) => router.push(`/admin/drivers/${row.id}`)}
           action={
              <div className="flex gap-2">
                 <div className="relative group">

@@ -33,6 +33,7 @@ export default function CreateJobModal({ isOpen, onClose, onSubmit }: CreateJobM
     dropoffContact: "",
     goodsType: "",
     weight: "",
+    truckType: "",
     advancePaid: "",
     scheduleDate: new Date().toISOString().split('T')[0],
     scheduleTime: "10:00"
@@ -197,11 +198,28 @@ export default function CreateJobModal({ isOpen, onClose, onSubmit }: CreateJobM
                         />
                       </div>
                       <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100">
-                        <label className="text-[9px] font-bold text-neutral-400 uppercase block mb-1">Cargo Type</label>
+                        <label className="text-[9px] font-bold text-neutral-400 uppercase block mb-1">Vehicle Type</label>
+                        <select 
+                          className="bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full cursor-pointer appearance-none"
+                          onChange={(e) => setFormData({...formData, truckType: e.target.value})}
+                          defaultValue=""
+                        >
+                          <option value="" disabled>Select Class</option>
+                          <option value="mini">Mini (1.5 Ton)</option>
+                          <option value="small">Small (3.5 Ton)</option>
+                          <option value="medium">Medium (7.5 Ton)</option>
+                          <option value="heavy">Heavy (15+ Ton)</option>
+                        </select>
+                      </div>
+                   </div>
+
+                   <div className="grid grid-cols-1 gap-3">
+                      <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100">
+                        <label className="text-[9px] font-bold text-neutral-400 uppercase block mb-1">Cargo Details / Description</label>
                         <input
                           type="text"
                           className="bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full"
-                          placeholder="Textiles..."
+                          placeholder="Textiles, Electronics..."
                           onChange={(e) => setFormData({...formData, goodsType: e.target.value})}
                         />
                       </div>

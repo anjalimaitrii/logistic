@@ -102,14 +102,20 @@ export default function BookingRequestsPage() {
           {row.status === "Pending" && (
             <>
               <button
-                onClick={() => handleStatusChange(row.id, "Accepted")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStatusChange(row.id, "Accepted");
+                }}
                 className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all group"
                 title="Accept Request"
               >
                 <CheckCircle className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </button>
               <button
-                onClick={() => handleStatusChange(row.id, "Rejected")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStatusChange(row.id, "Rejected");
+                }}
                 className="p-2 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-600 hover:text-white transition-all group"
                 title="Reject Request"
               >
@@ -118,28 +124,32 @@ export default function BookingRequestsPage() {
             </>
           )}
 
-          {(row.status === "Accepted" || row.status === "Pending") && (
-            <button
-              onClick={() => {
-                setSelectedRequest(row);
-                setIsChatOpen(true);
-              }}
-              className="p-2 bg-neutral-50 text-neutral-400 group-hover:text-primary hover:bg-primary/10 rounded-lg transition-all border border-transparent hover:border-primary/20"
-              title="Negotiate Chat"
-            >
-              <MessageSquare className="w-4 h-4" />
-            </button>
-          )}
+          {row.status === "Accepted" && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedRequest(row);
+                  setIsChatOpen(true);
+                }}
+                className="p-2 bg-neutral-50 text-neutral-400 group-hover:text-primary hover:bg-primary/10 rounded-lg transition-all border border-transparent hover:border-primary/20"
+                title="Negotiate Chat"
+              >
+                <MessageSquare className="w-4 h-4" />
+              </button>
 
-          <button
-            onClick={() => {
-              setSelectedRequest(row);
-              setIsFinalizeDrawerOpen(true);
-            }}
-            className="px-3 py-1.5 bg-slate-900 text-white text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:brightness-110 transition-all shadow-sm flex items-center gap-1.5"
-          >
-            Finalize Deal
-          </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedRequest(row);
+                  setIsFinalizeDrawerOpen(true);
+                }}
+                className="px-3 py-1.5 bg-slate-900 text-white text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:brightness-110 transition-all shadow-sm flex items-center gap-1.5"
+              >
+                Finalize Deal
+              </button>
+            </>
+          )}
 
           {row.status === "Finalized" && (
             <div className="flex items-center gap-1 text-[9px] font-semibold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full">
