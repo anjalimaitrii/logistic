@@ -25,7 +25,7 @@ export default function AdminJobs() {
     { id: "#FL-2847", client: "Coca Cola Co.", status: "Delivered", driver: "Kwame M.", route: "Nairobi → Mom.", type: "success" },
     { id: "#FL-2843", client: "Indomie Food", status: "Delayed", driver: "Fatima O.", route: "Cairo → Alex.", type: "danger" },
     { id: "#FL-2840", client: "Lafarge Holcim", status: "In Transit", driver: "John B.", route: "Accra → Kumasi", type: "transit" },
-    { id: "#FL-2838", client: "Total Energies", status: "Loading", driver: "Oluwaseun P.", route: "P.Harcourt → Enu.", type: "warning" },
+    { id: "#FL-2838", client: "Total Energies", status: "Returned to Warehouse", driver: "Oluwaseun P.", route: "P.Harcourt → Enu.", type: "warehouse" },
   ];
 
   const columns = [
@@ -42,11 +42,13 @@ export default function AdminJobs() {
               ? "bg-emerald-50 text-emerald-600"
               : row.type === "warning"
                 ? "bg-amber-50 text-amber-500"
-                : "bg-rose-50 text-rose-500"
+                : row.type === "warehouse"
+                  ? "bg-indigo-50 text-indigo-600"
+                  : "bg-rose-50 text-rose-500"
             }`}
         >
           <span
-            className={`w-1 h-1 rounded-full ${row.type === "transit" ? "bg-primary animate-pulse" : row.type === "success" ? "bg-emerald-500" : row.type === "warning" ? "bg-amber-500" : "bg-rose-500"
+            className={`w-1 h-1 rounded-full ${row.type === "transit" ? "bg-primary animate-pulse" : row.type === "success" ? "bg-emerald-500" : row.type === "warning" ? "bg-amber-500" : row.type === "warehouse" ? "bg-indigo-500" : "bg-rose-500"
               }`}
           />
           {val}
