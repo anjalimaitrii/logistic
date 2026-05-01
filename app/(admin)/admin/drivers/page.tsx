@@ -1,34 +1,95 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateDriverModal from "@/components/admin/CreateDriverModal";
-import { ChevronRight, Eye, Phone, Plus } from "lucide-react";
+import { ChevronRight, Eye, Phone, Plus, Edit2, Trash2 } from "lucide-react";
+import { driverService } from "@/services/driverService";
 
 export default function AdminDrivers() {
   const [isModalOpen, setModalOpen] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<any>(null);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
+  useEffect(() => {
+    loadDrivers();
+  }, []);
+
+  const loadDrivers = async () => {
+    try {
+      setIsLoading(true);
+      const data = await driverService.getAll();
+      setDrivers(data || []);
+    } catch (error) {
+      console.error("Failed to load drivers:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmitDriver = async (formData: any) => {
+    try {
+      if (selectedDriver) {
+        // Update existing
+        await driverService.update(selectedDriver._id, formData);
+      } else {
+        // Create new
+        await driverService.create(formData);
+      }
+      setModalOpen(false);
+      setSelectedDriver(null);
+      loadDrivers();
+    } catch (error) {
+      console.error("Failed to save driver:", error);
+      alert("Failed to save driver profile");
+    }
+  };
+
+  const handleDeleteDriver = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this driver?")) return;
+    try {
+      await driverService.delete(id);
+      loadDrivers();
+    } catch (error) {
+      console.error("Failed to delete driver:", error);
+      alert("Failed to delete driver");
+    }
+  };
+
+    const handleStatusToggle = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === "Active" ? "Inactive" : "Active";
+    try {
+      await driverService.update(id, { status: newStatus });
+      loadDrivers();
+    } catch (error) {
+      console.error("Failed to toggle status:", error);
+    }
+  };
+
   const kpis = [
-    { label: "Total Drivers", value: "48", icon: "👤", subText: "Active on roster", trend: "↑ 4 new", variant: "primary" as const },
-    { label: "On Duty", value: "32", icon: "🛣️", subText: "Currently driving", trend: "↑ 66%", variant: "success" as const },
-    { label: "Off Duty", value: "14", icon: "🏠", subText: "Resting / Available", trend: "↓ 2 today", variant: "warning" as const },
-    { label: "License Alert", value: "2", icon: "⚠️", subText: "Expiring within 7 days", trend: "↑ 1 new", variant: "danger" as const },
+    { label: "Total Drivers", value: drivers.length.toString(), icon: "👤", subText: "Active on roster", trend: "Live", variant: "primary" as const },
+    { label: "Active", value: drivers.filter(d => d.status === "Active").length.toString(), icon: "🛣️", subText: "Ready for duty", trend: "Updated", variant: "success" as const },
+    { label: "Assigned", value: drivers.filter(d => d.assignedTruck).length.toString(), icon: "🚛", subText: "With vehicles", trend: "Synced", variant: "primary" as const },
+    { label: "Off Duty", value: drivers.filter(d => d.status !== "Active").length.toString(), icon: "🏠", subText: "Resting / Other", trend: "-", variant: "warning" as const },
   ];
 
-  const driversData = [
-    { id: "DRV-102", name: "Adaeze Okafor", status: "Active", truck: "TRK-014", contact: "+234 803 123 4567", type: "success" },
-    { id: "DRV-088", name: "Kwame Mensah", status: "Active", truck: "TRK-022", contact: "+233 24 555 1234", type: "success" },
-    { id: "DRV-115", name: "Fatima Osman", status: "Resting", truck: "TRK-018", contact: "+20 10 9876 5432", type: "warning" },
-    { id: "DRV-092", name: "Bongani Nkosi", status: "License Exp.", truck: "N/A", contact: "+27 82 444 7777", type: "danger" },
-    { id: "DRV-105", name: "Oluwaseun P.", status: "Active", truck: "TRK-038", contact: "+234 812 345 6789", type: "success" },
-  ];
+  const tableData = drivers.map(d => ({
+    id: d.licenseNo.substring(0, 7).toUpperCase(),
+    name: d.name,
+    status: d.status || "Active",
+    truck: d.assignedTruck ? d.assignedTruck.truckId : "Not Assigned",
+    contact: d.phone,
+    type: d.status === "Active" ? "success" : "warning",
+    raw: d
+  }));
 
   const columns = [
-    { label: "Driver ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
+    { label: "License ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
     {
       label: "Full Name", key: "name", render: (val: string) => (
         <div className="flex items-center gap-2.5 text-nowrap">
@@ -43,20 +104,22 @@ export default function AdminDrivers() {
       label: "Status",
       key: "status",
       render: (val: string, row: any) => (
-        <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${row.type === "success"
-              ? "bg-emerald-50 text-emerald-600"
-              : row.type === "warning"
-                ? "bg-amber-50 text-amber-500"
-                : "bg-rose-50 text-rose-500"
-            }`}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleStatusToggle(row.raw._id, val);
+          }}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest transition-all hover:brightness-95 ${
+            val === "Active"
+            ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
+            : "bg-rose-50 text-rose-500 border border-rose-100"
+          }`}
         >
           <span
-            className={`w-1 h-1 rounded-full ${row.type === "success" ? "bg-emerald-500" : row.type === "warning" ? "bg-amber-500" : "bg-rose-500"
-              }`}
+            className={`w-1 h-1 rounded-full ${val === "Active" ? "bg-emerald-500" : "bg-rose-500"}`}
           />
           {val}
-        </span>
+        </button>
       ),
     },
     { label: "Assigned Truck", key: "truck", render: (val: string) => <span className="font-semibold text-slate-700">{val}</span> },
@@ -70,13 +133,31 @@ export default function AdminDrivers() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              router.push(`/admin/drivers/${row.id}`);
+              router.push(`/admin/drivers/${row.raw._id}`);
             }}
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-primary transition-all shadow-sm"
           >
             <Eye className="w-3.5 h-3.5" />
           </button>
-
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedDriver(row.raw);
+              setModalOpen(true);
+            }}
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-primary transition-all shadow-sm"
+          >
+            <Edit2 className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteDriver(row.raw._id);
+            }}
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-rose-500 transition-all shadow-sm"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         </div>
       ),
     },
@@ -96,7 +177,10 @@ export default function AdminDrivers() {
             <p className="text-[11px] text-neutral-400 mt-0.5">Oversee driver performance, assignments and compliance.</p>
           </div>
           <button
-            onClick={() => setModalOpen(true)}
+            onClick={() => {
+              setSelectedDriver(null);
+              setModalOpen(true);
+            }}
             className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-semibold text-[10px] uppercase tracking-widest shadow-xl shadow-slate-200 hover:brightness-110 transition-all w-fit flex items-center gap-2"
           >
             <div className="p-0.5 rounded-md bg-white/20">
@@ -116,8 +200,8 @@ export default function AdminDrivers() {
           title="Staff Directory"
           icon="👥"
           columns={columns}
-          data={driversData}
-          onRowClick={(row) => router.push(`/admin/drivers/${row.id}`)}
+          data={tableData}
+          onRowClick={(row) => router.push(`/admin/drivers/${row.raw._id}`)}
           action={
             <div className="flex gap-2">
               <div className="relative group">
@@ -137,11 +221,12 @@ export default function AdminDrivers() {
 
       <CreateDriverModal
         isOpen={isModalOpen}
-        onClose={() => setModalOpen(false)}
-        onSubmit={(data) => {
-          console.log("Driver Added:", data);
+        onClose={() => {
           setModalOpen(false);
+          setSelectedDriver(null);
         }}
+        onSubmit={handleSubmitDriver}
+        initialData={selectedDriver}
       />
     </AdminLayout>
   );

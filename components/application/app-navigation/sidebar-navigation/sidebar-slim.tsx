@@ -48,14 +48,12 @@ export function SidebarNavigationSlim({ items, footerItems, isExpanded, onHover 
           const Icon = item.icon;
           const isActive = pathname === item.href;
 
-          return (
-            <Link
-              key={item.label}
-              href={item.href || "#"}
-              className={`w-full flex items-center h-10 rounded-lg transition-all group/item px-2 relative
-                ${isActive ? "bg-white/10 text-white shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5"}`}
-            >
-              {/* Active Indicator (Collapsed) */}
+          const sharedClass = `w-full flex items-center h-10 rounded-lg transition-all group/item px-2 relative ${
+            isActive ? "bg-white/10 text-white shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5"
+          }`;
+
+          const content = (
+            <>
               {isActive && !isExpanded && (
                 <motion.div 
                   layoutId="activeIndicator"
@@ -78,12 +76,25 @@ export function SidebarNavigationSlim({ items, footerItems, isExpanded, onHover 
                 )}
               </AnimatePresence>
               
-              {/* Tooltip on Collapsed */}
               {!isExpanded && (
                  <div className="absolute left-full ml-4 px-2 py-1 bg-slate-800 text-white text-[10px] font-medium rounded opacity-0 group-hover/item:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap uppercase tracking-widest shadow-xl border border-white/5">
                     {item.label}
                  </div>
               )}
+            </>
+          );
+
+          if (item.onClick) {
+            return (
+              <button key={item.label} onClick={item.onClick} className={sharedClass}>
+                {content}
+              </button>
+            );
+          }
+
+          return (
+            <Link key={item.label} href={item.href || "#"} className={sharedClass}>
+              {content}
             </Link>
           );
         })}
@@ -94,12 +105,10 @@ export function SidebarNavigationSlim({ items, footerItems, isExpanded, onHover 
         <div className="p-3 border-t border-white/5 space-y-1">
           {footerItems.map((item) => {
             const Icon = item.icon as any;
-            return (
-              <Link
-                key={item.label}
-                href={item.href || "#"}
-                className="w-full h-10 flex items-center px-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group/foot relative"
-              >
+            const sharedClass = "w-full h-10 flex items-center px-2 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-all group/foot relative";
+            
+            const content = (
+              <>
                 <Icon className="w-5 h-5 shrink-0 opacity-70 stroke-[2px] group-hover/foot:opacity-100" />
                 <AnimatePresence>
                   {isExpanded && (
@@ -118,6 +127,20 @@ export function SidebarNavigationSlim({ items, footerItems, isExpanded, onHover 
                       {item.label}
                    </div>
                 )}
+              </>
+            );
+
+            if (item.onClick) {
+              return (
+                <button key={item.label} onClick={item.onClick} className={sharedClass}>
+                  {content}
+                </button>
+              );
+            }
+
+            return (
+              <Link key={item.label} href={item.href || "#"} className={sharedClass}>
+                {content}
               </Link>
             );
           })}

@@ -6,6 +6,7 @@ export interface NavItemType {
   icon?: FC<{ className?: string }>;
   badge?: number | string;
   items?: NavItemType[];
+  onClick?: () => void;
 }
 
 export interface SidebarSlimProps {

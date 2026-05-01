@@ -1,27 +1,76 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateJobModal from "@/components/admin/CreateJobModal";
-import { ChevronRight, Eye, Edit2 } from "lucide-react";
+import { ChevronRight, Eye, Check, X, MessageSquare, Package } from "lucide-react";
+import { bookingService } from "@/services/bookingService";
+import { useRouter } from "next/navigation";
 
 export default function AdminDashboard() {
+   const router = useRouter();
    const [isCreateJobOpen, setCreateJobOpen] = useState(false);
+   const [bookings, setBookings] = useState<any[]>([]);
+   const [isLoading, setIsLoading] = useState(true);
+
+   useEffect(() => {
+      loadData();
+   }, []);
+
+   const loadData = async () => {
+      try {
+         setIsLoading(true);
+         const data = await bookingService.getAll();
+         setBookings(data || []);
+      } catch (error) {
+         console.error("Dashboard load error:", error);
+      } finally {
+         setIsLoading(false);
+      }
+   };
+
+   const handleUpdateStatus = async (id: string, newStatus: string) => {
+      try {
+         await bookingService.updateStatus(id, newStatus);
+         loadData(); // Refresh list
+      } catch (error) {
+         console.error("Status update error:", error);
+      }
+   };
+
+   const getStatusType = (status: string) => {
+      if (!status) return 'warehouse';
+      switch (status.toLowerCase()) {
+         case 'transit': return 'transit';
+         case 'delivered': return 'success';
+         case 'rejected': return 'danger';
+         case 'pending': return 'warning';
+         case 'accepted': return 'transit';
+         case 'finalized': return 'success';
+         default: return 'warehouse';
+      }
+   };
+
+   const activeJobsCount = bookings.filter(b => b?.status === "transit" || b?.status === "accepted").length;
 
    const kpis = [
       { label: "Total Trucks", value: "40", icon: "🚛", subText: "32 active · 6 idle", trend: "↑ 100%", variant: "primary" as const },
-      { label: "Active Jobs", value: "12", icon: "📦", subText: "8 transit · 4 loading", trend: "↑ 4 today", variant: "success" as const },
-      { label: "Fuel Used", value: "2,840L", icon: "⛽", subText: "₦ 3.2M total cost", trend: "↑ 12% vs yest", variant: "warning" as const },
-      { label: "Payments", value: "₦4.8M", icon: "💳", subText: "7 invoices pending", trend: "↓ 2 cleared", variant: "danger" as const },
+      { label: "Active Jobs", value: activeJobsCount.toString(), icon: "📦", subText: `${bookings.filter(b => b?.status === "transit").length} transit · ${bookings.filter(b => b?.status === "accepted").length} accepted`, trend: "Live", variant: "success" as const },
+      { label: "Fuel Used", value: "2,840L", icon: "⛽", subText: "₹ 3.2M total cost", trend: "↑ 12% vs yest", variant: "warning" as const },
+      { label: "Payments", value: "₹4.8M", icon: "💳", subText: "7 invoices pending", trend: "↓ 2 cleared", variant: "danger" as const },
    ];
 
-   const recentJobs = [
-      { id: "#FL-2851", status: "In Transit", driver: "Adaeze O.", route: "Lagos → Abuja", eta: "14:30", type: "transit" },
-      { id: "#FL-2847", status: "Delivered", driver: "Kwame M.", route: "Nairobi → Mom.", eta: "Done", type: "success" },
-      { id: "#FL-2843", status: "Delayed", driver: "Fatima O.", route: "Cairo → Alex.", eta: "+2h", type: "danger" },
-   ];
+   const recentJobsData = bookings.slice(0, 5).map(b => ({
+      id: `#FL-${b?._id?.substring(b._id.length - 7).toUpperCase() || "NEW"}`,
+      status: b?.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : "Unknown",
+      driver: "TBD",
+      route: `${b?.pickup?.address?.city || "N/A"} → ${b?.dropoff?.address?.city || "N/A"}`,
+      eta: b?.status === 'delivered' ? 'Done' : 'Calculating...',
+      type: getStatusType(b?.status || ""),
+      rawId: b?._id
+   }));
 
    const columns = [
       { label: "Job ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
@@ -54,12 +103,36 @@ export default function AdminDashboard() {
          align: "center" as const,
          render: (val: any, row: any) => (
             <div className="flex gap-2 justify-center">
-               <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-emerald-600 transition-all shadow-sm">
+               <button 
+                  onClick={() => router.push(`/admin/jobs/${row.rawId}`)}
+                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-primary transition-all shadow-sm"
+               >
                   <Eye className="w-3.5 h-3.5" />
                </button>
-               <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-emerald-600 transition-all shadow-sm">
-                  <Edit2 className="w-3.5 h-3.5" />
-               </button>
+               
+               {row.type === 'warning' ? (
+                  <>
+                     <button 
+                        onClick={() => handleUpdateStatus(row.rawId, 'accepted')}
+                        className="px-3 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center gap-1.5"
+                     >
+                        <Check className="w-3 h-3" />
+                        Accept
+                     </button>
+                     <button 
+                        onClick={() => handleUpdateStatus(row.rawId, 'rejected')}
+                        className="px-3 py-1 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-rose-100 transition-all flex items-center gap-1.5"
+                     >
+                        <X className="w-3 h-3" />
+                        Reject
+                     </button>
+                  </>
+               ) : (
+                  <button className="px-4 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-all flex items-center gap-1.5">
+                     <MessageSquare className="w-3 h-3" />
+                     Chat
+                  </button>
+               )}
             </div>
          ),
       },
@@ -195,8 +268,21 @@ export default function AdminDashboard() {
                title="Recent Operations"
                icon="📋"
                columns={columns}
-               data={recentJobs}
-               onRowClick={(row) => console.log(row)}
+               data={isLoading ? [] : recentJobsData}
+               onRowClick={(row) => router.push(`/admin/jobs/${row.rawId}`)}
+               emptyState={
+                  isLoading ? (
+                    <div className="py-12 flex flex-col items-center justify-center gap-2">
+                      <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">Syncing latest operations...</p>
+                    </div>
+                  ) : (
+                    <div className="py-12 flex flex-col items-center justify-center gap-2">
+                       <Package className="w-8 h-8 text-slate-100" />
+                       <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">No recent operations</p>
+                    </div>
+                  )
+                }
                action={
                   <select className="bg-white border border-neutral-100 text-[10px] font-bold text-neutral-400 rounded-lg px-2.5 py-1.5 outline-none focus:border-primary transition-all uppercase tracking-widest cursor-pointer">
                      <option>All Jobs</option>

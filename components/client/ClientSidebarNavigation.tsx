@@ -7,10 +7,12 @@ import {
     FileText,
     User,
     Settings,
-    HelpCircle
+    HelpCircle,
+    LogOut
 } from "lucide-react";
 import { SidebarNavigationSlim } from "../application/app-navigation/sidebar-navigation/sidebar-slim";
 import type { NavItemType } from "../application/app-navigation/config";
+import { useRouter } from "next/navigation";
 
 const navItems: (NavItemType & { icon: any })[] = [
     {
@@ -36,6 +38,14 @@ const navItems: (NavItemType & { icon: any })[] = [
 ];
 
 export function ClientSidebarNavigation({ isExpanded, onHover }: { isExpanded: boolean; onHover: (expanded: boolean) => void }) {
+    const router = useRouter();
+
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        router.push("/");
+    };
+
     return (
         <SidebarNavigationSlim
             items={navItems}
@@ -48,9 +58,9 @@ export function ClientSidebarNavigation({ isExpanded, onHover }: { isExpanded: b
                     icon: HelpCircle,
                 },
                 {
-                    label: "Settings",
-                    href: "/dashboard/settings",
-                    icon: Settings,
+                    label: "Logout",
+                    onClick: handleLogout,
+                    icon: LogOut,
                 },
             ]}
         />

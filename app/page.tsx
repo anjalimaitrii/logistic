@@ -1,30 +1,87 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { clientService } from "@/services/clientService";
 
 export default function Home() {
-  const [step, setStep] = useState<"ID" | "OTP">("ID");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [otp, setOtp] = useState(["", "", "", ""]);
-  const otpRefs = [
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-    useRef<HTMLInputElement>(null),
-  ];
+  const router = useRouter();
+  const [step, setStep] = useState<"ID" | "PASSWORD">("ID");
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [mustChangePassword, setMustChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [tempUserId, setTempUserId] = useState("");
 
-  const handleOtpChange = (value: string, index: number) => {
-    if (isNaN(Number(value))) return;
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-    if (value !== "" && index < 3) otpRefs[index + 1].current?.focus();
+  const handleNext = () => {
+    if (!identifier) {
+      setError("Please enter your email or phone number.");
+      return;
+    }
+    setError("");
+    setStep("PASSWORD");
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent, index: number) => {
-    if (e.key === "Backspace" && otp[index] === "" && index > 0)
-      otpRefs[index - 1].current?.focus();
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!password) {
+      setError("Password is required.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await clientService.login({ identifier, password });
+      
+      if (response.client.mustChangePassword) {
+        setTempUserId(response.client._id);
+        setMustChangePassword(true);
+        setIsLoading(false);
+        return;
+      }
+
+      // Store token and user data
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.client));
+
+      // Redirect to the Client Dashboard
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please check your credentials.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError("Password must be at least 8 characters");
+      return;
+    }
+
+    setIsLoading(true);
+    setError("");
+
+    try {
+      await clientService.updatePassword(tempUserId, newPassword);
+      alert("Password changed successfully! Please login with your new password.");
+      window.location.reload();
+    } catch (err: any) {
+      setError(err.message || "Failed to update password");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -348,6 +405,26 @@ export default function Home() {
 
           .ft-step { padding: 36px 24px 40px; }
         }
+
+        .modal-overlay {
+          position: fixed; inset: 0; z-index: 1000;
+          background: rgba(27,35,64,0.85);
+          backdrop-filter: blur(8px);
+          display: flex; align-items: center; justify-content: center;
+          padding: 24px;
+          animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .modal-content {
+          background: #fff; width: 100%; max-width: 440px;
+          border-radius: 24px; padding: 40px;
+          box-shadow: 0 32px 64px rgba(0,0,0,0.2);
+          animation: scaleUp 0.35s cubic-bezier(0.22,1,0.36,1);
+        }
+
+        @keyframes scaleUp { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
       `}</style>
 
       <div className="ft-root">
@@ -407,94 +484,164 @@ export default function Home() {
           {/* ── RIGHT ── */}
           <div className="ft-right">
 
-            {/* Step 1 — Phone */}
+            {/* Step 1 — Identity */}
             <div className={`ft-step ${step === "ID" ? "active" : "exit-left"}`}>
               <h3>Welcome back 👋</h3>
               <p className="ft-subtitle">Sign in to manage your fleet.</p>
 
-              <label className="ft-lbl">Phone Number</label>
-              <div className="ft-phone-box">
-                <div className="ft-flag">
-                  <span className="emoji">🇰🇪</span>
-                  <span className="code">+254</span>
+              {error && (
+                <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-[12px] font-medium border border-red-100 italic">
+                  ⚠️ {error}
                 </div>
+              )}
+
+              <label className="ft-lbl">Email or Phone Number</label>
+              <div className="ft-phone-box">
                 <input
-                  type="tel"
-                  value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(e.target.value)}
-                  placeholder="712 345 678"
+                  type="text"
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  placeholder="e.g. john@example.com or 712345678"
+                  autoFocus
                 />
               </div>
 
-              <button className="ft-btn ft-btn-dark" onClick={() => setStep("OTP")}>
+              <button className="ft-btn ft-btn-dark" onClick={handleNext}>
                 CONTINUE
                 <svg viewBox="0 0 24 24" fill="white"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
               </button>
 
-              <p className="ft-alt">Prefer email? <a href="#">Login with password</a></p>
+              <p className="ft-alt">Need help? <a href="#">Contact Support</a></p>
             </div>
 
-            {/* Step 2 — OTP */}
-            <div className={`ft-step ${step === "OTP" ? "active" : "exit-right"}`}>
+            {/* Step 2 — Password */}
+            <div className={`ft-step ${step === "PASSWORD" ? "active" : "exit-right"}`}>
               <div className="ft-back-row">
                 <button className="ft-back" onClick={() => setStep("ID")}>
                   <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
                 </button>
-                <h3>Verify OTP</h3>
+                <h3>Enter Password</h3>
               </div>
+
+              {error && (
+                <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-[12px] font-medium border border-red-100 italic">
+                  ⚠️ {error}
+                </div>
+              )}
 
               <div className="ft-num-card">
                 <div>
-                  <div className="nl">Sending code to</div>
-                  <div className="nv">+254 {phoneNumber || "—"}</div>
+                  <div className="nl">Signing in as</div>
+                  <div className="nv">{identifier || "—"}</div>
                 </div>
                 <button className="ft-change" onClick={() => setStep("ID")}>Change</button>
               </div>
 
-              <p className="ft-hint">Enter the 4-digit code sent to your number.</p>
-
-              <div className="ft-otp-row">
-                {otp.map((digit, i) => (
-                  <input
-                    key={i}
-                    ref={otpRefs[i]}
-                    type="text"
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleOtpChange(e.target.value, i)}
-                    onKeyDown={(e) => handleKeyDown(e, i)}
-                    className="ft-otp-cell"
-                  />
-                ))}
+              <label className="ft-lbl">Secret Password</label>
+              <div className="ft-phone-box">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+                  autoFocus
+                />
               </div>
 
-              <Link href="/dashboard" style={{ display: "block" }}>
-                <button className="ft-btn ft-btn-dark" style={{ width: "100%" }}>
-                  LOGIN AS CLIENT
-                  <svg viewBox="0 0 24 24" fill="white"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
-                </button>
-              </Link>
+              <button 
+                className="ft-btn ft-btn-dark" 
+                onClick={() => handleLogin()}
+                disabled={isLoading}
+              >
+                {isLoading ? "AUTHENTICATING..." : "LOGIN TO DASHBOARD"}
+                {!isLoading && <svg viewBox="0 0 24 24" fill="white"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>}
+              </button>
 
-              <Link href="/admin/dashboard" style={{ display: "block" }}>
-                <button className="ft-btn ft-btn-outline" style={{ width: "100%" }}>
-                  LOGIN AS ADMIN
-                  <svg viewBox="0 0 24 24" fill="#1B2340"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
-                </button>
-              </Link>
+              <div className="mt-8 pt-8 border-t border-neutral-100 space-y-3">
+                <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest text-center mb-2">Switch Account Type</p>
+                
+                <Link href="/admin/dashboard" style={{ display: "block" }}>
+                  <button className="ft-btn ft-btn-outline" style={{ width: "100%", marginTop: 0 }}>
+                    ADMIN LOGIN
+                    <svg viewBox="0 0 24 24" fill="#1B2340"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
+                  </button>
+                </Link>
 
-              <Link href="/driver/dashboard" style={{ display: "block" }}>
-                <button className="ft-btn ft-btn-outline" style={{ width: "100%", marginTop: "10px" }}>
-                  LOGIN AS DRIVER
-                  <svg viewBox="0 0 24 24" fill="#1B2340"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
-                </button>
-              </Link>
-
-              <p className="ft-resend">Resend code in <span>30s</span></p>
+                <Link href="/driver/dashboard" style={{ display: "block" }}>
+                  <button className="ft-btn ft-btn-outline" style={{ width: "100%", marginTop: 0 }}>
+                    DRIVER LOGIN
+                    <svg viewBox="0 0 24 24" fill="#1B2340"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
+                  </button>
+                </Link>
+              </div>
             </div>
 
           </div>
         </div>
       </div>
+
+      {/* ── FORCE CHANGE PASSWORD MODAL ── */}
+      {mustChangePassword && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+              </div>
+              <h3 className="font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 700; color: #1B2340; margin-bottom: 8px;">Security Update</h3>
+              <p className="text-[14px] text-neutral-500">For your security, you must change your temporary password before accessing the dashboard.</p>
+            </div>
+
+            {error && (
+              <div className="mb-6 p-3 rounded-xl bg-red-50 text-red-600 text-[12px] font-medium border border-red-100 italic">
+                ⚠️ {error}
+              </div>
+            )}
+
+            <form onSubmit={handleChangePassword} className="space-y-5">
+              <div>
+                <label className="ft-lbl">New Password</label>
+                <div className="ft-phone-box">
+                  <input
+                    type="password"
+                    placeholder="Min. 8 characters"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="ft-lbl">Confirm New Password</label>
+                <div className="ft-phone-box">
+                  <input
+                    type="password"
+                    placeholder="Repeat password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <button 
+                type="submit" 
+                className="ft-btn ft-btn-dark py-4 mt-2"
+                disabled={isLoading}
+              >
+                {isLoading ? "UPDATING..." : "UPDATE & LOGIN"}
+                {!isLoading && <svg viewBox="0 0 24 24" fill="white"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>}
+              </button>
+            </form>
+
+            <p className="text-center text-[11px] text-neutral-400 mt-6 italic">
+              * This is a one-time requirement for newly created accounts.
+            </p>
+          </div>
+        </div>
+      )}
     </>
   );
-}
+}

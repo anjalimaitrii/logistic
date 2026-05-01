@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
 import {
@@ -14,45 +14,60 @@ import {
    DollarSign,
    Plus,
    Navigation,
+   User,
+   Hash,
+   MapPin,
+   Building,
    X
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useRouter } from "next/navigation";
+import { bookingService } from "@/services/bookingService";
 
 const TRUCK_TYPES = [
-   { name: "Small Bakkie", icon: "🛻", desc: "1T", cap: "1,000kg" },
-   { name: "Mini Truck", icon: "🚚", desc: "2T", cap: "2,000kg" },
-   { name: "Small Truck", icon: "🚛", desc: "5T", cap: "5,000kg" },
-   { name: "Medium Truck", icon: "📦", desc: "12T", cap: "12,000kg" },
+   { name: "Flat Bed", icon: "🚜", desc: "Open Platform", cap: "Required" },
+   { name: "Walled", icon: "🚛", desc: "Enclosed Sides", cap: "Required" },
 ];
 
 export default function NewBookingPage() {
    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+   const [isSubmitting, setIsSubmitting] = useState(false);
    const isDesktop = useMediaQuery("(min-width: 768px)");
    const router = useRouter();
+   const [user, setUser] = useState<any>(null);
+
+   useEffect(() => {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+         setUser(JSON.parse(storedUser));
+      }
+   }, []);
 
    // ── FORM STATE ──
    const [formData, setFormData] = useState({
       goodsType: "",
       weight: "",
       scheduleDate: new Date().toISOString().split('T')[0],
-      scheduleTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
       pickup: {
-         contact: "",
+         contactPerson: "",
+         contactNumber: "",
+         plotNo: "",
          street: "",
          city: "",
          pincode: "",
          gps: false
       },
       dropoff: {
-         contact: "",
+         contactPerson: "",
+         contactNumber: "",
+         plotNo: "",
          street: "",
          city: "",
          pincode: "",
          gps: false
       },
-      truckType: "Mini Truck"
+      truckType: "Flat Bed"
    });
 
    const handleInputChange = (section: string, field: string, value: string | boolean) => {
@@ -63,6 +78,72 @@ export default function NewBookingPage() {
             ...prev,
             [section]: { ...prev[section as keyof typeof prev] as any, [field]: value }
          }));
+      }
+   };
+
+   const handleSubmit = async () => {
+      // Basic Validation
+      if (!formData.goodsType || !formData.pickup.contactNumber || !formData.dropoff.contactNumber) {
+         alert("Please fill in the required fields (Goods Type and Contact Numbers).");
+         return;
+      }
+
+      setIsSubmitting(true);
+
+      // Construct Payload
+      const payload = {
+         clientId: user?._id || user?.id,
+         cargoDetails: {
+            goodsType: formData.goodsType,
+            weight: formData.weight ? Number(formData.weight) : 0,
+            loadingDate: formData.scheduleDate,
+         },
+         pickup: {
+            contactPerson: formData.pickup.contactPerson,
+            contactNumber: formData.pickup.contactNumber,
+            address: {
+               plotNo: formData.pickup.plotNo,
+               street: formData.pickup.street,
+               city: formData.pickup.city,
+               pincode: formData.pickup.pincode,
+            },
+            gpsEnabled: formData.pickup.gps
+         },
+         dropoff: {
+            contactPerson: formData.dropoff.contactPerson,
+            contactNumber: formData.dropoff.contactNumber,
+            address: {
+               plotNo: formData.dropoff.plotNo,
+               street: formData.dropoff.street,
+               city: formData.dropoff.city,
+               pincode: formData.dropoff.pincode,
+            },
+            gpsEnabled: formData.dropoff.gps
+         },
+         requirement: {
+            bodyType: formData.truckType
+         },
+         status: "pending",
+         metadata: {
+            source: "webapp_client",
+            createdAt: new Date().toISOString()
+         }
+      };
+
+      console.log("🚀 POSTING BOOKING PAYLOAD:", JSON.stringify(payload, null, 2));
+
+      try {
+         // REAL API Call
+         await bookingService.create(payload);
+
+         // SUCCESS
+         setIsSubmitting(false);
+         alert("Booking Request Posted Successfully!");
+         router.push("/dashboard");
+      } catch (error) {
+         console.error("Submission failed:", error);
+         setIsSubmitting(false);
+         alert("Failed to post booking. Please try again.");
       }
    };
 
@@ -100,7 +181,7 @@ export default function NewBookingPage() {
                </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 pt-2 px-2 pb-2 border-t border-slate-50">
+            <div className="grid grid-cols-1 px-2 gap-4 pb-2 border-t border-slate-50 pt-4">
                <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Loading Date</label>
                   <div className="relative">
@@ -109,18 +190,6 @@ export default function NewBookingPage() {
                         type="date"
                         value={formData.scheduleDate}
                         onChange={(e) => handleInputChange("root", "scheduleDate", e.target.value)}
-                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-primary/20 outline-none transition-all"
-                     />
-                  </div>
-               </div>
-               <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Loading Time</label>
-                  <div className="relative">
-                     <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
-                     <input
-                        type="time"
-                        value={formData.scheduleTime}
-                        onChange={(e) => handleInputChange("root", "scheduleTime", e.target.value)}
                         className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-primary/20 outline-none transition-all"
                      />
                   </div>
@@ -146,48 +215,83 @@ export default function NewBookingPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div className="space-y-1 md:col-span-2">
+               <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Contact Person</label>
+                  <div className="relative">
+                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                     <input
+                        type="text"
+                        placeholder="Name of person"
+                        value={formData.pickup.contactPerson}
+                        onChange={(e) => handleInputChange("pickup", "contactPerson", e.target.value)}
+                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-emerald-100 outline-none transition-all"
+                     />
+                  </div>
+               </div>
+               <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Contact Number</label>
                   <div className="relative">
                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
                      <input
                         type="tel"
                         placeholder="+91 00000 00000"
-                        value={formData.pickup.contact}
-                        onChange={(e) => handleInputChange("pickup", "contact", e.target.value)}
+                        value={formData.pickup.contactNumber}
+                        onChange={(e) => handleInputChange("pickup", "contactNumber", e.target.value)}
                         className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-emerald-100 outline-none transition-all"
                      />
                   </div>
                </div>
-               <div className="space-y-1 md:col-span-2">
+               <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Plot / Office No</label>
+                  <div className="relative">
+                     <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                     <input
+                        type="text"
+                        placeholder="Plot no, Shop no..."
+                        value={formData.pickup.plotNo}
+                        onChange={(e) => handleInputChange("pickup", "plotNo", e.target.value)}
+                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-emerald-100 outline-none transition-all"
+                     />
+                  </div>
+               </div>
+               <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Street / Building Name</label>
-                  <input
-                     type="text"
-                     placeholder="House no, Street name..."
-                     value={formData.pickup.street}
-                     onChange={(e) => handleInputChange("pickup", "street", e.target.value)}
-                     className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 px-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-emerald-100 outline-none transition-all"
-                  />
+                  <div className="relative">
+                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                     <input
+                        type="text"
+                        placeholder="Street name, landmark..."
+                        value={formData.pickup.street}
+                        onChange={(e) => handleInputChange("pickup", "street", e.target.value)}
+                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-emerald-100 outline-none transition-all"
+                     />
+                  </div>
                </div>
                <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Area / City</label>
-                  <input
-                     type="text"
-                     placeholder="City name"
-                     value={formData.pickup.city}
-                     onChange={(e) => handleInputChange("pickup", "city", e.target.value)}
-                     className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 px-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-emerald-100 outline-none transition-all"
-                  />
+                  <div className="relative">
+                     <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                     <input
+                        type="text"
+                        placeholder="City name"
+                        value={formData.pickup.city}
+                        onChange={(e) => handleInputChange("pickup", "city", e.target.value)}
+                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-emerald-100 outline-none transition-all"
+                     />
+                  </div>
                </div>
                <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Pincode</label>
-                  <input
-                     type="text"
-                     placeholder="123456"
-                     value={formData.pickup.pincode}
-                     onChange={(e) => handleInputChange("pickup", "pincode", e.target.value)}
-                     className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 px-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-emerald-100 outline-none transition-all"
-                  />
+                  <div className="relative">
+                     <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 scale-x-[-1] rotate-180" />
+                     <input
+                        type="text"
+                        placeholder="123456"
+                        value={formData.pickup.pincode}
+                        onChange={(e) => handleInputChange("pickup", "pincode", e.target.value)}
+                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-emerald-100 outline-none transition-all"
+                     />
+                  </div>
                </div>
             </div>
          </section>
@@ -210,48 +314,83 @@ export default function NewBookingPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               <div className="space-y-1 md:col-span-2">
+               <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Contact Person</label>
+                  <div className="relative">
+                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                     <input
+                        type="text"
+                        placeholder="Name of person"
+                        value={formData.dropoff.contactPerson}
+                        onChange={(e) => handleInputChange("dropoff", "contactPerson", e.target.value)}
+                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-rose-100 outline-none transition-all"
+                     />
+                  </div>
+               </div>
+               <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Contact Number</label>
                   <div className="relative">
                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
                      <input
                         type="tel"
                         placeholder="+91 00000 00000"
-                        value={formData.dropoff.contact}
-                        onChange={(e) => handleInputChange("dropoff", "contact", e.target.value)}
+                        value={formData.dropoff.contactNumber}
+                        onChange={(e) => handleInputChange("dropoff", "contactNumber", e.target.value)}
                         className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-rose-100 outline-none transition-all"
                      />
                   </div>
                </div>
-               <div className="space-y-1 md:col-span-2">
+               <div className="space-y-1">
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Plot / Office No</label>
+                  <div className="relative">
+                     <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                     <input
+                        type="text"
+                        placeholder="Plot no, Shop no..."
+                        value={formData.dropoff.plotNo}
+                        onChange={(e) => handleInputChange("dropoff", "plotNo", e.target.value)}
+                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-rose-100 outline-none transition-all"
+                     />
+                  </div>
+               </div>
+               <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Street / Building Name</label>
-                  <input
-                     type="text"
-                     placeholder="Dest. Street, building..."
-                     value={formData.dropoff.street}
-                     onChange={(e) => handleInputChange("dropoff", "street", e.target.value)}
-                     className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 px-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-rose-100 outline-none transition-all"
-                  />
+                  <div className="relative">
+                     <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                     <input
+                        type="text"
+                        placeholder="Dest. Street, building..."
+                        value={formData.dropoff.street}
+                        onChange={(e) => handleInputChange("dropoff", "street", e.target.value)}
+                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-rose-100 outline-none transition-all"
+                     />
+                  </div>
                </div>
                <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Area / City</label>
-                  <input
-                     type="text"
-                     placeholder="City name"
-                     value={formData.dropoff.city}
-                     onChange={(e) => handleInputChange("dropoff", "city", e.target.value)}
-                     className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 px-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-rose-100 outline-none transition-all"
-                  />
+                  <div className="relative">
+                     <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                     <input
+                        type="text"
+                        placeholder="City name"
+                        value={formData.dropoff.city}
+                        onChange={(e) => handleInputChange("dropoff", "city", e.target.value)}
+                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-rose-100 outline-none transition-all"
+                     />
+                  </div>
                </div>
                <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Pincode</label>
-                  <input
-                     type="text"
-                     placeholder="123456"
-                     value={formData.dropoff.pincode}
-                     onChange={(e) => handleInputChange("dropoff", "pincode", e.target.value)}
-                     className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 px-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-rose-100 outline-none transition-all"
-                  />
+                  <div className="relative">
+                     <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 scale-x-[-1] rotate-180" />
+                     <input
+                        type="text"
+                        placeholder="123456"
+                        value={formData.dropoff.pincode}
+                        onChange={(e) => handleInputChange("dropoff", "pincode", e.target.value)}
+                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-rose-100 outline-none transition-all"
+                     />
+                  </div>
                </div>
             </div>
          </section>
@@ -259,10 +398,10 @@ export default function NewBookingPage() {
          {/* ── 4. VEHICLE CATEGORY ── */}
          <section className="space-y-3">
             <div className="flex items-center justify-between px-1">
-               <h2 className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Select Vehicle Type</h2>
+               <h2 className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Select Body Type (Required)</h2>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-3">
                {TRUCK_TYPES.map((truck) => (
                   <button
                      key={truck.name}
@@ -277,11 +416,24 @@ export default function NewBookingPage() {
             </div>
          </section>
 
-         {/* ── 5. SUBMIT ── */}
          <div className="pt-4 pb-8 md:pb-0">
-            <button className="w-full bg-primary py-4 rounded-2xl text-white text-[12px] font-semibold uppercase tracking-[0.2em] shadow-xl shadow-primary/20 flex items-center justify-center gap-3 active:scale-[0.98] transition-transform hover:brightness-110">
-               Post Booking Request
-               <ChevronRight className="w-4 h-4" strokeWidth={2} />
+            <button
+               onClick={handleSubmit}
+               disabled={isSubmitting}
+               className={`w-full bg-primary py-4 rounded-2xl text-white text-[12px] font-semibold uppercase tracking-[0.2em] shadow-xl shadow-primary/20 flex items-center justify-center gap-3 transition-all active:scale-[0.98] hover:brightness-110 
+                  ${isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}`}
+            >
+               {isSubmitting ? (
+                  <>
+                     <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                     Posting...
+                  </>
+               ) : (
+                  <>
+                     Post Booking Request
+                     <ChevronRight className="w-4 h-4" strokeWidth={2} />
+                  </>
+               )}
             </button>
             <p className="text-center text-[10px] text-slate-400 mt-4 font-medium tracking-tight">By posting, you agree to our Fleet Link Terms & Conditions</p>
          </div>

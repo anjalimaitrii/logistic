@@ -102,6 +102,18 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
         </svg>
       ),
     },
+    {
+      label: "Clients",
+      href: "/admin/clients",
+      icon: (
+        <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      ),
+    },
   ];
 
   const operationsItems: NavItem[] = [
@@ -136,9 +148,8 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
       initial={false}
       animate={{ width: isExpanded ? 240 : 68 }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
-      className={`fixed top-0 left-0 bottom-0 bg-slate-950 border-r border-white/5 flex flex-col z-200 shadow-2xl overflow-hidden ${
-        isOpen ? "translate-x-0 w-[240px]!" : "-translate-x-full lg:translate-x-0"
-      }`}
+      className={`fixed top-0 left-0 bottom-0 bg-slate-950 border-r border-white/5 flex flex-col z-200 shadow-2xl overflow-hidden ${isOpen ? "translate-x-0 w-[240px]!" : "-translate-x-full lg:translate-x-0"
+        }`}
     >
       {/* ── LOGO SECTION ── */}
       <div className="h-16 flex items-center px-4 mb-2 overflow-hidden shrink-0 border-b border-white/5 font-display">
@@ -147,7 +158,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
         </div>
         <AnimatePresence>
           {isExpanded && (
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, x: -10 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -10 }}
@@ -164,7 +175,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
 
       <nav className="flex-1 p-2.5 overflow-y-auto overflow-x-hidden space-y-1 custom-scrollbar">
         {isExpanded && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="text-[9px] font-bold text-slate-500 tracking-widest uppercase px-3 py-3 mt-1"
@@ -183,19 +194,19 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
                 ${isActive ? "bg-white/10 text-white shadow-inner" : "text-slate-400 hover:text-white hover:bg-white/5"}`}
             >
               {isActive && !isExpanded && (
-                <motion.div 
+                <motion.div
                   layoutId="activeIndicatorAdmin"
-                  className="absolute left-[-10px] top-2 bottom-2 w-1 bg-primary rounded-full shadow-[0_0_8px_rgba(255,107,0,0.8)]" 
+                  className="absolute left-[-10px] top-2 bottom-2 w-1 bg-primary rounded-full shadow-[0_0_8px_rgba(255,107,0,0.8)]"
                 />
               )}
-              
+
               <div className={`w-9 h-9 flex items-center justify-center shrink-0 transition-all ${isActive ? "text-primary scale-110" : "opacity-70 group-hover/item:opacity-100 group-hover/item:scale-110"}`}>
                 {item.icon}
               </div>
 
               <AnimatePresence>
                 {isExpanded && (
-                  <motion.span 
+                  <motion.span
                     initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -10 }}
@@ -207,7 +218,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
               </AnimatePresence>
 
               {item.badge && isExpanded && (
-                <motion.span 
+                <motion.span
                   initial={{ scale: 0 }}
                   animate={{ scale: 1 }}
                   className="bg-primary text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center shadow-lg shadow-primary/20"
@@ -218,16 +229,16 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
 
               {/* Tooltip on Collapsed */}
               {!isExpanded && (
-                 <div className="absolute left-full ml-4 px-2 py-1 bg-slate-800 text-white text-[10px] font-bold rounded opacity-0 group-hover/item:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap uppercase tracking-widest shadow-xl border border-white/5">
-                    {item.label}
-                 </div>
+                <div className="absolute left-full ml-4 px-2 py-1 bg-slate-800 text-white text-[10px] font-bold rounded opacity-0 group-hover/item:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap uppercase tracking-widest shadow-xl border border-white/5">
+                  {item.label}
+                </div>
               )}
             </Link>
           );
         })}
 
         {isExpanded && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             className="text-[9px] font-bold text-slate-500 tracking-widest uppercase px-3 py-3 mt-4"
@@ -247,7 +258,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
             </div>
             <AnimatePresence>
               {isExpanded && (
-                <motion.span 
+                <motion.span
                   initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -10 }}
@@ -258,19 +269,19 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
               )}
             </AnimatePresence>
             {!isExpanded && (
-               <div className="absolute left-full ml-4 px-2 py-1 bg-slate-800 text-white text-[10px] font-bold rounded opacity-0 group-hover/item:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap uppercase tracking-widest shadow-xl border border-white/5">
-                  {item.label}
-               </div>
+              <div className="absolute left-full ml-4 px-2 py-1 bg-slate-800 text-white text-[10px] font-bold rounded opacity-0 group-hover/item:opacity-100 pointer-events-none transition-opacity z-50 whitespace-nowrap uppercase tracking-widest shadow-xl border border-white/5">
+                {item.label}
+              </div>
             )}
           </Link>
         ))}
       </nav>
 
       <div className="p-3 border-t border-white/5">
-        <motion.div 
-          animate={{ 
+        <motion.div
+          animate={{
             backgroundColor: isExpanded ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0)",
-            padding: isExpanded ? "8px" : "4px" 
+            padding: isExpanded ? "8px" : "4px"
           }}
           className="flex items-center gap-2.5 rounded-xl transition-all border border-white/5"
         >
@@ -279,7 +290,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
           </div>
           <AnimatePresence>
             {isExpanded && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, width: 0 }}
                 animate={{ opacity: 1, width: "auto" }}
                 exit={{ opacity: 0, width: 0 }}

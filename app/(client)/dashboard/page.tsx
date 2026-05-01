@@ -16,23 +16,56 @@ import {
 import { motion } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { AnimatedGradientText } from "@/components/ui/animated-gradient-text";
+import { bookingService } from "@/services/bookingService";
+import { useEffect } from "react";
 
-// ── DATA PREP (Ready for API Swap) ──
-const dashboardStats = [
-   { label: "Active Jobs", value: "3", sub: "+1 this week", icon: Package, color: "text-primary" },
-   { label: "Total Spent", value: "₹1.85L", sub: "Last 30 days", icon: DollarSign, color: "text-slate-900" },
-   { label: "Pending Inv.", value: "2", sub: "Requires action", icon: TrendingUp, color: "text-emerald-600" },
-];
-
-const recentJobs = [
-   { id: "JOB-004", origin: "Lagos", destination: "Abuja", cargo: "5 Ton Tiles", status: "In Transit", date: "07 Apr", type: "transit" },
-   { id: "JOB-003", origin: "Nairobi", destination: "Mombasa", cargo: "Electronics", status: "Confirmed", date: "06 Apr", type: "confirmed" },
-   { id: "JOB-002", origin: "Accra", destination: "Kumasi", cargo: "Furniture", status: "Delivered", date: "05 Apr", type: "delivered" },
-];
 
 export default function DashboardPage() {
    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+   const [user, setUser] = useState<any>(null);
+   const [bookings, setBookings] = useState<any[]>([]);
+   const [isLoading, setIsLoading] = useState(true);
    const isDesktop = useMediaQuery("(min-width: 768px)");
+
+   useEffect(() => {
+      const storedUser = localStorage.getItem("user");
+      if (storedUser) {
+         const parsedUser = JSON.parse(storedUser);
+         setUser(parsedUser);
+         loadBookings(parsedUser._id || parsedUser.id);
+      } else {
+         loadBookings();
+      }
+   }, []);
+
+   const loadBookings = async (clientId?: string) => {
+      try {
+         setIsLoading(true);
+         const data = await bookingService.getAll(clientId);
+         setBookings(data || []);
+      } catch (error) {
+         console.error("Dashboard fetch error:", error);
+      } finally {
+         setIsLoading(false);
+      }
+   };
+
+   // ── DYNAMIC STATS ──
+   const dynamicStats = [
+      { label: "Active Jobs", value: bookings.filter(b => b.status === "transit" || b.status === "confirmed").length.toString(), sub: "Real-time", icon: Package, color: "text-primary" },
+      { label: "Total Bookings", value: bookings.length.toString(), sub: "Lifetime", icon: DollarSign, color: "text-slate-900" },
+      { label: "Pending", value: bookings.filter(b => b.status === "pending").length.toString(), sub: "Action required", icon: TrendingUp, color: "text-emerald-600" },
+   ];
+
+   // ── MAP RECENT 3 BOOKINGS ──
+   const recentDisplayJobs = bookings.slice(-3).reverse().map(b => ({
+      id: b._id?.substring(b._id.length - 7).toUpperCase() || "NEW",
+      origin: b.pickup?.address?.city || "Unknown",
+      destination: b.dropoff?.address?.city || "Unknown",
+      cargo: b.cargoDetails?.goodsType || "Cargo",
+      status: b.status.charAt(0).toUpperCase() + b.status.slice(1),
+      type: b.status // transit, delivered, confirmed, etc.
+   }));
 
    return (
       <div className="flex bg-white min-h-screen relative overflow-x-hidden transition-colors duration-500">
@@ -75,10 +108,12 @@ export default function DashboardPage() {
                   </button>
                   <div className="h-4 w-px bg-slate-200 mx-1" />
                   <div className="flex items-center gap-2 pl-2">
-                     <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[10px] font-medium">S</div>
+                     <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[10px] font-medium">
+                        {user?.name?.charAt(0) || "U"}
+                     </div>
                      <div className="hidden lg:block leading-none">
-                        <p className="text-[11px] font-semibold text-slate-900">Mr. Sharma</p>
-                        <p className="text-[9px] text-slate-400 mt-0.5">Fleet Owner</p>
+                        <p className="text-[11px] font-semibold text-slate-900">{user?.name || "User"}</p>
+                        <p className="text-[9px] text-slate-400 mt-0.5">{user?.designation || "Representative"}</p>
                      </div>
                   </div>
                </div>
@@ -106,7 +141,7 @@ export default function DashboardPage() {
 
                {/* ── STATS GRID (API READY) ── */}
                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4 mb-6">
-                  {dashboardStats.map((stat, i) => (
+                  {dynamicStats.map((stat, i) => (
                      <div key={i} className="bg-white p-3 md:p-4 rounded-xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow group cursor-default">
                         <div className="flex items-center justify-between mb-3">
                            <div className={`w-7 h-7 md:w-8 md:h-8 rounded-lg bg-slate-50 flex items-center justify-center ${stat.color}`}>
@@ -142,36 +177,45 @@ export default function DashboardPage() {
                            </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                           {recentJobs.map((job) => (
-                              <tr key={job.id} className="hover:bg-slate-50/80 transition-colors group">
-                                 <td className="px-4 md:px-5 py-3 text-[11px] md:text-[12px] font-medium text-slate-900">{job.id}</td>
-                                 <td className="px-4 md:px-5 py-3">
-                                    <div className="flex items-center gap-2">
-                                       <span className="text-[10px] md:text-[11px] font-medium text-slate-700">{job.origin}</span>
-                                       <div className="w-3 h-px bg-slate-200" />
-                                       <span className="text-[10px] md:text-[11px] font-medium text-slate-700">{job.destination}</span>
-                                    </div>
-                                 </td>
-                                 <td className="px-4 md:px-5 py-3 text-[10px] md:text-[11px] font-medium text-slate-500">{job.cargo}</td>
-                                 <td className="px-4 md:px-5 py-3">
-                                    <span className={`px-2 py-0.5 rounded-full text-[8px] md:text-[9px] font-semibold uppercase tracking-widest border shrink-0
-                                    ${job.type === 'transit' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
-                                          job.type === 'delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'}`}>
-                                       {job.status}
-                                    </span>
-                                 </td>
-                                 <td className="px-4 md:px-5 py-3 text-right">
-                                    <div className="flex justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                                       <Link href="/jobs/track" className="p-1.5 hover:bg-slate-100 rounded-md text-primary border border-transparent hover:border-slate-200 transition-all">
-                                          <TrendingUp className="w-3 md:w-3.5 h-3 md:h-3.5" />
-                                       </Link>
-                                       <button className="p-1.5 hover:bg-slate-100 rounded-md text-slate-400 border border-transparent hover:border-slate-200 transition-all">
-                                          <MoreHorizontal className="w-3 md:w-3.5 h-3 md:h-3.5" />
-                                       </button>
-                                    </div>
-                                 </td>
+                           {isLoading ? (
+                              <tr>
+                                 <td colSpan={5} className="px-4 py-8 text-center text-[10px] text-slate-400 italic">Syncing shipments...</td>
                               </tr>
-                           ))}
+                           ) : recentDisplayJobs.length === 0 ? (
+                              <tr>
+                                 <td colSpan={5} className="px-4 py-8 text-center text-[10px] text-slate-400">No recent activity.</td>
+                              </tr>
+                           ) : (
+                              recentDisplayJobs.map((job) => (
+                                 <tr key={job.id} className="hover:bg-slate-50/80 transition-colors group">
+                                    <td className="px-4 md:px-5 py-3 text-[11px] md:text-[12px] font-medium text-slate-900">{job.id}</td>
+                                    <td className="px-4 md:px-5 py-3">
+                                       <div className="flex items-center gap-2">
+                                          <span className="text-[10px] md:text-[11px] font-medium text-slate-700">{job.origin}</span>
+                                          <div className="w-3 h-px bg-slate-200" />
+                                          <span className="text-[10px] md:text-[11px] font-medium text-slate-700">{job.destination}</span>
+                                       </div>
+                                    </td>
+                                    <td className="px-4 md:px-5 py-3 text-[10px] md:text-[11px] font-medium text-slate-500">{job.cargo}</td>
+                                    <td className="px-4 md:px-5 py-3">
+                                       <span className={`px-2 py-0.5 rounded-full text-[8px] md:text-[9px] font-semibold uppercase tracking-widest border shrink-0
+                                       ${job.type === 'transit' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                                             job.type === 'delivered' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                job.type === 'pending' ? 'bg-amber-50 text-amber-600 border-amber-100' :
+                                                   'bg-slate-50 text-slate-400 border-slate-100'}`}>
+                                          {job.status}
+                                       </span>
+                                    </td>
+                                    <td className="px-4 md:px-5 py-3 text-right">
+                                       <div className="flex justify-end gap-1 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+                                          <Link href="/dashboard/jobs" className="p-1.5 hover:bg-slate-100 rounded-md text-primary border border-transparent hover:border-slate-200 transition-all">
+                                             <TrendingUp className="w-3 md:w-3.5 h-3 md:h-3.5" />
+                                          </Link>
+                                       </div>
+                                    </td>
+                                 </tr>
+                              ))
+                           )}
                         </tbody>
                      </table>
                   </div>

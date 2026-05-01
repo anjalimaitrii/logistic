@@ -1,41 +1,118 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
 import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
-import { MessageSquare, CheckCircle, XCircle, Clock, ChevronRight } from "lucide-react";
+import { MessageSquare, CheckCircle, XCircle, Clock, ChevronRight, Package } from "lucide-react";
 import StatCard from "@/components/admin/StatCard";
+import { bookingService } from "@/services/bookingService";
+import { useRouter } from "next/navigation";
+import CreateBookingDrawer from "@/components/admin/CreateBookingDrawer";
 
 type RequestStatus = "Pending" | "Accepted" | "Rejected" | "Finalized";
 
-interface BookingRequest {
-  id: string;
-  customer: string;
-  route: string;
-  cargo: string;
-  price: string;
-  date: string;
-  status: RequestStatus;
-  weight?: string;
-}
-
 export default function BookingRequestsPage() {
-  const [requests, setRequests] = useState<BookingRequest[]>([
-    { id: "#BR-1001", customer: "John Doe", route: "Lagos → Abuja", cargo: "Furniture", weight: "1.2 Tons", price: "₦150,000", date: "06 Apr 2026", status: "Pending" },
-    { id: "#BR-1002", customer: "Sarah Smith", route: "Ibadan → Kano", cargo: "Textiles", weight: "2.5 Tons", price: "₦280,000", date: "06 Apr 2026", status: "Accepted" },
-    { id: "#BR-1003", customer: "Michael Chen", route: "Port Har. → Enugu", cargo: "Electronics", weight: "500kg", price: "₦420,000", date: "05 Apr 2026", status: "Pending" },
-    { id: "#BR-1004", customer: "Amaka Okafor", route: "Benin → Warri", cargo: "Food Items", weight: "3.1 Tons", price: "₦95,000", date: "05 Apr 2026", status: "Rejected" },
-  ]);
-
-  const [selectedRequest, setSelectedRequest] = useState<BookingRequest | null>(null);
+  const router = useRouter();
+  const [requests, setRequests] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isFinalizeDrawerOpen, setIsFinalizeDrawerOpen] = useState(false);
+  const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
 
-  const handleStatusChange = (id: string, newStatus: RequestStatus) => {
-    setRequests(prev => prev.map(req => req.id === id ? { ...req, status: newStatus } : req));
+  useEffect(() => {
+    loadRequests();
+  }, []);
+
+  const loadRequests = async () => {
+    try {
+      setIsLoading(true);
+      const data = await bookingService.getAll();
+      setRequests(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error("Fetch requests error:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
+
+  const handleCreateBooking = async (data: any) => {
+    try {
+      const payload = {
+        clientId: data.clientId,
+        cargoDetails: {
+          goodsType: data.goodsType,
+          weight: Number(data.weight),
+          loadingDate: data.scheduleDate,
+        },
+        pickup: {
+          contactPerson: data.pickupContactPerson,
+          contactNumber: data.pickupContact,
+          address: {
+            plotNo: data.pickupPlotNo,
+            street: data.pickupStreet,
+            city: data.pickupCity,
+            pincode: data.pickupPincode,
+          },
+          gpsEnabled: false
+        },
+        dropoff: {
+          contactPerson: data.dropoffContactPerson,
+          contactNumber: data.dropoffContact,
+          address: {
+            plotNo: data.dropoffPlotNo,
+            street: data.dropoffStreet,
+            city: data.dropoffCity,
+            pincode: data.dropoffPincode,
+          },
+          gpsEnabled: false
+        },
+        requirement: {
+          bodyType: data.truckType
+        },
+        status: "accepted"
+      };
+      await bookingService.create(payload);
+      loadRequests();
+      setIsCreateDrawerOpen(false);
+    } catch (error) {
+      console.error("Create booking error:", error);
+      alert("Failed to create booking.");
+    }
+  };
+
+  const handleStatusChange = async (id: string, newStatus: string, additionalData: any = {}) => {
+    try {
+      await bookingService.updateStatus(id, newStatus.toLowerCase(), additionalData);
+      loadRequests();
+    } catch (error) {
+      console.error("Status update error:", error);
+    }
+  };
+
+  const getStatusLabel = (status: string): RequestStatus => {
+    if (!status) return 'Pending';
+    const s = status.toLowerCase();
+    if (s === 'pending') return 'Pending';
+    if (s === 'accepted') return 'Accepted';
+    if (s === 'rejected') return 'Rejected';
+    if (s === 'finalized' || s === 'delivered') return 'Finalized';
+    return 'Pending';
+  };
+
+  const tableData = requests.map(req => ({
+    id: `#BR-${req._id?.substring(req._id.length - 7).toUpperCase() || "NEW"}`,
+    customer: (req.clientId as any)?.name || "Direct Client",
+    route: `${req.pickup.address.city} → ${req.dropoff.address.city}`,
+    cargo: req.cargoDetails.goodsType,
+    weight: `${req.cargoDetails.weight} KG`,
+    price: req.finalAmount ? `₹${req.finalAmount}` : "TBD",
+    date: new Date(req.createdAt || req.metadata?.createdAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    status: getStatusLabel(req.status),
+    raw: req
+  }));
 
   const columns = [
     {
@@ -63,10 +140,10 @@ export default function BookingRequestsPage() {
     {
       label: "Cargo Detail",
       key: "cargo",
-      render: (val: string, row: BookingRequest) => (
+      render: (val: string, row: any) => (
         <div className="flex flex-col">
           <span className="text-[12px] font-medium text-neutral-900">{val}</span>
-          <span className="text-[10px] font-medium text-neutral-400 uppercase tracking-tighter">{row.weight || "N/A"}</span>
+          <span className="text-[10px] font-medium text-neutral-400 uppercase tracking-tighter">{row.weight}</span>
         </div>
       )
     },
@@ -97,14 +174,14 @@ export default function BookingRequestsPage() {
       label: "Actions",
       key: "actions",
       align: "center" as const,
-      render: (_: any, row: BookingRequest) => (
+      render: (_: any, row: any) => (
         <div className="flex gap-2 justify-center items-center">
           {row.status === "Pending" && (
             <>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleStatusChange(row.id, "Accepted");
+                  handleStatusChange(row.raw._id, "Accepted");
                 }}
                 className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all group"
                 title="Accept Request"
@@ -114,7 +191,7 @@ export default function BookingRequestsPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleStatusChange(row.id, "Rejected");
+                  handleStatusChange(row.raw._id, "Rejected");
                 }}
                 className="p-2 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-600 hover:text-white transition-all group"
                 title="Reject Request"
@@ -129,19 +206,19 @@ export default function BookingRequestsPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedRequest(row);
+                  setSelectedRequest(row.raw);
                   setIsChatOpen(true);
                 }}
-                className="p-2 bg-neutral-50 text-neutral-400 group-hover:text-primary hover:bg-primary/10 rounded-lg transition-all border border-transparent hover:border-primary/20"
+                className="p-2 bg-neutral-50 text-neutral-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all border border-transparent hover:border-primary/20 group"
                 title="Negotiate Chat"
               >
-                <MessageSquare className="w-4 h-4" />
+                <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </button>
 
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setSelectedRequest(row);
+                  setSelectedRequest(row.raw);
                   setIsFinalizeDrawerOpen(true);
                 }}
                 className="px-3 py-1.5 bg-slate-900 text-white text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:brightness-110 transition-all shadow-sm flex items-center gap-1.5"
@@ -157,16 +234,23 @@ export default function BookingRequestsPage() {
               Completed
             </div>
           )}
+
+          {row.status === "Rejected" && (
+            <div className="flex items-center gap-1 text-[9px] font-semibold text-rose-500 uppercase tracking-widest bg-rose-50 px-3 py-1 rounded-full">
+              <XCircle className="w-3 h-3" />
+              Rejected
+            </div>
+          )}
         </div>
       )
     }
   ];
 
   const stats = [
-    { label: "Total Submissions", value: "124", icon: "📩", subText: "Last 30 days", trend: "↑ 12%", variant: "primary" as const },
-    { label: "Accepted Deals", value: "82", icon: "🤝", subText: "High conversion", trend: "↑ 66%", variant: "success" as const },
-    { label: "Pending Review", value: "14", icon: "⏳", subText: "Awaiting action", trend: "↓ 2 today", variant: "warning" as const },
-    { label: "Rejections", value: "28", icon: "🚫", subText: "Profile mismatch", trend: "—", variant: "danger" as const },
+    { label: "Total Submissions", value: requests.length.toString(), icon: "📩", subText: "Overall Requests", trend: "Live", variant: "primary" as const },
+    { label: "Accepted Deals", value: requests.filter(r => r.status === 'accepted' || r.status === 'finalized').length.toString(), icon: "🤝", subText: "Active/Accepted", trend: "Sync", variant: "success" as const },
+    { label: "Pending Review", value: requests.filter(r => r.status === 'pending').length.toString(), icon: "⏳", subText: "Awaiting Action", trend: "High", variant: "warning" as const },
+    { label: "Rejections", value: requests.filter(r => r.status === 'rejected').length.toString(), icon: "🚫", subText: "Closed Requests", trend: "Live", variant: "danger" as const },
   ];
 
   return (
@@ -183,24 +267,13 @@ export default function BookingRequestsPage() {
             <p className="text-[11px] text-neutral-400 mt-0.5">Review and finalize client cargo submissions in real-time.</p>
           </div>
 
-          <div className="flex items-center gap-4 bg-white p-2.5 rounded-2xl border border-neutral-100 shadow-sm">
-            <div className="flex -space-x-2.5">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[9px] font-semibold text-slate-400">
-                  U{i}
-                </div>
-              ))}
-              <div className="w-8 h-8 rounded-full border-2 border-white bg-slate-900 text-white text-[9px] flex items-center justify-center font-semibold relative group">
-                +2
-                <div className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full border border-white" />
-              </div>
-            </div>
-            <div className="h-8 w-px bg-neutral-100" />
-            <div className="flex flex-col">
-              <span className="text-[11px] font-semibold text-slate-900 leading-none">5 New Deals</span>
-              <span className="text-[9px] font-medium text-neutral-400 uppercase tracking-tighter mt-1">Ready to scale</span>
-            </div>
-          </div>
+          <button
+            onClick={() => setIsCreateDrawerOpen(true)}
+            className="bg-slate-900 text-white px-6 py-2.5 rounded-lg font-bold text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-slate-200 hover:brightness-110 transition-all w-fit"
+          >
+            ＋ NEW BOOKING
+          </button>
+
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -213,11 +286,26 @@ export default function BookingRequestsPage() {
           title="Recent Submissions"
           icon="📩"
           columns={columns}
-          data={requests}
+          data={isLoading ? [] : tableData}
           onRowClick={(row) => {
-            setSelectedRequest(row);
-            setIsChatOpen(true);
+            if (row.status === "Accepted") {
+              setSelectedRequest(row.raw);
+              setIsChatOpen(true);
+            }
           }}
+          emptyState={
+            isLoading ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-2">
+                <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">Syncing latest submissions...</p>
+              </div>
+            ) : (
+              <div className="py-12 flex flex-col items-center justify-center gap-2">
+                <Package className="w-8 h-8 text-neutral-200" />
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">No active submissions found</p>
+              </div>
+            )
+          }
           action={
             <div className="flex gap-2">
               <div className="relative group">
@@ -237,7 +325,15 @@ export default function BookingRequestsPage() {
         <BookingChatPanel
           isOpen={isChatOpen}
           onClose={() => setIsChatOpen(false)}
-          request={selectedRequest}
+          request={selectedRequest ? {
+            id: `#BR-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
+            customer: (selectedRequest.clientId as any)?.name || "Direct Client",
+            route: `${selectedRequest.pickup.address.city} → ${selectedRequest.dropoff.address.city}`,
+            cargo: selectedRequest.cargoDetails.goodsType,
+            price: "TBD",
+            date: new Date(selectedRequest.createdAt || Date.now()).toLocaleDateString(),
+            status: getStatusLabel(selectedRequest.status) as any
+          } : null}
           onFinalize={() => {
             setIsChatOpen(false);
             setIsFinalizeDrawerOpen(true);
@@ -247,14 +343,32 @@ export default function BookingRequestsPage() {
         <FinalizeDealDrawer
           isOpen={isFinalizeDrawerOpen}
           onClose={() => setIsFinalizeDrawerOpen(false)}
-          request={selectedRequest}
+          request={selectedRequest ? {
+            ...selectedRequest,
+            id: `#BR-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
+            customer: (selectedRequest.clientId as any)?.name || "Direct Client",
+            route: `${selectedRequest.pickup.address.city} → ${selectedRequest.dropoff.address.city}`,
+            cargo: selectedRequest.cargoDetails.goodsType,
+            price: "TBD",
+            date: new Date(selectedRequest.createdAt || Date.now()).toLocaleDateString(),
+            status: getStatusLabel(selectedRequest.status) as any
+          } : null}
           onSubmit={(data) => {
             if (selectedRequest) {
-              handleStatusChange(selectedRequest.id, "Finalized");
+              handleStatusChange(selectedRequest._id, "Finalized", {
+                finalAmount: Number(data.amount),
+                advancePaid: Number(data.advancePaid),
+                specialRequest: data.specialRequest
+              });
             }
-            // Here we would typically hit an API to create a job
-            console.log("Creating job with data:", data);
+            setIsFinalizeDrawerOpen(false);
+            console.log("Finalizing deal with data:", data);
           }}
+        />
+        <CreateBookingDrawer
+          isOpen={isCreateDrawerOpen}
+          onClose={() => setIsCreateDrawerOpen(false)}
+          onSubmit={handleCreateBooking}
         />
       </div>
     </AdminLayout>

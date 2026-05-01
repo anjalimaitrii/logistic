@@ -13,7 +13,10 @@ import {
   FileText,
   CheckCircle2,
   ArrowLeft,
-  Clock
+  Clock,
+  User,
+  Hash,
+  Building
 } from "lucide-react";
 
 interface FinalizeDealDrawerProps {
@@ -26,18 +29,22 @@ interface FinalizeDealDrawerProps {
 export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit }: FinalizeDealDrawerProps) {
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
+    pickupContactPerson: "",
+    pickupContact: "",
+    pickupPlotNo: "",
     pickupStreet: "",
     pickupCity: "",
     pickupPincode: "",
-    pickupContact: "",
+    dropoffContactPerson: "",
+    dropoffContact: "",
+    dropoffPlotNo: "",
     dropoffStreet: "",
     dropoffCity: "",
     dropoffPincode: "",
-    dropoffContact: "",
     weight: "",
     goodsType: "",
+    truckType: "",
     scheduleDate: "",
-    scheduleTime: "",
     amount: "",
     advancePaid: "",
     specialRequest: ""
@@ -45,17 +52,38 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
 
   useEffect(() => {
     if (request) {
-      const [pickup, dropoff] = request.route.split(" → ");
+      console.log("Finalizing request with data:", request);
+      
+      const [legacyPickup, legacyDropoff] = request.route?.split(" → ") || ["", ""];
+      
       setFormData(prev => ({
         ...prev,
-        pickupCity: pickup || "",
-        dropoffCity: dropoff || "",
-        goodsType: request.cargo || "",
-        weight: request.weight || "",
+        // Pickup Details
+        pickupContactPerson: request.pickup?.contactPerson || "",
+        pickupContact: request.pickup?.contactNumber || request.pickupContact || "",
+        pickupPlotNo: request.pickup?.address?.plotNo || request.pickupPlotNo || "",
+        pickupStreet: request.pickup?.address?.street || request.pickupStreet || "",
+        pickupCity: request.pickup?.address?.city || legacyPickup || request.pickupCity || "",
+        pickupPincode: request.pickup?.address?.pincode || request.pickupPincode || "",
+        
+        // Drop-off Details
+        dropoffContactPerson: request.dropoff?.contactPerson || "",
+        dropoffContact: request.dropoff?.contactNumber || request.dropoffContact || "",
+        dropoffPlotNo: request.dropoff?.address?.plotNo || request.dropoffPlotNo || "",
+        dropoffStreet: request.dropoff?.address?.street || request.dropoffStreet || "",
+        dropoffCity: request.dropoff?.address?.city || legacyDropoff || request.dropoffCity || "",
+        dropoffPincode: request.dropoff?.address?.pincode || request.dropoffPincode || "",
+        
+        // Cargo Details
+        goodsType: request.cargoDetails?.goodsType || request.cargo || "",
+        weight: request.cargoDetails?.weight || request.weight || "",
+        truckType: request.requirement?.bodyType || request.truckType || "",
+        
+        // Schedule & Financials
+        scheduleDate: request.cargoDetails?.loadingDate 
+          ? new Date(request.cargoDetails.loadingDate).toISOString().split('T')[0] 
+          : new Date().toISOString().split('T')[0],
         amount: request.price?.replace(/[^0-9]/g, "") || "",
-        // Initialize with today if empty
-        scheduleDate: new Date().toISOString().split('T')[0],
-        scheduleTime: "10:00"
       }));
     }
   }, [request]);
@@ -117,44 +145,79 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
               >
                 <div className="space-y-4">
                   <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-[0.15em] border-b border-neutral-50 pb-2">Pickup Details</h3>
-                  
+
                   <div className="space-y-4 p-4 rounded-2xl bg-emerald-50/10 border border-emerald-100/30">
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Contact Number</label>
-                      <div className="relative group">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-emerald-500 transition-colors" />
-                        <input
-                          type="text"
-                          value={formData.pickupContact}
-                          onChange={(e) => setFormData({ ...formData, pickupContact: e.target.value })}
-                          placeholder="+234..."
-                          className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-emerald-500/20 outline-none transition-all shadow-sm"
-                        />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Contact Person</label>
+                        <div className="relative group">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-emerald-500 transition-colors" />
+                          <input
+                            type="text"
+                            value={formData.pickupContactPerson}
+                            onChange={(e) => setFormData({ ...formData, pickupContactPerson: e.target.value })}
+                            placeholder="Name..."
+                            className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-emerald-500/20 outline-none transition-all shadow-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Contact Number</label>
+                        <div className="relative group">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-emerald-500 transition-colors" />
+                          <input
+                            type="text"
+                            value={formData.pickupContact}
+                            onChange={(e) => setFormData({ ...formData, pickupContact: e.target.value })}
+                            placeholder="+234..."
+                            className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-emerald-500/20 outline-none transition-all shadow-sm"
+                          />
+                        </div>
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Street / Building</label>
-                      <div className="relative group">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-emerald-500 transition-colors" />
-                        <input
-                          type="text"
-                          value={formData.pickupStreet}
-                          onChange={(e) => setFormData({ ...formData, pickupStreet: e.target.value })}
-                          placeholder="House no, Street name..."
-                          className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-emerald-500/20 outline-none transition-all shadow-sm"
-                        />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Plot / Office No</label>
+                        <div className="relative group">
+                          <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-emerald-500 transition-colors" />
+                          <input
+                            type="text"
+                            value={formData.pickupPlotNo}
+                            onChange={(e) => setFormData({ ...formData, pickupPlotNo: e.target.value })}
+                            placeholder="Plot 123..."
+                            className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-emerald-500/20 outline-none transition-all shadow-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Street / Building</label>
+                        <div className="relative group">
+                          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-emerald-500 transition-colors" />
+                          <input
+                            type="text"
+                            value={formData.pickupStreet}
+                            onChange={(e) => setFormData({ ...formData, pickupStreet: e.target.value })}
+                            placeholder="House no, Street name..."
+                            className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-emerald-500/20 outline-none transition-all shadow-sm"
+                          />
+                        </div>
                       </div>
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">City</label>
-                        <input
-                          type="text"
-                          value={formData.pickupCity}
-                          onChange={(e) => setFormData({ ...formData, pickupCity: e.target.value })}
-                          placeholder="City name"
-                          className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 px-4 text-[13px] font-medium text-neutral-900 focus:border-emerald-500/20 outline-none transition-all shadow-sm"
-                        />
+                        <div className="relative group">
+                          <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-emerald-500 transition-colors" />
+                          <input
+                            type="text"
+                            value={formData.pickupCity}
+                            onChange={(e) => setFormData({ ...formData, pickupCity: e.target.value })}
+                            placeholder="City name"
+                            className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-emerald-500/20 outline-none transition-all shadow-sm"
+                          />
+                        </div>
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Pincode</label>
@@ -170,44 +233,79 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
                   </div>
 
                   <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-[0.15em] border-b border-neutral-50 pb-2 mt-2">Drop-off Details</h3>
-                  
+
                   <div className="space-y-4 p-4 rounded-2xl bg-rose-50/10 border border-rose-100/30">
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Contact Number</label>
-                      <div className="relative group">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-rose-500 transition-colors" />
-                        <input
-                          type="text"
-                          value={formData.dropoffContact}
-                          onChange={(e) => setFormData({ ...formData, dropoffContact: e.target.value })}
-                          placeholder="+234..."
-                          className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-rose-500/20 outline-none transition-all shadow-sm"
-                        />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Contact Person</label>
+                        <div className="relative group">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-rose-500 transition-colors" />
+                          <input
+                            type="text"
+                            value={formData.dropoffContactPerson}
+                            onChange={(e) => setFormData({ ...formData, dropoffContactPerson: e.target.value })}
+                            placeholder="Name..."
+                            className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-rose-500/20 outline-none transition-all shadow-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Contact Number</label>
+                        <div className="relative group">
+                          <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-rose-500 transition-colors" />
+                          <input
+                            type="text"
+                            value={formData.dropoffContact}
+                            onChange={(e) => setFormData({ ...formData, dropoffContact: e.target.value })}
+                            placeholder="+234..."
+                            className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-rose-500/20 outline-none transition-all shadow-sm"
+                          />
+                        </div>
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Street / Building</label>
-                      <div className="relative group">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-rose-500 transition-colors" />
-                        <input
-                          type="text"
-                          value={formData.dropoffStreet}
-                          onChange={(e) => setFormData({ ...formData, dropoffStreet: e.target.value })}
-                          placeholder="Dest. Street, building..."
-                          className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-rose-500/20 outline-none transition-all shadow-sm"
-                        />
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Plot / Office No</label>
+                        <div className="relative group">
+                          <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-rose-500 transition-colors" />
+                          <input
+                            type="text"
+                            value={formData.dropoffPlotNo}
+                            onChange={(e) => setFormData({ ...formData, dropoffPlotNo: e.target.value })}
+                            placeholder="Plot 123..."
+                            className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-rose-500/20 outline-none transition-all shadow-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Street / Building</label>
+                        <div className="relative group">
+                          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-rose-500 transition-colors" />
+                          <input
+                            type="text"
+                            value={formData.dropoffStreet}
+                            onChange={(e) => setFormData({ ...formData, dropoffStreet: e.target.value })}
+                            placeholder="Dest. Street, building..."
+                            className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-rose-500/20 outline-none transition-all shadow-sm"
+                          />
+                        </div>
                       </div>
                     </div>
+
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1.5">
                         <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">City</label>
-                        <input
-                          type="text"
-                          value={formData.dropoffCity}
-                          onChange={(e) => setFormData({ ...formData, dropoffCity: e.target.value })}
-                          placeholder="City name"
-                          className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 px-4 text-[13px] font-medium text-neutral-900 focus:border-rose-500/20 outline-none transition-all shadow-sm"
-                        />
+                        <div className="relative group">
+                          <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-rose-500 transition-colors" />
+                          <input
+                            type="text"
+                            value={formData.dropoffCity}
+                            onChange={(e) => setFormData({ ...formData, dropoffCity: e.target.value })}
+                            placeholder="City name"
+                            className="w-full bg-white border border-neutral-100 rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:border-rose-500/20 outline-none transition-all shadow-sm"
+                          />
+                        </div>
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Pincode</label>
@@ -222,7 +320,7 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
                     </div>
                   </div>
 
-                  <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-[0.15em] border-b border-neutral-50 pb-2 mt-2">Cargo Details</h3>
+                  <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-[0.15em] border-b border-neutral-50 pb-2 mt-2">Cargo & Vehicle Details</h3>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Weight (kg)</label>
@@ -248,6 +346,25 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
                       />
                     </div>
                   </div>
+
+                  <div className="space-y-3">
+                    <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Body Type</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { name: "Flat Bed", icon: "🚜" },
+                        { name: "Walled", icon: "🚛" },
+                      ].map((truck) => (
+                        <button
+                          key={truck.name}
+                          onClick={() => setFormData({ ...formData, truckType: truck.name })}
+                          className={`p-3 rounded-xl border flex flex-col items-center transition-all group ${formData.truckType === truck.name ? 'bg-primary border-primary shadow-lg shadow-primary/20 text-white' : 'bg-white border-neutral-100 hover:border-primary/20 text-neutral-900'}`}
+                        >
+                          <span className={`text-xl mb-1 transition-transform group-hover:scale-110 ${formData.truckType === truck.name ? '' : 'filter grayscale opacity-50'}`}>{truck.icon}</span>
+                          <span className="text-[11px] font-semibold">{truck.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             )}
@@ -263,7 +380,7 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
                 <div className="space-y-4">
                   <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-[0.15em] border-b border-neutral-50 pb-2">Schedule & Financials</h3>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1">
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Schedule Date</label>
                       <div className="relative group">
@@ -272,18 +389,6 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
                           type="date"
                           value={formData.scheduleDate}
                           onChange={(e) => setFormData({ ...formData, scheduleDate: e.target.value })}
-                          className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Schedule Time</label>
-                      <div className="relative group">
-                        <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-primary transition-colors" />
-                        <input
-                          type="time"
-                          value={formData.scheduleTime}
-                          onChange={(e) => setFormData({ ...formData, scheduleTime: e.target.value })}
                           className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm"
                         />
                       </div>
@@ -356,20 +461,20 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
                     <div className="space-y-1">
                       <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-[0.2em]">Route Summary</div>
                       <div className="text-[11px] font-medium text-neutral-900">
-                        <span className="text-emerald-600">Pickup:</span> {formData.pickupStreet}, {formData.pickupCity} ({formData.pickupPincode})
+                        <span className="text-emerald-600">Pickup:</span> {formData.pickupContactPerson} ({formData.pickupContact}) - {formData.pickupPlotNo}, {formData.pickupStreet}, {formData.pickupCity} ({formData.pickupPincode})
                       </div>
                       <div className="text-[11px] font-medium text-neutral-900">
-                        <span className="text-rose-600">Drop-off:</span> {formData.dropoffStreet}, {formData.dropoffCity} ({formData.dropoffPincode})
+                        <span className="text-rose-600">Drop-off:</span> {formData.dropoffContactPerson} ({formData.dropoffContact}) - {formData.dropoffPlotNo}, {formData.dropoffStreet}, {formData.dropoffCity} ({formData.dropoffPincode})
                       </div>
                     </div>
                     <div className="w-full h-px bg-neutral-200/50" />
                     <div className="flex justify-between items-center text-[11px]">
                       <span className="text-neutral-400 font-bold uppercase tracking-widest">Schedule</span>
-                      <span className="text-neutral-900 font-semibold">{formData.scheduleDate} at {formData.scheduleTime}</span>
+                      <span className="text-neutral-900 font-semibold">{formData.scheduleDate}</span>
                     </div>
                     <div className="flex justify-between items-center text-[11px]">
-                      <span className="text-neutral-400 font-bold uppercase tracking-widest">Cargo</span>
-                      <span className="text-neutral-900 font-semibold">{formData.goodsType} ({formData.weight}kg)</span>
+                      <span className="text-neutral-400 font-bold uppercase tracking-widest">Cargo & Vehicle</span>
+                      <span className="text-neutral-900 font-semibold">{formData.goodsType} ({formData.weight}kg) - {formData.truckType}</span>
                     </div>
                     <div className="w-full h-px bg-neutral-200/50" />
                     <div className="flex justify-between items-center text-[11px]">

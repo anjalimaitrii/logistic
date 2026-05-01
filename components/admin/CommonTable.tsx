@@ -12,11 +12,13 @@ interface CommonTableProps {
   data: any[];
   onRowClick?: (row: any) => void;
   title?: string;
-  icon?: string;
+  icon?: React.ReactNode;
   action?: React.ReactNode;
+  emptyState?: React.ReactNode;
+  isLoading?: boolean;
 }
 
-export default function CommonTable({ columns, data, onRowClick, title, icon, action }: CommonTableProps) {
+export default function CommonTable({ columns, data, onRowClick, title, icon, action, emptyState, isLoading }: CommonTableProps) {
   return (
     <div className="bg-white border border-neutral-100 rounded-2xl overflow-hidden shadow-sm">
       {(title || icon || action) && (
@@ -44,7 +46,16 @@ export default function CommonTable({ columns, data, onRowClick, title, icon, ac
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-100 text-[11.5px] font-medium text-slate-600">
-            {data.length > 0 ? (
+            {isLoading ? (
+              <tr>
+                <td colSpan={columns.length} className="px-5 py-8 text-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-5 h-5 border-2 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
+                    <span className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest">Loading records...</span>
+                  </div>
+                </td>
+              </tr>
+            ) : data.length > 0 ? (
               data.map((row, i) => (
                 <tr
                   key={i}
@@ -60,8 +71,8 @@ export default function CommonTable({ columns, data, onRowClick, title, icon, ac
               ))
             ) : (
               <tr>
-                <td colSpan={columns.length} className="px-5 py-10 text-center text-neutral-400 font-medium">
-                  No data available
+                <td colSpan={columns.length} className="px-5 py-6 text-center text-neutral-400 font-medium">
+                  {emptyState ? emptyState : "No data available"}
                 </td>
               </tr>
             )}

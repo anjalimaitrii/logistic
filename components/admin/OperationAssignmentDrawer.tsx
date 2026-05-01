@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ChevronDown
 } from "lucide-react";
+import { driverService } from "@/services/driverService";
 
 interface OperationAssignmentDrawerProps {
   isOpen: boolean;
@@ -25,12 +26,8 @@ interface OperationAssignmentDrawerProps {
 
 export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubmit }: OperationAssignmentDrawerProps) {
   const [step, setStep] = useState(1);
-  const fleetUnits = [
-    { id: 1, driver: "Adaeze Okafor", truck: "TRK-4001", health: "Excellent" },
-    { id: 2, driver: "Kwame Mensah", truck: "TRK-5022", health: "Good" },
-    { id: 3, driver: "Oluwaseun Paul", truck: "TRK-2099", health: "Maintenance" },
-    { id: 4, driver: "Chinedu Obi", truck: "TRK-1102", health: "Excellent" },
-  ];
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
 
   const [formData, setFormData] = useState({
     driver: "",
@@ -39,14 +36,33 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
     collection: "Collection 1"
   });
 
-  const handleFleetSelect = (unitId: string) => {
-    const unit = fleetUnits.find(u => u.id.toString() === unitId);
-    if (unit) {
+  useEffect(() => {
+    if (isOpen) {
+      loadDrivers();
+    }
+  }, [isOpen]);
+
+  const loadDrivers = async () => {
+    try {
+      setIsLoadingDrivers(true);
+      const data = await driverService.getAll();
+      // Only show drivers who are Active
+      setDrivers((data || []).filter((d: any) => d.status === "Active"));
+    } catch (error) {
+      console.error("Failed to load drivers:", error);
+    } finally {
+      setIsLoadingDrivers(false);
+    }
+  };
+
+  const handleFleetSelect = (driverId: string) => {
+    const driver = drivers.find(d => d._id === driverId);
+    if (driver) {
       setFormData({
         ...formData,
-        driver: unit.driver,
-        truckNumber: unit.truck,
-        truckHealth: unit.health
+        driver: driver.name,
+        truckNumber: driver.assignedTruck?.truckId || "N/A",
+        truckHealth: driver.assignedTruck?.health || "Good"
       });
     } else {
       setFormData({
@@ -59,14 +75,23 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
   };
 
   useEffect(() => {
-    if (job) {
-      setFormData({
-        driver: job.driver || "",
-        truckNumber: job.truckNumber || "",
-        truckHealth: job.truckHealth || "Excellent",
-        collection: job.collection || "Collection 1"
-      });
-      setStep(1); // Reset to step 1 when job changes
+    if (job && isOpen) {
+      if (job.assignment) {
+        setFormData({
+          driver: job.assignment.driverName || "",
+          truckNumber: job.assignment.truckNumber || "",
+          truckHealth: job.assignment.truckHealth || "Excellent",
+          collection: job.assignment.collectionArea || "Collection 1"
+        });
+      } else {
+        setFormData({
+          driver: "",
+          truckNumber: "",
+          truckHealth: "Excellent",
+          collection: "Collection 1"
+        });
+      }
+      setStep(1); 
     }
   }, [job, isOpen]);
 
@@ -74,6 +99,10 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
   const handleBack = () => setStep(1);
 
   const handleFormSubmit = () => {
+    if (!formData.driver || !formData.truckNumber) {
+      alert("Please select a fleet unit");
+      return;
+    }
     onSubmit(formData);
     onClose();
   };
@@ -95,7 +124,9 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
               <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
               <h2 className="text-[16px] font-bold text-neutral-900 tracking-tight">Assign Operations</h2>
             </div>
-            <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest ml-4">Management for Job {job?.id}</p>
+            <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest ml-4">
+               Management for Job #{job?._id?.substring(job?._id?.length - 6).toUpperCase()}
+            </p>
           </div>
           <button onClick={onClose} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-neutral-400 transition-all border border-transparent hover:border-neutral-100">
             <X className="w-5 h-5" />
@@ -112,7 +143,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                 exit={{ opacity: 0, x: -20 }}
                 className="p-6 space-y-8"
               >
-                {/* Section 1: Job Summary (Read-Only) */}
+                {/* Section 1: Job Summary */}
                 <section className="space-y-4">
                   <div className="flex items-center gap-2 px-1">
                     <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
@@ -128,13 +159,13 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                         <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-tight bg-emerald-50 px-2 py-0.5 rounded-full">Pickup</span>
                         <div className="flex items-center gap-1.5 text-neutral-400">
                           <Phone className="w-3 h-3" />
-                          <span className="text-[10px] font-semibold">{job?.pickupContact || "+234 812 345 6789"}</span>
+                          <span className="text-[10px] font-semibold">{job?.pickup?.contactNumber}</span>
                         </div>
                       </div>
                       <div className="flex gap-3">
                         <MapPin className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
                         <div className="text-[12px] font-medium text-neutral-900 leading-relaxed">
-                          {job?.pickupStreet || "Not specified"}, {job?.pickupCity || "Lagos"} ({job?.pickupPincode || "100001"})
+                          {job?.pickup?.address?.street}, {job?.pickup?.address?.city} ({job?.pickup?.address?.pincode})
                         </div>
                       </div>
                     </div>
@@ -145,13 +176,13 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                         <span className="text-[9px] font-bold text-rose-600 uppercase tracking-tight bg-rose-50 px-2 py-0.5 rounded-full">Drop-off</span>
                         <div className="flex items-center gap-1.5 text-neutral-400">
                           <Phone className="w-3 h-3" />
-                          <span className="text-[10px] font-semibold">{job?.dropoffContact || "+234 812 987 6543"}</span>
+                          <span className="text-[10px] font-semibold">{job?.dropoff?.contactNumber}</span>
                         </div>
                       </div>
                       <div className="flex gap-3">
                         <MapPin className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                         <div className="text-[12px] font-medium text-neutral-900 leading-relaxed">
-                          {job?.dropoffStreet || "Not specified"}, {job?.dropoffCity || "Abuja"} ({job?.dropoffPincode || "900001"})
+                          {job?.dropoff?.address?.street}, {job?.dropoff?.address?.city} ({job?.dropoff?.address?.pincode})
                         </div>
                       </div>
                     </div>
@@ -161,24 +192,17 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100/50">
                       <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-tighter mb-1">Goods Weight</div>
-                      <div className="text-[13px] font-bold text-neutral-900">{job?.weight || "5,000"} kg</div>
+                      <div className="text-[13px] font-bold text-neutral-900">{job?.cargoDetails?.weight} kg</div>
                     </div>
                     <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100/50">
                       <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-tighter mb-1">Cargo Type</div>
-                      <div className="text-[13px] font-bold text-neutral-900">{job?.goodsType || "Electronics"}</div>
+                      <div className="text-[13px] font-bold text-neutral-900">{job?.cargoDetails?.goodsType}</div>
                     </div>
                     <div className="bg-neutral-50 rounded-xl p-3 shadow-sm border border-neutral-100/50">
-                      <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-tighter mb-1">Schedule Date</div>
+                      <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-tighter mb-1">Loading Date</div>
                       <div className="text-[12px] font-bold text-neutral-900 flex items-center gap-2">
                         <Calendar className="w-3 h-3 text-primary" />
-                        {job?.scheduleDate || "2024-04-08"}
-                      </div>
-                    </div>
-                    <div className="bg-neutral-50 rounded-xl p-3 shadow-sm border border-neutral-100/50">
-                      <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-tighter mb-1">Loading Time</div>
-                      <div className="text-[12px] font-bold text-neutral-900 flex items-center gap-2">
-                        <Clock className="w-3 h-3 text-primary" />
-                        {job?.scheduleTime || "10:00"}
+                        {job?.cargoDetails?.loadingDate}
                       </div>
                     </div>
                   </div>
@@ -211,30 +235,43 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                       </div>
                       
                       <div className="space-y-4">
-                        {/* Unified Fleet Unit Selection */}
                         <div className="space-y-1.5">
                           <label className="text-[9px] font-semibold text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
                             <Truck className="w-3 h-3 text-primary" /> Select Fleet Unit
                           </label>
                           <div className="relative">
                             <select
-                               value={fleetUnits.find(u => u.driver === formData.driver)?.id || ""}
+                               value={drivers.find(d => d.name === formData.driver)?._id || ""}
                                onChange={(e) => handleFleetSelect(e.target.value)}
                                className="bg-white border border-neutral-100 rounded-xl px-4 py-3 text-[13px] font-semibold text-slate-900 outline-none cursor-pointer w-full focus:border-primary/30 transition-all shadow-sm appearance-none"
                             >
-                               <option value="">Select Integrated Fleet Unit</option>
-                               {fleetUnits.map((unit) => (
-                                 <option key={unit.id} value={unit.id}>
-                                   {unit.driver} • {unit.truck} ({unit.health})
+                               <option value="" disabled>{isLoadingDrivers ? "Loading units..." : "Select Integrated Fleet Unit"}</option>
+                               {drivers.map((d) => (
+                                 <option key={d._id} value={d._id}>
+                                   {d.name} • {d.assignedTruck?.truckId || "No Truck"} ({d.assignedTruck?.health || "N/A"})
                                  </option>
                                ))}
                             </select>
                             <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-300 pointer-events-none" />
                           </div>
-                          <p className="text-[9.5px] text-neutral-400 font-bold ml-1 flex items-center gap-1.5 mt-1">
-                              <Activity className="w-3 h-3 text-emerald-500" />
-                              One-click assignment for driver, vehicle, and health.
-                          </p>
+                          {formData.driver && (
+                            <div className="mt-3 p-3 bg-white rounded-xl border border-neutral-100 space-y-2">
+                              <div className="flex justify-between">
+                                <span className="text-[10px] text-neutral-400 font-bold uppercase">Driver</span>
+                                <span className="text-[11px] font-bold text-slate-900">{formData.driver}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[10px] text-neutral-400 font-bold uppercase">Vehicle</span>
+                                <span className="text-[11px] font-bold text-slate-900">{formData.truckNumber}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-[10px] text-neutral-400 font-bold uppercase">Health</span>
+                                <span className={`text-[10px] font-bold uppercase ${formData.truckHealth === 'Excellent' ? 'text-emerald-500' : 'text-amber-500'}`}>
+                                  {formData.truckHealth}
+                                </span>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

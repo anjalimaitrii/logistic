@@ -1,9 +1,11 @@
 "use client";
 
+import React from "react";
+
 interface StatCardProps {
   label: string;
   value: string;
-  icon: string;
+  icon: React.ReactNode;
   subText: string;
   trend: string;
   variant?: "primary" | "success" | "warning" | "danger";

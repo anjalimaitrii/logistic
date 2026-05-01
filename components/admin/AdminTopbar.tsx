@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import PinModal from "./PinModal";
 
@@ -13,8 +13,27 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
   const [searchQuery, setSearchQuery] = useState("");
   const [adminClicks, setAdminClicks] = useState(0);
   const [showPinModal, setShowPinModal] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
   const pathname = usePathname();
   const isSecretMode = pathname.startsWith("/admin/secret");
+
+  // Close profile menu on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    if (showProfileMenu) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [showProfileMenu]);
+
+  const handleLogout = () => {
+    setShowProfileMenu(false);
+    router.push("/");
+  };
 
   const handleAdminBadgeClick = () => {
     if (isSecretMode) return; // Disable trigger if already in secret mode
@@ -90,8 +109,48 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
           >
             {isSecretMode ? "master" : "admin"}
           </span>
-          <div className="w-10 h-10 rounded-full bg-linear-to-br from-primary to-primary-mid flex items-center justify-center font-bold text-xs text-white border-2 border-white shadow-xl shadow-primary/20 cursor-pointer hover:scale-105 transition-transform active:scale-95">
-            AO
+
+          {/* Profile Avatar + Dropdown */}
+          <div className="relative" ref={profileMenuRef}>
+            <div
+              className="w-10 h-10 rounded-full bg-linear-to-br from-primary to-primary-mid flex items-center justify-center font-bold text-xs text-white border-2 border-white shadow-xl shadow-primary/20 cursor-pointer hover:scale-105 transition-transform active:scale-95"
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+            >
+              AO
+            </div>
+
+            {/* Dropdown Menu */}
+            {showProfileMenu && (
+              <div className="absolute right-0 top-[calc(100%+8px)] w-56 bg-white rounded-2xl shadow-2xl shadow-neutral-200/60 border border-neutral-100 overflow-hidden z-[999] animate-in fade-in slide-in-from-top-2 duration-200">
+                {/* User info */}
+                <div className="px-4 pt-4 pb-3 border-b border-neutral-100">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-linear-to-br from-primary to-primary-mid flex items-center justify-center font-bold text-[11px] text-white shrink-0">
+                      AO
+                    </div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-neutral-900 truncate">Adebayo Okafor</div>
+                      <div className="text-[11px] text-neutral-400 font-medium">Fleet Admin</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Menu items */}
+                <div className="p-1.5">
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-red-500 hover:bg-red-50 transition-colors text-sm font-medium cursor-pointer"
+                  >
+                    <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                      <polyline points="16 17 21 12 16 7" />
+                      <line x1="21" y1="12" x2="9" y2="12" />
+                    </svg>
+                    Logout
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

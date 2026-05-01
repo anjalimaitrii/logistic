@@ -1,76 +1,161 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
-import CreateJobModal from "@/components/admin/CreateJobModal";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ChevronRight, Eye, Edit2 } from "lucide-react";
+import {
+  Package,
+  AlertTriangle,
+  CheckSquare,
+  Key,
+  ChevronRight,
+  Eye,
+  Edit2,
+  Search
+} from "lucide-react";
+import { bookingService } from "@/services/bookingService";
 
-export default function AdminJobs() {
-  const router = useRouter();
-  const [isCreateJobOpen, setCreateJobOpen] = useState(false);
+export default function AdminJobsPage() {
+  const [bookings, setBookings] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const kpis = [
-    { label: "Active Jobs", value: "12", icon: "📦", subText: "8 transit · 4 loading", trend: "↑ 4 today", variant: "primary" as const },
-    { label: "Delayed Jobs", value: "3", icon: "⚠️", subText: "2 mechanical · 1 traffic", trend: "↑ 1 new", variant: "danger" as const },
-    { label: "Completed", value: "248", icon: "✅", subText: "Last 30 days summary", trend: "↑ 12%", variant: "success" as const },
-    { label: "Pending OTP", value: "5", icon: "🔐", subText: "Awaiting driver verify", trend: "↑ 2 today", variant: "warning" as const },
-  ];
+  useEffect(() => {
+    loadBookings();
+  }, []);
 
-  const jobsData = [
-    { id: "#FL-2851", client: "Dangote Cement", status: "In Transit", driver: "Adaeze O.", route: "Lagos → Abuja", type: "transit" },
-    { id: "#FL-2847", client: "Coca Cola Co.", status: "Delivered", driver: "Kwame M.", route: "Nairobi → Mom.", type: "success" },
-    { id: "#FL-2843", client: "Indomie Food", status: "Delayed", driver: "Fatima O.", route: "Cairo → Alex.", type: "danger" },
-    { id: "#FL-2840", client: "Lafarge Holcim", status: "In Transit", driver: "John B.", route: "Accra → Kumasi", type: "transit" },
-    { id: "#FL-2838", client: "Total Energies", status: "Returned to Warehouse", driver: "Oluwaseun P.", route: "P.Harcourt → Enu.", type: "warehouse" },
-  ];
+  const loadBookings = async () => {
+    try {
+      setIsLoading(true);
+      const data = await bookingService.getAll();
+      // ONLY SHOW FINALIZED JOBS
+      const finalizedOnly = (data || []).filter((b: any) =>
+        b.status === 'finalized'
+      );
+      setBookings(finalizedOnly);
+    } catch (error) {
+      console.error("Failed to fetch bookings:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getStatusType = (status: string) => {
+    if (!status) return 'Pending';
+    const s = status.toLowerCase();
+    if (s === 'finalized') return 'FINALIZED';
+    if (s === 'transit') return 'IN TRANSIT';
+    if (s === 'delivered') return 'DELIVERED';
+    if (s === 'delayed') return 'DELAYED';
+    return s.toUpperCase();
+  };
+
+  const getStatusStyles = (status: string) => {
+    const s = status.toUpperCase();
+    if (s === 'FINALIZED' || s === 'DELIVERED') return 'bg-emerald-50 text-emerald-500 border-emerald-100';
+    if (s === 'IN TRANSIT') return 'bg-orange-50 text-orange-500 border-orange-100';
+    if (s === 'DELAYED') return 'bg-rose-50 text-rose-500 border-rose-100';
+    return 'bg-blue-50 text-blue-500 border-blue-100';
+  };
+
+  const jobsData = bookings.map(b => ({
+    id: `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase() || "2851"}`,
+    client: (b?.clientId as any)?.name || "Direct Client",
+    status: getStatusType(b?.status),
+    driver: b?.metadata?.driverName || "Assign Driver",
+    route: `${b?.pickup?.address?.city || "Origin"} → ${b?.dropoff?.address?.city || "Dest."}`,
+    raw: b
+  }));
 
   const columns = [
-    { label: "Job ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
-    { label: "Client", key: "client", render: (val: string) => <span className="font-medium text-slate-800">{val}</span> },
     {
-      label: "Status",
+      label: "JOB ID",
+      key: "id",
+      render: (val: string) => <span className="text-[12px] font-bold text-orange-500 tracking-tight">{val}</span>
+    },
+    {
+      label: "CLIENT",
+      key: "client",
+      render: (val: string) => <span className="text-[13px] font-bold text-slate-700">{val}</span>
+    },
+    {
+      label: "STATUS",
       key: "status",
-      render: (val: string, row: any) => (
-        <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${row.type === "transit"
-            ? "bg-primary/10 text-primary"
-            : row.type === "success"
-              ? "bg-emerald-50 text-emerald-600"
-              : row.type === "warning"
-                ? "bg-amber-50 text-amber-500"
-                : row.type === "warehouse"
-                  ? "bg-indigo-50 text-indigo-600"
-                  : "bg-rose-50 text-rose-500"
-            }`}
-        >
-          <span
-            className={`w-1 h-1 rounded-full ${row.type === "transit" ? "bg-primary animate-pulse" : row.type === "success" ? "bg-emerald-500" : row.type === "warning" ? "bg-amber-500" : row.type === "warehouse" ? "bg-indigo-500" : "bg-rose-500"
-              }`}
-          />
+      render: (val: string) => (
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(val)}`}>
+          <div className={`w-1 h-1 rounded-full mr-1.5 ${val === 'IN TRANSIT' ? 'bg-orange-500' :
+              val === 'DELIVERED' ? 'bg-emerald-500' :
+                val === 'DELAYED' ? 'bg-rose-500' : 'bg-indigo-500'
+            }`} />
           {val}
         </span>
-      ),
+      )
     },
-    { label: "Driver", key: "driver", render: (val: string) => <span className="font-medium text-slate-700">{val}</span> },
-    { label: "Route", key: "route", render: (val: string) => <span className="text-neutral-500 italic">{val}</span> },
     {
-      label: "Actions",
+      label: "DRIVER",
+      key: "driver",
+      render: (val: string) => <span className="text-[12px] font-medium text-slate-600">{val}</span>
+    },
+    {
+      label: "ROUTE",
+      key: "route",
+      render: (val: string) => <span className="text-[12px] font-medium text-slate-500 italic">{val}</span>
+    },
+    {
+      label: "ACTIONS",
       key: "actions",
       align: "center" as const,
-      render: (val: any, row: any) => (
+      render: (_: any, row: any) => (
         <div className="flex gap-2 justify-center">
-          <Link href={`/admin/jobs/${row.id.replace('#', '')}`} className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-emerald-600 transition-all shadow-sm">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              window.location.href = `/admin/jobs/${row.raw._id}`;
+            }}
+            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-all border border-slate-100"
+            title="View Details"
+          >
             <Eye className="w-3.5 h-3.5" />
-          </Link>
-          <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-emerald-600 transition-all shadow-sm">
+          </button>
+          <button className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-900 transition-all border border-slate-100">
             <Edit2 className="w-3.5 h-3.5" />
           </button>
         </div>
-      ),
+      )
+    }
+  ];
+
+  const kpis = [
+    {
+      label: "ACTIVE JOBS",
+      value: bookings.filter(b => b.status === 'transit' || b.status === 'accepted').length.toString(),
+      icon: <Package className="w-5 h-5 text-orange-500" />,
+      subText: "8 transit - 4 loading",
+      trend: "+ 4 TODAY",
+      variant: "primary" as const
+    },
+    {
+      label: "DELAYED JOBS",
+      value: "3",
+      icon: <AlertTriangle className="w-5 h-5 text-amber-500" />,
+      subText: "2 mechanical - 1 traffic",
+      trend: "↑ 1 NEW",
+      variant: "warning" as const
+    },
+    {
+      label: "COMPLETED",
+      value: bookings.filter(b => b.status === 'finalized' || b.status === 'delivered').length.toString(),
+      icon: <CheckSquare className="w-5 h-5 text-emerald-500" />,
+      subText: "Last 30 days summary",
+      trend: "↑ 12%",
+      variant: "success" as const
+    },
+    {
+      label: "PENDING OTP",
+      value: "5",
+      icon: <Key className="w-5 h-5 text-indigo-500" />,
+      subText: "Awaiting driver verify",
+      trend: "↑ 2 TODAY",
+      variant: "indigo" as const
     },
   ];
 
@@ -87,47 +172,74 @@ export default function AdminJobs() {
             <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Job Management</h1>
             <p className="text-[11px] text-neutral-400 mt-0.5">Manage and track your logistics operations in real-time.</p>
           </div>
-          <button
-            className="bg-slate-900 text-white px-5 py-2 rounded-lg font-semibold text-[10px] uppercase tracking-widest shadow-sm hover:brightness-110 transition-all w-fit"
-            onClick={() => setCreateJobOpen(true)}
-          >
-            ＋ New Job
-          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {kpis.map((kpi, i) => (
-            <StatCard key={i} {...kpi} />
+            <div key={i} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:border-primary/20 transition-all">
+              <div className="flex items-start justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[24px] font-bold text-slate-900">{kpi.value}</span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${kpi.variant === 'primary' ? 'bg-emerald-50 text-emerald-500' :
+                        kpi.variant === 'warning' ? 'bg-amber-50 text-amber-500' :
+                          kpi.variant === 'success' ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500'
+                      }`}>
+                      {kpi.trend}
+                    </span>
+                  </div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{kpi.label}</p>
+                  <p className="text-[10px] font-medium text-slate-300 italic">● {kpi.subText}</p>
+                </div>
+                <div className="p-3 bg-slate-50 rounded-xl group-hover:scale-110 transition-transform">
+                  {kpi.icon}
+                </div>
+              </div>
+            </div>
           ))}
         </div>
 
         <CommonTable
           title="Active Trips"
-          icon="📦"
+          icon={<Package className="w-4 h-4 text-orange-500" />}
           columns={columns}
-          data={jobsData}
-          onRowClick={(row) => router.push(`/admin/jobs/${row.id.replace('#', '')}`)}
+          data={isLoading ? [] : jobsData}
+          onRowClick={() => {
+            // No action on row click as requested
+          }}
           action={
-            <div className="flex gap-1">
-              <input
-                type="text"
-                placeholder="Search jobs..."
-                className="bg-white border border-neutral-100 rounded-lg px-3 py-1.5 text-[10px] font-medium outline-none focus:border-primary transition-all w-30 shadow-inner"
-              />
-              <select className="bg-white border border-neutral-100 rounded-lg px-3 py-1.5 text-[10px] font-medium outline-none focus:border-primary transition-all w-30 shadow-inner text-neutral-400">
-                <option>Sort By: Newest</option>
-                <option>Oldest</option>
-              </select>
+            <div className="flex items-center gap-3">
+              <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 group-focus-within:text-primary transition-colors" />
+                <input
+                  type="text"
+                  placeholder="Search jobs..."
+                  className="bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-4 py-2 text-[11px] font-medium outline-none focus:bg-white focus:border-primary/20 transition-all w-48"
+                />
+              </div>
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-100 rounded-lg px-3 py-2">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Sort By:</span>
+                <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1 cursor-pointer">
+                  Newest <ChevronRight className="w-3 h-3 rotate-90" />
+                </span>
+              </div>
             </div>
+          }
+          emptyState={
+            isLoading ? (
+              <div className="py-20 flex flex-col items-center justify-center gap-3">
+                <div className="w-8 h-8 border-4 border-primary/20 border-t-primary rounded-full animate-spin" />
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Syncing Fleet Operations...</p>
+              </div>
+            ) : (
+              <div className="py-20 flex flex-col items-center justify-center gap-3">
+                <Package className="w-10 h-10 text-slate-100" />
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">No Active Trips Found</p>
+              </div>
+            )
           }
         />
       </div>
-
-      <CreateJobModal
-        isOpen={isCreateJobOpen}
-        onClose={() => setCreateJobOpen(false)}
-        onSubmit={() => setCreateJobOpen(false)}
-      />
     </AdminLayout>
   );
 }

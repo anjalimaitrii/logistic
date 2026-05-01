@@ -1,60 +1,102 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateTruckModal from "@/components/admin/CreateTruckModal";
 import TruckComplianceDrawer from "@/components/admin/TruckComplianceDrawer";
-import { ChevronRight, Eye, Settings, Plus } from "lucide-react";
+import { ChevronRight, Eye, Settings, Plus, Package } from "lucide-react";
+import { truckService } from "@/services/truckService";
 
 export default function AdminTrucks() {
   const [isModalOpen, setModalOpen] = useState(false);
   const [isComplianceOpen, setIsComplianceOpen] = useState(false);
   const [selectedTruck, setSelectedTruck] = useState<string | null>(null);
+  const [trucks, setTrucks] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
+  useEffect(() => {
+    loadTrucks();
+  }, []);
+
+  const loadTrucks = async () => {
+    try {
+      setIsLoading(true);
+      const data = await truckService.getAll();
+      setTrucks(data || []);
+    } catch (error) {
+      console.error("Failed to fetch trucks:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateTruck = async (data: any) => {
+    try {
+      await truckService.create(data);
+      loadTrucks();
+      setModalOpen(false);
+    } catch (error) {
+      console.error("Failed to create truck:", error);
+      alert("Failed to add truck. Please try again.");
+    }
+  };
+
+  const handleStatusUpdate = async (id: string, newStatus: string) => {
+    try {
+      await truckService.update(id, { status: newStatus });
+      loadTrucks();
+    } catch (error) {
+      console.error("Failed to update status:", error);
+      alert("Failed to update status. Please try again.");
+    }
+  };
+
   const kpis = [
-    { label: "Total Fleet", value: "40", icon: "🚛", subText: "Active registered units", trend: "↑ 2 new", variant: "primary" as const },
-    { label: "On Road", value: "32", icon: "🛣️", subText: "Currently in transit", trend: "↑ 80%", variant: "success" as const },
-    { label: "Maintenance", value: "2", icon: "🔧", subText: "In workshop for repairs", trend: "↓ 1 cleared", variant: "danger" as const },
-    { label: "Idle", value: "6", icon: "🅿️", subText: "Available for dispatch", trend: "↑ 1 today", variant: "warning" as const },
+    { label: "Total Fleet", value: trucks.length.toString(), icon: "🚛", subText: "Registered units", trend: "Live", variant: "primary" as const },
+    { label: "Active", value: trucks.filter(t => t.status === "Active").length.toString(), icon: "🛣️", subText: "Currently on road", trend: "Sync", variant: "success" as const },
+    { label: "Maintenance", value: trucks.filter(t => t.status === "Maint.").length.toString(), icon: "🔧", subText: "Units in workshop", trend: "Review", variant: "danger" as const },
+    { label: "Idle", value: trucks.filter(t => t.status === "Idle").length.toString(), icon: "🅿️", subText: "Available for dispatch", trend: "Ready", variant: "warning" as const },
   ];
 
-  const trucksData = [
-    { id: "TRK-014", model: "Volvo FH16", status: "Active", odo: "12,400 km", type: "success" },
-    { id: "TRK-022", model: "Mercedes Actros", status: "Active", odo: "45,210 km", type: "success" },
-    { id: "TRK-018", model: "Scania R500", status: "Inactive", odo: "89,100 km", type: "danger" },
-    { id: "TRK-007", model: "MAN TGX", status: "Idle", odo: "5,300 km", type: "warning" },
-    { id: "TRK-025", model: "Daf XF", status: "Maint.", odo: "156,000 km", type: "danger" },
-  ];
+  const tableData = trucks.map(t => ({
+    id: t.truckId,
+    model: t.vehicleModel,
+    status: t.status,
+    odo: t.odometer || "0 km",
+    truckType: t.truckType,
+    capacity: t.capacity,
+    raw: t
+  }));
 
   const columns = [
     { label: "Truck ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
     { label: "Model", key: "model", render: (val: string) => <span className="font-medium text-slate-700 text-nowrap">{val}</span> },
+    { label: "Type", key: "truckType", render: (val: any) => <span className="font-medium text-slate-500">{val}</span> },
+    { label: "Capacity", key: "capacity", render: (val: string) => <span className="font-medium text-slate-500">{val}</span> },
     {
       label: "Status",
       key: "status",
       render: (val: string, row: any) => (
-        <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${row.type === "success"
-            ? "bg-emerald-50 text-emerald-600"
-            : row.type === "warning"
-              ? "bg-amber-50 text-amber-500"
-              : "bg-rose-50 text-rose-500"
-            }`}
+        <select
+          value={val}
+          onClick={(e) => e.stopPropagation()}
+          onChange={(e) => handleStatusUpdate(row.raw._id, e.target.value)}
+          className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider outline-none border transition-all cursor-pointer ${
+            val === "Active" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+            val === "Idle" ? "bg-amber-50 text-amber-500 border-amber-100" :
+            "bg-rose-50 text-rose-500 border-rose-100"
+          }`}
         >
-          <span
-            className={`w-1 h-1 rounded-full ${row.type === "success" ? "bg-emerald-500" : row.type === "warning" ? "bg-amber-500" : "bg-rose-500"
-              }`}
-          />
-          {val}
-        </span>
-      ),
+          <option value="Active">Active</option>
+          <option value="Idle">Idle</option>
+          <option value="Maint.">Maint.</option>
+        </select>
+      )
     },
-
-    { label: "Odometer", key: "odo", render: (val: string) => <span className="font-medium text-slate-500">{val}</span> },
     {
       label: "Actions",
       key: "actions",
@@ -64,7 +106,7 @@ export default function AdminTrucks() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              router.push(`/admin/trucks/${row.id}`);
+              router.push(`/admin/trucks/${row.raw._id}`);
             }}
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-primary transition-all shadow-sm"
           >
@@ -73,7 +115,7 @@ export default function AdminTrucks() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              setSelectedTruck(row.id);
+              setSelectedTruck(row.raw._id);
               setIsComplianceOpen(true);
             }}
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-primary transition-all shadow-sm"
@@ -119,8 +161,21 @@ export default function AdminTrucks() {
           title="Fleet Inventory"
           icon="🚛"
           columns={columns}
-          data={trucksData}
-          onRowClick={(row) => router.push(`/admin/trucks/${row.id}`)}
+          data={tableData}
+          onRowClick={(row) => router.push(`/admin/trucks/${row.raw._id}`)}
+          emptyState={
+            isLoading ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-2">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">Syncing fleet units...</p>
+              </div>
+            ) : (
+              <div className="py-12 flex flex-col items-center justify-center gap-2">
+                <Package className="w-8 h-8 text-neutral-200" />
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">No trucks found in inventory</p>
+              </div>
+            )
+          }
           action={
             <div className="flex gap-2">
               <div className="relative group">
@@ -141,10 +196,7 @@ export default function AdminTrucks() {
       <CreateTruckModal
         isOpen={isModalOpen}
         onClose={() => setModalOpen(false)}
-        onSubmit={(data) => {
-          console.log("Truck Added:", data);
-          setModalOpen(false);
-        }}
+        onSubmit={handleCreateTruck}
       />
 
       <TruckComplianceDrawer

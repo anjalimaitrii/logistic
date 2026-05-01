@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
@@ -14,22 +14,39 @@ import {
    Gauge,
    Fuel,
    Activity,
-   Navigation
+   Navigation,
+   Package
 } from "lucide-react";
+import { truckService } from "@/services/truckService";
 
 export default function TruckProfilePage() {
    const params = useParams();
    const router = useRouter();
-   const truckId = params.id as string;
+   const id = params.id as string;
+   const [truck, setTruck] = useState<any>(null);
+   const [isLoading, setIsLoading] = useState(true);
 
-   // Mock data for the truck profile
+   useEffect(() => {
+      if (id) {
+         loadTruckDetails();
+      }
+   }, [id]);
+
+   const loadTruckDetails = async () => {
+      try {
+         setIsLoading(true);
+         const data = await truckService.getById(id);
+         setTruck(data);
+      } catch (error) {
+         console.error("Failed to fetch truck details:", error);
+      } finally {
+         setIsLoading(false);
+      }
+   };
+
+   // Mock data for the truck profile (if needed for sections not yet in backend)
    const truckDetails = {
-      id: truckId,
-      model: "Volvo FH16 - Heavy Duty",
-      status: "Active",
-      currentDriver: "Adaeze Okafor",
-      odometer: "12,400 km",
-      lastService: "10 Jan 2026"
+      currentDriver: "Adaeze Okafor", // This would normally come from an assignment model
    };
 
    const kpis = [
@@ -88,6 +105,28 @@ export default function TruckProfilePage() {
       },
    ];
 
+   if (isLoading) {
+      return (
+         <AdminLayout>
+            <div className="p-6 bg-neutral-50 min-h-screen flex items-center justify-center">
+               <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+         </AdminLayout>
+      );
+   }
+
+   if (!truck) {
+      return (
+         <AdminLayout>
+            <div className="p-6 bg-neutral-50 min-h-screen flex flex-col items-center justify-center gap-4">
+               <Package className="w-12 h-12 text-neutral-200" />
+               <h2 className="text-xl font-bold text-slate-900">Truck Not Found</h2>
+               <button onClick={() => router.push('/admin/trucks')} className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold uppercase tracking-widest">Back to Fleet</button>
+            </div>
+         </AdminLayout>
+      );
+   }
+
    return (
       <AdminLayout>
          <div className="p-6 pb-20 space-y-8 bg-neutral-50 min-h-screen">
@@ -99,7 +138,7 @@ export default function TruckProfilePage() {
                      <ChevronRight className="w-2.5 h-2.5" />
                      <span className="text-primary/80">Asset Profile</span>
                      <ChevronRight className="w-2.5 h-2.5" />
-                     <span className="text-neutral-300">{truckId}</span>
+                     <span className="text-neutral-300">{truck.truckId}</span>
                   </div>
                   <div className="flex items-center gap-5">
                      <button
@@ -110,18 +149,25 @@ export default function TruckProfilePage() {
                      </button>
                      <div>
                         <div className="flex items-center gap-3">
-                           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{truckDetails.model}</h1>
-                           <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
-                              <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
-                              {truckDetails.status}
+                           <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{truck.vehicleModel}</h1>
+                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 border ${
+                              truck.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                              truck.status === 'Idle' ? 'bg-amber-50 text-amber-500 border-amber-100' :
+                              'bg-rose-50 text-rose-500 border-rose-100'
+                           }`}>
+                              <span className={`w-1 h-1 rounded-full ${
+                                 truck.status === 'Active' ? 'bg-emerald-500 animate-pulse' :
+                                 truck.status === 'Idle' ? 'bg-amber-500' : 'bg-rose-500'
+                              }`} />
+                              {truck.status}
                            </span>
                         </div>
                         <div className="flex items-center gap-4 mt-1.5 text-[11px] text-neutral-400 font-medium">
-                           <span className="flex items-center gap-1.5"><Gauge className="w-3.5 h-3.5 text-blue-500" /> {truckDetails.odometer}</span>
+                           <span className="flex items-center gap-1.5"><Gauge className="w-3.5 h-3.5 text-blue-500" /> {truck.odometer || "0 km"}</span>
                            <span className="text-neutral-200">|</span>
-                           <span>Asset ID: <span className="text-slate-900 font-bold tracking-wider">{truckId}</span></span>
+                           <span>Asset ID: <span className="text-slate-900 font-bold tracking-wider">{truck.truckId}</span></span>
                            <span className="text-neutral-200">|</span>
-                           <span className="flex items-center gap-1.5"><Activity className="w-3.5 h-3.5 text-amber-500" /> Last Service: {truckDetails.lastService}</span>
+                           <span className="flex items-center gap-1.5"><Activity className="w-3.5 h-3.5 text-amber-500" /> Next Service: {truck.maintenanceDate}</span>
                         </div>
                      </div>
                   </div>
