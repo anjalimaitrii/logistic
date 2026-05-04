@@ -12,7 +12,8 @@ import {
   Eye,
   Truck,
   ChevronRight,
-  AlertTriangle
+  AlertTriangle,
+  Search
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
@@ -21,6 +22,9 @@ export default function AdminAccountant() {
   const router = useRouter();
   const [bookings, setBookings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState("all");
 
   useEffect(() => {
     loadBookings();
@@ -63,13 +67,13 @@ export default function AdminAccountant() {
       trend: "Action Required",
       variant: "warning" as const
     },
-    { 
-      label: "Assigned Trips", 
-      value: assignments.length.toString(), 
-      icon: <Truck className="w-5 h-5 text-primary" />, 
-      subText: "Units allocated", 
-      trend: "Active", 
-      variant: "primary" as const 
+    {
+      label: "Assigned Trips",
+      value: assignments.length.toString(),
+      icon: <Truck className="w-5 h-5 text-primary" />,
+      subText: "Units allocated",
+      trend: "Active",
+      variant: "primary" as const
     },
     {
       label: "Approved Trips",
@@ -81,10 +85,32 @@ export default function AdminAccountant() {
     },
   ];
 
-  const tableData = bookings.map(b => {
+  // Derive unique companies and clients for filter dropdowns
+  const uniqueCompanies = Array.from(new Set(
+    bookings.map(b => (b.clientId as any)?.company?.companyName).filter(Boolean)
+  )) as string[];
+
+  const uniqueClients = Array.from(new Set(
+    bookings.map(b => (b.clientId as any)?.name).filter(Boolean)
+  )) as string[];
+
+  const filteredBookings = bookings.filter(b => {
+    const matchesSearch =
+      b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.clientId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.pickup?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.dropoff?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCompany = companyFilter === "all" || (b.clientId as any)?.company?.companyName === companyFilter;
+    const matchesClient = clientFilter === "all" || (b.clientId as any)?.name === clientFilter;
+    return matchesSearch && matchesCompany && matchesClient;
+  });
+
+  const tableData = filteredBookings.map(b => {
     const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
     return {
       id: `#JOB-${b._id.substring(b._id.length - 4).toUpperCase()}`,
+      companyName: (b.clientId as any)?.company?.companyName || "Direct Booking",
+      clientName: (b.clientId as any)?.name || "N/A",
       route: `${b.pickup?.address?.city || 'N/A'} → ${b.dropoff?.address?.city || 'N/A'}`,
       status: b.advancePaid ? "Approved" : "Pending",
       driver: assignment?.driverName || "Unassigned",
@@ -96,6 +122,18 @@ export default function AdminAccountant() {
 
   const columns = [
     { label: "Job ID", key: "id", render: (val: string) => <span className="font-semibold text-emerald-600">{val}</span> },
+    {
+      label: "Company & Client",
+      key: "companyName",
+      render: (val: string, row: any) => (
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[7.5px] font-bold uppercase tracking-wider">{val}</span>
+          </div>
+          <span className="text-[11px] font-bold text-slate-700 ml-0.5">{row.clientName}</span>
+        </div>
+      )
+    },
     {
       label: "Driver", key: "driver", render: (val: string) => (
         <div className="flex items-center gap-2">
@@ -157,15 +195,7 @@ export default function AdminAccountant() {
             <p className="text-[12px] text-neutral-400 font-medium">Verify cargo delivery and process driver allocations.</p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="bg-white border border-neutral-200 rounded-2xl p-1.5 flex items-center gap-1 shadow-sm">
-              <button className="px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest bg-emerald-50 text-emerald-600 transition-all">Daily</button>
-              <button className="px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest text-neutral-400 hover:text-neutral-600 transition-all">Monthly</button>
-            </div>
-            <button className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-xl shadow-slate-200 hover:scale-[1.02] active:scale-[0.98] transition-all">
-              Export Report
-            </button>
-          </div>
+
         </div>
 
         {/* KPI Grid */}
@@ -199,13 +229,36 @@ export default function AdminAccountant() {
             icon="💳"
             isLoading={isLoading}
             action={
-              <div className="flex items-center gap-2">
-                <div className="relative group">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search Job/Driver..."
-                    className="bg-white border border-neutral-200 rounded-lg px-4 py-1.5 text-[10px] font-medium outline-none focus:border-emerald-500/40 transition-all w-48 shadow-inner placeholder:text-neutral-300"
+                    placeholder="Search ID, city..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9 pr-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] focus:outline-none focus:ring-2 focus:ring-primary/20 w-40 transition-all"
                   />
+                </div>
+                <select
+                  value={companyFilter}
+                  onChange={(e) => setCompanyFilter(e.target.value)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer max-w-[160px]"
+                >
+                  <option value="all">All Companies</option>
+                  {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select
+                  value={clientFilter}
+                  onChange={(e) => setClientFilter(e.target.value)}
+                  className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer max-w-[160px]"
+                >
+                  <option value="all">All Clients</option>
+                  {uniqueClients.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <div className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-emerald-100 flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {filteredBookings.length} Result{filteredBookings.length !== 1 ? 's' : ''}
                 </div>
               </div>
             }

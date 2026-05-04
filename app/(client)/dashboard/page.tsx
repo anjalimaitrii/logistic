@@ -41,15 +41,19 @@ export default function DashboardPage() {
    const loadBookings = async (clientId?: string) => {
       try {
          setIsLoading(true);
-         const data = await bookingService.getAll(clientId);
-         setBookings(data || []);
+         const data = await bookingService.getAll();
+
+         const filtered = clientId
+            ? data.filter((b: any) => b.clientId?._id === clientId)
+            : data;
+
+         setBookings(filtered || []);
       } catch (error) {
          console.error("Dashboard fetch error:", error);
       } finally {
          setIsLoading(false);
       }
    };
-
    // ── DYNAMIC STATS ──
    const dynamicStats = [
       { label: "Active Jobs", value: bookings.filter(b => b.status === "transit" || b.status === "confirmed").length.toString(), sub: "Real-time", icon: Package, color: "text-primary" },
@@ -107,7 +111,7 @@ export default function DashboardPage() {
                      <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-primary rounded-full ring-2 ring-white" />
                   </button>
                   <div className="h-4 w-px bg-slate-200 mx-1" />
-                  <div className="flex items-center gap-2 pl-2">
+                  <Link href="/dashboard/profile" className="flex items-center gap-2 pl-2 hover:opacity-80 transition-opacity cursor-pointer">
                      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[10px] font-medium">
                         {user?.name?.charAt(0) || "U"}
                      </div>
@@ -115,7 +119,7 @@ export default function DashboardPage() {
                         <p className="text-[11px] font-semibold text-slate-900">{user?.name || "User"}</p>
                         <p className="text-[9px] text-slate-400 mt-0.5">{user?.designation || "Representative"}</p>
                      </div>
-                  </div>
+                  </Link>
                </div>
             </header>
 

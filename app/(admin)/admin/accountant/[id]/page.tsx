@@ -233,6 +233,7 @@ export default function AccountantJobDetail() {
     id: `#JOB-${jobData._id.substring(jobData._id.length - 6).toUpperCase()}`,
     status: jobData.status,
     client: jobData.clientId?.name || "N/A",
+    company: jobData.clientId?.company?.companyName || "Direct Booking",
     driver: jobData.assignment?.driverName || "Unassigned",
     truckNumber: jobData.assignment?.truckNumber || "N/A",
     truckHealth: jobData.assignment?.truckHealth || "Good",
@@ -277,6 +278,7 @@ export default function AccountantJobDetail() {
               <div>
                 <div className="flex items-center gap-2 md:gap-3 mb-0.5">
                   <h1 className="text-md md:text-xl font-semibold text-slate-900 tracking-tight">{job.id}</h1>
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[8px] md:text-[9px] font-bold uppercase tracking-widest">{job.company}</span>
                   <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white text-[8px] md:text-[9px] font-medium uppercase tracking-widest">{job.driver}</span>
                   <span className="px-2 py-0.5 rounded-md bg-white border border-neutral-200 text-neutral-400 text-[8px] md:text-[9px] font-medium uppercase tracking-widest">{job.truckNumber}</span>
                 </div>

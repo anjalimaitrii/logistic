@@ -22,7 +22,8 @@ import {
    MapPin,
    Hash,
    Calendar,
-   Truck as TruckIcon
+   Truck as TruckIcon,
+   Link
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -114,6 +115,7 @@ export default function JobsPage() {
    const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
    const [bookings, setBookings] = useState<any[]>([]);
    const [isLoading, setIsLoading] = useState(true);
+   const [viewMode, setViewMode] = useState<"personal" | "company">("personal");
    const [user, setUser] = useState<any>(null);
    const isDesktop = useMediaQuery("(min-width: 768px)");
 
@@ -131,7 +133,7 @@ export default function JobsPage() {
    const loadBookings = async (clientId?: string) => {
       try {
          setIsLoading(true);
-         const data = await bookingService.getAll(clientId);
+         const data = await bookingService.getAll();
          setBookings(data || []);
       } catch (error) {
          console.error("Failed to fetch bookings:", error);
@@ -145,15 +147,34 @@ export default function JobsPage() {
    };
 
    // ── DYNAMIC STATS ──
+   const currentViewBookings = bookings.filter(b => {
+      const currentUserId = user?._id || user?.id;
+      if (viewMode === "personal") {
+         return String(b.clientId?._id || b.clientId) === String(currentUserId);
+      } else {
+         // Company view: Match by company ID
+         const userCompanyId = String(user?.company?._id || user?.company || user?.companyId || "");
+         const bookingCompanyId = String(b.clientId?.company?._id || b.clientId?.company || "");
+
+         // If we have both IDs, compare them
+         if (userCompanyId && bookingCompanyId && userCompanyId !== "undefined") {
+            return userCompanyId === bookingCompanyId;
+         }
+
+         // Fallback: If it's the user's own booking, always show it in company view too
+         return String(b.clientId?._id || b.clientId) === String(currentUserId);
+      }
+   });
+
    const dynamicStats = [
-      { label: "Total Jobs", value: bookings.length.toString(), icon: Package, color: "text-primary", bg: "bg-primary/10" },
-      { label: "In Transit", value: bookings.filter(b => b.status === "transit").length.toString(), icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50" },
-      { label: "Pending", value: bookings.filter(b => b.status === "pending").length.toString(), icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
-      { label: "Completed", value: bookings.filter(b => b.status === "completed" || b.status === "delivered").length.toString(), icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
+      { label: "Total Jobs", value: currentViewBookings.length.toString(), icon: Package, color: "text-primary", bg: "bg-primary/10" },
+      { label: "In Transit", value: currentViewBookings.filter(b => b.status === "transit").length.toString(), icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50" },
+      { label: "Pending", value: currentViewBookings.filter(b => b.status === "pending").length.toString(), icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
+      { label: "Completed", value: currentViewBookings.filter(b => b.status === "completed" || b.status === "delivered").length.toString(), icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
    ];
 
    // ── MAP BOOKINGS TO TABLE ──
-   const displayJobs = bookings.map(b => ({
+   const displayJobs = currentViewBookings.map(b => ({
       _id: b._id,
       id: b._id?.substring(b._id.length - 7).toUpperCase() || "NEW",
       origin: b.pickup?.address?.city || "Unknown",
@@ -205,9 +226,11 @@ export default function JobsPage() {
                      <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-primary rounded-full ring-2 ring-white" />
                   </button>
                   <div className="h-4 w-px bg-slate-200 mx-1" />
-                  <div className="flex items-center gap-2 pl-2">
-                     <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">S</div>
-                  </div>
+                  <Link href="/dashboard/profile" className="flex items-center gap-2 pl-2 hover:opacity-80 transition-opacity cursor-pointer">
+                     <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
+                        {user?.name?.charAt(0) || "U"}
+                     </div>
+                  </Link>
                </div>
             </header>
 
@@ -225,6 +248,20 @@ export default function JobsPage() {
                   </div>
 
                   <div className="flex gap-2">
+                     <div className="flex bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+                        <button
+                           onClick={() => setViewMode("personal")}
+                           className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${viewMode === "personal" ? "bg-slate-900 text-white shadow-md" : "text-slate-400 hover:text-slate-600"}`}
+                        >
+                           My Jobs
+                        </button>
+                        <button
+                           onClick={() => setViewMode("company")}
+                           className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${viewMode === "company" ? "bg-slate-900 text-white shadow-md" : "text-slate-400 hover:text-slate-600"}`}
+                        >
+                           Company Jobs
+                        </button>
+                     </div>
                      <button className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-all uppercase tracking-widest">
                         <Filter className="w-3.5 h-3.5" />
                         Filter
@@ -252,7 +289,7 @@ export default function JobsPage() {
                   <div className="px-5 py-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
                      <h3 className="text-[11px] font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
                         <div className="w-1.5 h-4 bg-primary rounded-full" />
-                        My Bookings
+                        {viewMode === "personal" ? "My Bookings" : `Company Bookings (${user?.company?.companyName || 'All'})`}
                      </h3>
                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                         {isLoading ? "Fetching data..." : `Showing ${displayJobs.length} items`}

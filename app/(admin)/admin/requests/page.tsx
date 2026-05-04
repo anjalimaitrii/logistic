@@ -105,6 +105,7 @@ export default function BookingRequestsPage() {
   const tableData = requests.map(req => ({
     id: `#BR-${req._id?.substring(req._id.length - 7).toUpperCase() || "NEW"}`,
     customer: (req.clientId as any)?.name || "Direct Client",
+    companyName: (req.clientId as any)?.company?.companyName || "Direct Booking",
     route: `${req.pickup.address.city} → ${req.dropoff.address.city}`,
     cargo: req.cargoDetails.goodsType,
     weight: `${req.cargoDetails.weight} KG`,
@@ -123,10 +124,12 @@ export default function BookingRequestsPage() {
     {
       label: "Customer",
       key: "customer",
-      render: (val: string) => (
-        <div className="flex flex-col">
-          <span className="text-[13px] font-medium text-neutral-900">{val}</span>
-          <span className="text-[10px] font-medium text-neutral-400">Regular Client</span>
+      render: (val: string, row: any) => (
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <span className="px-1.5 py-0.5 rounded bg-slate-900 text-white text-[7.5px] font-bold uppercase tracking-wider">{row.companyName}</span>
+          </div>
+          <span className="text-[12px] font-bold text-slate-700">{val}</span>
         </div>
       )
     },

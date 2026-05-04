@@ -11,8 +11,9 @@ export interface ClientPayload {
 }
 
 export const clientService = {
-  getAll: async () => {
-    return await fetchApi('/api/clients');
+  getAll: async (companyId?: string) => {
+    const url = companyId ? `/api/clients?companyId=${companyId}` : '/api/clients';
+    return await fetchApi(url);
   },
 
   create: async (payload: ClientPayload) => {
