@@ -367,27 +367,13 @@ export default function BookingRequestsPage() {
               </div>
             )
           }
-          action={
-            <div className="flex gap-2">
-              <div className="relative group">
-                <input
-                  type="text"
-                  placeholder="Search requests..."
-                  className="bg-white border border-neutral-100 rounded-xl px-4 py-2 text-[11px] font-medium outline-none focus:border-primary/20 transition-all w-56 shadow-sm"
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">
-                  🔍
-                </div>
-              </div>
-            </div>
-          }
         />
 
         <BookingChatPanel
           isOpen={isChatOpen}
           onClose={() => setIsChatOpen(false)}
           request={selectedRequest ? {
-            id: `#BR-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
+            id: selectedRequest.jobId || `#BR-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
             customer: (selectedRequest.clientId as any)?.name || "Direct Client",
             route: `${selectedRequest.pickup.address.city} → ${selectedRequest.dropoff.address.city}`,
             cargo: selectedRequest.cargoDetails.goodsType,
@@ -406,7 +392,7 @@ export default function BookingRequestsPage() {
           onClose={() => setIsFinalizeDrawerOpen(false)}
           request={selectedRequest ? {
             ...selectedRequest,
-            id: `#BR-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
+            id: selectedRequest.jobId,
             customer: (selectedRequest.clientId as any)?.name || "Direct Client",
             route: `${selectedRequest.pickup.address.city} → ${selectedRequest.dropoff.address.city}`,
             cargo: selectedRequest.cargoDetails.goodsType,

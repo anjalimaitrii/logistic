@@ -5,8 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
   Truck,
-  User,
-  Activity,
   MapPin,
   Package,
   Phone,
@@ -16,6 +14,7 @@ import {
   ChevronDown
 } from "lucide-react";
 import { driverService } from "@/services/driverService";
+import { collectionService } from "@/services/collectionService";
 
 interface OperationAssignmentDrawerProps {
   isOpen: boolean;
@@ -27,18 +26,21 @@ interface OperationAssignmentDrawerProps {
 export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubmit }: OperationAssignmentDrawerProps) {
   const [step, setStep] = useState(1);
   const [drivers, setDrivers] = useState<any[]>([]);
+  const [collections, setCollections] = useState<any[]>([]);
   const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
+  const [isLoadingCollections, setIsLoadingCollections] = useState(false);
 
   const [formData, setFormData] = useState({
     driver: "",
     truckNumber: "",
     truckHealth: "Excellent",
-    collection: "Collection 1"
+    collection: ""
   });
 
   useEffect(() => {
     if (isOpen) {
       loadDrivers();
+      loadCollections();
     }
   }, [isOpen]);
 
@@ -52,6 +54,21 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
       console.error("Failed to load drivers:", error);
     } finally {
       setIsLoadingDrivers(false);
+    }
+  };
+
+  const loadCollections = async () => {
+    try {
+      setIsLoadingCollections(true);
+      const data = await collectionService.getAll();
+      setCollections(data || []);
+      if (data && data.length > 0 && !formData.collection) {
+        setFormData(prev => ({ ...prev, collection: data[0].name }));
+      }
+    } catch (error) {
+      console.error("Failed to load collections:", error);
+    } finally {
+      setIsLoadingCollections(false);
     }
   };
 
@@ -91,7 +108,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
           collection: "Collection 1"
         });
       }
-      setStep(1); 
+      setStep(1);
     }
   }, [job, isOpen]);
 
@@ -126,7 +143,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
               <h2 className="text-[16px] font-bold text-neutral-900 tracking-tight">Assign Operations</h2>
             </div>
             <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest ml-4">
-               Management for Job #{job?._id?.substring(job?._id?.length - 6).toUpperCase()}
+              Management for Job #{job?._id?.substring(job?._id?.length - 6).toUpperCase()}
             </p>
           </div>
           <button onClick={onClose} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-neutral-400 transition-all border border-transparent hover:border-neutral-100">
@@ -234,7 +251,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                         <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                         <h4 className="text-[10px] font-bold text-slate-900 uppercase tracking-widest">Fleet Unit Details</h4>
                       </div>
-                      
+
                       <div className="space-y-4">
                         <div className="space-y-1.5">
                           <label className="text-[9px] font-semibold text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -242,17 +259,17 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                           </label>
                           <div className="relative">
                             <select
-                               value={drivers.find(d => d.name === formData.driver)?._id || ""}
-                               onChange={(e) => handleFleetSelect(e.target.value)}
-                               disabled={job?.isApproved}
-                               className={`bg-white border border-neutral-100 rounded-xl px-4 py-3 text-[13px] font-semibold text-slate-900 outline-none w-full focus:border-primary/30 transition-all shadow-sm appearance-none ${job?.isApproved ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
+                              value={drivers.find(d => d.name === formData.driver)?._id || ""}
+                              onChange={(e) => handleFleetSelect(e.target.value)}
+                              disabled={job?.isApproved}
+                              className={`bg-white border border-neutral-100 rounded-xl px-4 py-3 text-[13px] font-semibold text-slate-900 outline-none w-full focus:border-primary/30 transition-all shadow-sm appearance-none ${job?.isApproved ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                             >
-                               <option value="" disabled>{isLoadingDrivers ? "Loading units..." : "Select Integrated Fleet Unit"}</option>
-                               {drivers.map((d) => (
-                                 <option key={d._id} value={d._id}>
-                                   {d.name} • {d.assignedTruck?.truckId || "No Truck"} ({d.assignedTruck?.health || "N/A"})
-                                 </option>
-                               ))}
+                              <option value="" disabled>{isLoadingDrivers ? "Loading units..." : "Select Integrated Fleet Unit"}</option>
+                              {drivers.map((d) => (
+                                <option key={d._id} value={d._id}>
+                                  {d.name} • {d.assignedTruck?.truckId || "No Truck"} ({d.assignedTruck?.health || "N/A"})
+                                </option>
+                              ))}
                             </select>
                             {!job?.isApproved && <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-300 pointer-events-none" />}
                           </div>
@@ -290,9 +307,15 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                           disabled={job?.isApproved}
                           className={`bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full appearance-none ${job?.isApproved ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
                         >
-                          <option value="Collection 1">Collection Area 1 (West)</option>
-                          <option value="Collection 2">Collection Area 2 (North)</option>
-                          <option value="Collection 3">Collection Area 3 (East)</option>
+                          {isLoadingCollections ? (
+                            <option>Loading...</option>
+                          ) : collections.length > 0 ? (
+                            collections.map((c: any) => (
+                              <option key={c._id} value={c.name}>{c.name}</option>
+                            ))
+                          ) : (
+                            <option value="">No collections found</option>
+                          )}
                         </select>
                         {!job?.isApproved && <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-300 pointer-events-none" />}
                       </div>
@@ -318,11 +341,10 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
           <button
             onClick={step === 1 ? handleNext : handleFormSubmit}
             disabled={step === 2 && job?.isApproved}
-            className={`flex-1 px-8 py-4 rounded-2xl text-[11px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${
-              step === 2 && job?.isApproved 
-              ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed' 
+            className={`flex-1 px-8 py-4 rounded-2xl text-[11px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${step === 2 && job?.isApproved
+              ? 'bg-neutral-100 text-neutral-400 cursor-not-allowed'
               : 'bg-primary text-white shadow-xl shadow-primary/20 hover:brightness-110 active:scale-[0.98]'
-            }`}
+              }`}
           >
             {step === 1 ? "Next Details" : job?.isApproved ? "Assignment Locked" : "Confirm Assignment"}
             {step === 2 && job?.isApproved ? <Clock className="w-4 h-4" /> : step === 2 ? <CheckCircle2 className="w-4 h-4" /> : <ChevronDown className="w-4 h-4 -rotate-90" />}
