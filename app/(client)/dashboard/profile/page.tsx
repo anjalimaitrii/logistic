@@ -2,13 +2,13 @@
 
 import React, { useState, useEffect } from "react";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
-import { 
-   User, 
-   Mail, 
-   Phone, 
-   Building, 
-   ShieldCheck, 
-   ChevronRight, 
+import {
+   User,
+   Mail,
+   Phone,
+   Building,
+   ShieldCheck,
+   ChevronRight,
    LogOut,
    Users,
    CheckCircle2,
@@ -84,7 +84,7 @@ export default function ClientProfilePage() {
             className="flex-1 min-w-0 pb-12 pt-8 md:pt-10"
          >
             <div className="max-w-5xl mx-auto">
-               
+
                {/* ── MINIMAL HEADER ── */}
                <div className="flex items-center justify-between mb-8">
                   <div>
@@ -95,7 +95,7 @@ export default function ClientProfilePage() {
                      </div>
                      <h1 className="text-xl font-bold text-slate-900 tracking-tight">Account Settings</h1>
                   </div>
-                  <button 
+                  <button
                      onClick={handleLogout}
                      className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-[10px] font-bold text-slate-500 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-100 transition-all shadow-sm"
                   >
@@ -105,7 +105,7 @@ export default function ClientProfilePage() {
                </div>
 
                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  
+
                   {/* ── PERSONAL CARD (Compact) ── */}
                   <div className="lg:col-span-4 space-y-6">
                      <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] p-6 relative overflow-hidden">
@@ -120,7 +120,7 @@ export default function ClientProfilePage() {
                            </div>
                            <h2 className="text-[16px] font-bold text-slate-900 leading-tight">{user?.name}</h2>
                            <p className="text-[11px] font-medium text-slate-400 mt-0.5">{user?.designation || 'Client'}</p>
-                           
+
                            <div className="w-full mt-6 space-y-2 text-left">
                               <div className="p-3 bg-slate-50 rounded-xl flex items-center gap-3">
                                  <MailIcon className="w-3.5 h-3.5 text-slate-400" />
@@ -151,7 +151,7 @@ export default function ClientProfilePage() {
 
                   {/* ── TEAM & ORGANIZATION DETAIL (Compact) ── */}
                   <div className="lg:col-span-8 space-y-6">
-                     
+
                      {/* Team Section */}
                      <div className="bg-white rounded-3xl border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.02)] overflow-hidden">
                         <div className="px-6 py-5 border-b border-slate-50 flex items-center justify-between">
@@ -162,11 +162,9 @@ export default function ClientProfilePage() {
                                  {team.length} Members
                               </span>
                            </div>
-                           <button className="text-[10px] font-bold text-primary uppercase tracking-tighter hover:underline flex items-center gap-1">
-                              View Directory <ArrowRight className="w-3 h-3" />
-                           </button>
+
                         </div>
-                        
+
                         <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[320px] overflow-y-auto custom-scrollbar">
                            {isLoadingTeam ? (
                               <div className="col-span-2 py-10 flex flex-col items-center gap-3">
@@ -179,7 +177,7 @@ export default function ClientProfilePage() {
                               </div>
                            ) : (
                               team.map((member) => (
-                                 <div 
+                                 <div
                                     key={member._id}
                                     className={`p-3 rounded-2xl border transition-all flex items-center gap-3
                                        ${member._id === (user?._id || user?.id) ? 'bg-primary/5 border-primary/20' : 'bg-white border-slate-50 hover:border-slate-200'}
@@ -207,7 +205,7 @@ export default function ClientProfilePage() {
                      {/* Profile Stats Row (Compact) */}
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {[
-                           { label: "Account ID", value: user?._id?.substring(user._id.length-8).toUpperCase() || 'N/A', icon: Briefcase },
+                           { label: "Account ID", value: user?._id?.substring(user._id.length - 8).toUpperCase() || 'N/A', icon: Briefcase },
                            { label: "Joined", value: user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : 'Apr 2024', icon: Calendar },
                            { label: "Role Level", value: "Verified Client", icon: ShieldCheck },
                         ].map((stat, i) => (
