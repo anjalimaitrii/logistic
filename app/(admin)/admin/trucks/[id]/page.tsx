@@ -18,25 +18,32 @@ import {
    Package
 } from "lucide-react";
 import { truckService } from "@/services/truckService";
+import { assignmentService } from "@/services/assignmentService";
+import { format } from "date-fns";
 
 export default function TruckProfilePage() {
    const params = useParams();
    const router = useRouter();
    const id = params.id as string;
    const [truck, setTruck] = useState<any>(null);
+   const [assignments, setAssignments] = useState<any[]>([]);
    const [isLoading, setIsLoading] = useState(true);
 
    useEffect(() => {
       if (id) {
-         loadTruckDetails();
+         loadData();
       }
    }, [id]);
 
-   const loadTruckDetails = async () => {
+   const loadData = async () => {
       try {
          setIsLoading(true);
-         const data = await truckService.getById(id);
-         setTruck(data);
+         const [truckData, assignmentsData] = await Promise.all([
+            truckService.getById(id),
+            assignmentService.getByTruckId(id)
+         ]);
+         setTruck(truckData);
+         setAssignments(assignmentsData || []);
       } catch (error) {
          console.error("Failed to fetch truck details:", error);
       } finally {
@@ -49,20 +56,22 @@ export default function TruckProfilePage() {
       currentDriver: "Adaeze Okafor", // This would normally come from an assignment model
    };
 
+   // Statistics based on actual data
    const kpis = [
-      { label: "Lifetime Routes", value: "86", icon: "🛣️", subText: "Completed legs", trend: "↑ 8%", variant: "primary" as const },
+      { label: "Lifetime Routes", value: assignments.length.toString(), icon: "🛣️", subText: "Completed legs", trend: "Live", variant: "primary" as const },
       { label: "Fuel Efficiency", value: "2.4 km/l", icon: "⛽", subText: "Average consumption", trend: "Stable", variant: "warning" as const },
-      { label: "Fleet Uptime", value: "94%", icon: "⚡", subText: "Operational active", trend: "↑ 2%", variant: "success" as const },
-      { label: "Health Index", value: "92/100", icon: "🛡️", subText: "No major faults", trend: "Normal", variant: "success" as const },
+      { label: "Fleet Uptime", value: "94%", icon: "⚡", subText: "Operational active", trend: "Sync", variant: "success" as const },
+      { label: "Health Index", value: truck?.health || "Good", icon: "🛡️", subText: "Current condition", trend: "Normal", variant: "success" as const },
    ];
 
-   const routeLog = [
-      { id: "JOB-4521", date: "2026-04-05", route: "Lagos → Abuja", driver: "Adaeze Okafor", status: "Completed", fuelUsed: "220 L" },
-      { id: "JOB-4482", date: "2026-04-01", route: "Abuja → Kano", driver: "Kwame Mensah", status: "Completed", fuelUsed: "180 L" },
-      { id: "JOB-4415", date: "2026-03-25", route: "Lagos → Benin City", driver: "Oluwaseun P.", status: "Completed", fuelUsed: "95 L" },
-      { id: "JOB-4367", date: "2026-03-18", route: "Enugu → Lagos", driver: "Adaeze Okafor", status: "Completed", fuelUsed: "155 L" },
-      { id: "JOB-4310", date: "2026-03-10", route: "Port Harcourt → Lagos", driver: "Fatima Osman", status: "Completed", fuelUsed: "190 L" },
-   ];
+   const routeLog = assignments.map(a => ({
+      id: a.bookingId?.jobId || "N/A",
+      date: a.assignedAt ? format(new Date(a.assignedAt), "yyyy-MM-dd") : "N/A",
+      route: `${a.bookingId?.pickup?.address?.city || 'N/A'} → ${a.bookingId?.dropoff?.address?.city || 'N/A'}`,
+      driver: a.driverName,
+      status: a.status,
+      fuelUsed: "TBD"
+   }));
 
    const columns = [
       {
@@ -179,7 +188,9 @@ export default function TruckProfilePage() {
                   </div>
                   <div className="flex flex-col">
                      <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-[0.2em] leading-none mb-1">Active Pilot</span>
-                     <span className="text-[16px] font-bold text-slate-900 tracking-tight leading-none">{truckDetails.currentDriver}</span>
+                     <span className="text-[16px] font-bold text-slate-900 tracking-tight leading-none">
+                        {assignments[0]?.driverName || "No active driver"}
+                     </span>
                   </div>
                </div>
             </div>

@@ -51,6 +51,7 @@ export default function AdminOperations() {
     try {
       const payload = {
         bookingId: selectedJob._id,
+        truckId: assignmentData.truckId,
         driverName: assignmentData.driver,
         truckNumber: assignmentData.truckNumber,
         truckHealth: assignmentData.truckHealth,

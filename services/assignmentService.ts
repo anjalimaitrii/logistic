@@ -28,5 +28,9 @@ export const assignmentService = {
       method: 'PATCH',
       body: JSON.stringify(data),
     });
+  },
+
+  getByTruckId: async (truckId: string) => {
+    return await fetchApi(`/api/assignments/truck/${truckId}`);
   }
 };
