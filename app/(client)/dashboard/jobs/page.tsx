@@ -176,7 +176,7 @@ export default function JobsPage() {
    // ── MAP BOOKINGS TO TABLE ──
    const displayJobs = currentViewBookings.map(b => ({
       _id: b._id,
-      id: b._id?.substring(b._id.length - 7).toUpperCase() || "NEW",
+      id: b.jobId || b._id?.substring(b._id.length - 7).toUpperCase() || "NEW",
       origin: b.pickup?.address?.city || "Unknown",
       destination: b.dropoff?.address?.city || "Unknown",
       cargo: b.cargoDetails?.goodsType || "Cargo",
@@ -494,7 +494,7 @@ export default function JobsPage() {
                            <div className="flex items-center gap-2 mb-0.5">
                               <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Job Details</span>
                               <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">#{selectedBooking._id.substring(selectedBooking._id.length - 7).toUpperCase()}</span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">#{selectedBooking.jobId || selectedBooking._id.substring(selectedBooking._id.length - 7).toUpperCase()}</span>
                            </div>
                            <h2 className="text-lg font-bold text-slate-900">Shipment Specification</h2>
                         </div>

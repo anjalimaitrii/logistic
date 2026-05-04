@@ -72,6 +72,7 @@ export default function AdminJobsPage() {
   const filteredBookings = bookings.filter(b => {
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.jobId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.clientId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.pickup?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.dropoff?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -81,7 +82,7 @@ export default function AdminJobsPage() {
   });
 
   const jobsData = filteredBookings.map(b => ({
-    id: `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase() || "2851"}`,
+    id: b?.jobId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
     client: (b?.clientId as any)?.name || "Direct Client",
     companyName: (b?.clientId as any)?.company?.companyName || "Direct Booking",
     status: getStatusType(b?.status),

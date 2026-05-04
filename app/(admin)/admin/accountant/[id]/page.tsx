@@ -230,7 +230,7 @@ export default function AccountantJobDetail() {
   // Data mapping for the specific job
   const jobIdStr = Array.isArray(id) ? id[0] : id;
   const job = jobData ? {
-    id: `#JOB-${jobData._id.substring(jobData._id.length - 6).toUpperCase()}`,
+    id: jobData.jobId || `#JOB-${jobData._id.substring(jobData._id.length - 6).toUpperCase()}`,
     status: jobData.status,
     client: jobData.clientId?.name || "N/A",
     company: jobData.clientId?.company?.companyName || "Direct Booking",

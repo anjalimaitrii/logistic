@@ -5,7 +5,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
 import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
-import { MessageSquare, CheckCircle, XCircle, Clock, ChevronRight, Package } from "lucide-react";
+import { MessageSquare, CheckCircle, XCircle, Clock, ChevronRight, Package, Search } from "lucide-react";
 import StatCard from "@/components/admin/StatCard";
 import { bookingService } from "@/services/bookingService";
 import { useRouter } from "next/navigation";
@@ -21,6 +21,9 @@ export default function BookingRequestsPage() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isFinalizeDrawerOpen, setIsFinalizeDrawerOpen] = useState(false);
   const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [companyFilter, setCompanyFilter] = useState("all");
+  const [clientFilter, setClientFilter] = useState("all");
 
   useEffect(() => {
     loadRequests();
@@ -102,8 +105,29 @@ export default function BookingRequestsPage() {
     return 'Pending';
   };
 
-  const tableData = requests.map(req => ({
-    id: `#BR-${req._id?.substring(req._id.length - 7).toUpperCase() || "NEW"}`,
+  // Derive unique companies and clients for filter dropdowns
+  const uniqueCompanies = Array.from(new Set(
+    requests.map(req => (req.clientId as any)?.company?.companyName).filter(Boolean)
+  )) as string[];
+
+  const uniqueClients = Array.from(new Set(
+    requests.map(req => (req.clientId as any)?.name).filter(Boolean)
+  )) as string[];
+
+  const filteredRequests = requests.filter(req => {
+    const matchesSearch =
+      req._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      req.jobId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (req.clientId as any)?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      req.pickup?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      req.dropoff?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCompany = companyFilter === "all" || (req.clientId as any)?.company?.companyName === companyFilter;
+    const matchesClient = clientFilter === "all" || (req.clientId as any)?.name === clientFilter;
+    return matchesSearch && matchesCompany && matchesClient;
+  });
+
+  const tableData = filteredRequests.map(req => ({
+    id: req.jobId || `#BR-${req._id?.substring(req._id.length - 7).toUpperCase() || "NEW"}`,
     customer: (req.clientId as any)?.name || "Direct Client",
     companyName: (req.clientId as any)?.company?.companyName || "Direct Booking",
     route: `${req.pickup.address.city} → ${req.dropoff.address.city}`,
@@ -117,7 +141,7 @@ export default function BookingRequestsPage() {
 
   const columns = [
     {
-      label: "Request ID",
+      label: "Job ID",
       key: "id",
       render: (val: string) => <span className="text-[12px] font-semibold text-primary tracking-tight">{val}</span>
     },
@@ -290,6 +314,40 @@ export default function BookingRequestsPage() {
           icon="📩"
           columns={columns}
           data={isLoading ? [] : tableData}
+          action={
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative group">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 group-focus-within:text-primary transition-colors" />
+                <input
+                  type="text"
+                  placeholder="Search ID, city..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 text-[11px] font-medium outline-none focus:bg-white focus:border-primary/20 transition-all w-40"
+                />
+              </div>
+              <select
+                value={companyFilter}
+                onChange={(e) => setCompanyFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer max-w-[160px]"
+              >
+                <option value="all">All Companies</option>
+                {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+                className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer max-w-[160px]"
+              >
+                <option value="all">All Clients</option>
+                {uniqueClients.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <div className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-blue-100 flex items-center gap-2">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                {filteredRequests.length} Result{filteredRequests.length !== 1 ? 's' : ''}
+              </div>
+            </div>
+          }
           onRowClick={(row) => {
             if (row.status === "Accepted") {
               setSelectedRequest(row.raw);
