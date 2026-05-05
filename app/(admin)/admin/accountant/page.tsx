@@ -37,10 +37,19 @@ export default function AdminAccountant() {
         bookingService.getAll(),
         assignmentService.getAll()
       ]);
-      // Only show finalized bookings
-      const finalized = (bookingsData || []).filter((b: any) => b.status === "finalized");
-      setBookings(finalized);
-      setAssignments(assignmentsData || []);
+      
+      const assignments = assignmentsData || [];
+      const assignedBookingIds = new Set(assignments.map((a: any) => 
+        (a.bookingId?._id || a.bookingId)?.toString()
+      ));
+
+      // Only show finalized bookings that have been assigned to a driver
+      const finalizedAndAssigned = (bookingsData || []).filter((b: any) => 
+        b.status === "finalized" && assignedBookingIds.has(b._id.toString())
+      );
+
+      setBookings(finalizedAndAssigned);
+      setAssignments(assignments);
     } catch (error) {
       console.error("Failed to load accountant data:", error);
     } finally {

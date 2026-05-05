@@ -38,7 +38,7 @@ export default function Home() {
 
     try {
       const response = await clientService.login({ identifier, password });
-      
+
       if (response.client.mustChangePassword) {
         setTempUserId(response.client._id);
         setMustChangePassword(true);
@@ -549,8 +549,8 @@ export default function Home() {
                 />
               </div>
 
-              <button 
-                className="ft-btn ft-btn-dark" 
+              <button
+                className="ft-btn ft-btn-dark"
                 onClick={() => handleLogin()}
                 disabled={isLoading}
               >
@@ -560,17 +560,10 @@ export default function Home() {
 
               <div className="mt-8 pt-8 border-t border-neutral-100 space-y-3">
                 <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest text-center mb-2">Switch Account Type</p>
-                
+
                 <Link href="/admin/dashboard" style={{ display: "block" }}>
                   <button className="ft-btn ft-btn-outline" style={{ width: "100%", marginTop: 0 }}>
                     ADMIN LOGIN
-                    <svg viewBox="0 0 24 24" fill="#1B2340"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
-                  </button>
-                </Link>
-
-                <Link href="/driver/dashboard" style={{ display: "block" }}>
-                  <button className="ft-btn ft-btn-outline" style={{ width: "100%", marginTop: 0 }}>
-                    DRIVER LOGIN
                     <svg viewBox="0 0 24 24" fill="#1B2340"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
                   </button>
                 </Link>
@@ -587,7 +580,7 @@ export default function Home() {
           <div className="modal-content">
             <div className="text-center mb-8">
               <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                <svg className="w-8 h-8 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="M9 12l2 2 4-4" /></svg>
               </div>
               <h3 className="font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 700; color: #1B2340; margin-bottom: 8px;">Security Update</h3>
               <p className="text-[14px] text-neutral-500">For your security, you must change your temporary password before accessing the dashboard.</p>
@@ -626,8 +619,8 @@ export default function Home() {
                 </div>
               </div>
 
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="ft-btn ft-btn-dark py-4 mt-2"
                 disabled={isLoading}
               >
@@ -644,4 +637,4 @@ export default function Home() {
       )}
     </>
   );
-}
+}

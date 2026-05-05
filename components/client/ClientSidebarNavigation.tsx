@@ -53,11 +53,6 @@ export function ClientSidebarNavigation({ isExpanded, onHover }: { isExpanded: b
             onHover={onHover}
             footerItems={[
                 {
-                    label: "Support",
-                    href: "/dashboard/support",
-                    icon: HelpCircle,
-                },
-                {
                     label: "Logout",
                     onClick: handleLogout,
                     icon: LogOut,
