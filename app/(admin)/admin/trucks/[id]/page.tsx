@@ -159,15 +159,13 @@ export default function TruckProfilePage() {
                      <div>
                         <div className="flex items-center gap-3">
                            <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{truck.vehicleModel}</h1>
-                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 border ${
-                              truck.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                           <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 border ${truck.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                               truck.status === 'Idle' ? 'bg-amber-50 text-amber-500 border-amber-100' :
-                              'bg-rose-50 text-rose-500 border-rose-100'
-                           }`}>
-                              <span className={`w-1 h-1 rounded-full ${
-                                 truck.status === 'Active' ? 'bg-emerald-500 animate-pulse' :
+                                 'bg-rose-50 text-rose-500 border-rose-100'
+                              }`}>
+                              <span className={`w-1 h-1 rounded-full ${truck.status === 'Active' ? 'bg-emerald-500 animate-pulse' :
                                  truck.status === 'Idle' ? 'bg-amber-500' : 'bg-rose-500'
-                              }`} />
+                                 }`} />
                               {truck.status}
                            </span>
                         </div>
@@ -208,7 +206,6 @@ export default function TruckProfilePage() {
                icon="🚐"
                columns={columns}
                data={routeLog}
-               onRowClick={(row) => router.push(`/admin/jobs/${row.id}`)}
                action={
                   <div className="flex gap-2">
                      <div className="relative group">

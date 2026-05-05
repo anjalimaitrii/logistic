@@ -53,9 +53,9 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
   useEffect(() => {
     if (request) {
       console.log("Finalizing request with data:", request);
-      
+
       const [legacyPickup, legacyDropoff] = request.route?.split(" → ") || ["", ""];
-      
+
       setFormData(prev => ({
         ...prev,
         // Pickup Details
@@ -65,7 +65,7 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
         pickupStreet: request.pickup?.address?.street || request.pickupStreet || "",
         pickupCity: request.pickup?.address?.city || legacyPickup || request.pickupCity || "",
         pickupPincode: request.pickup?.address?.pincode || request.pickupPincode || "",
-        
+
         // Drop-off Details
         dropoffContactPerson: request.dropoff?.contactPerson || "",
         dropoffContact: request.dropoff?.contactNumber || request.dropoffContact || "",
@@ -73,25 +73,35 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
         dropoffStreet: request.dropoff?.address?.street || request.dropoffStreet || "",
         dropoffCity: request.dropoff?.address?.city || legacyDropoff || request.dropoffCity || "",
         dropoffPincode: request.dropoff?.address?.pincode || request.dropoffPincode || "",
-        
+
         // Cargo Details
         goodsType: request.cargoDetails?.goodsType || request.cargo || "",
         weight: request.cargoDetails?.weight || request.weight || "",
         truckType: request.requirement?.bodyType || request.truckType || "",
-        
+
         // Schedule & Financials
-        scheduleDate: request.cargoDetails?.loadingDate 
-          ? new Date(request.cargoDetails.loadingDate).toISOString().split('T')[0] 
+        scheduleDate: request.cargoDetails?.loadingDate
+          ? new Date(request.cargoDetails.loadingDate).toISOString().split('T')[0]
           : new Date().toISOString().split('T')[0],
         amount: request.price?.replace(/[^0-9]/g, "") || "",
       }));
     }
   }, [request]);
 
-  const handleNext = () => setStep(step + 1);
+  const handleNext = () => {
+    if (step === 2 && (!formData.amount || Number(formData.amount) <= 0)) {
+      alert("Deal amount must be greater than 0 to proceed.");
+      return;
+    }
+    setStep(step + 1);
+  };
   const handleBack = () => setStep(step - 1);
 
   const handleFormSubmit = () => {
+    if (!formData.amount || Number(formData.amount) <= 0) {
+      alert("Deal amount must be greater than 0.");
+      return;
+    }
     onSubmit(formData);
     onClose();
     setStep(1);

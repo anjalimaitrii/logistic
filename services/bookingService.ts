@@ -61,5 +61,12 @@ export const bookingService = {
       method: 'PATCH',
       body: JSON.stringify({ status, ...additionalData }),
     });
+  },
+
+  update: async (id: string, payload: any) => {
+    return await fetchApi(`/api/bookings/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
   }
 };

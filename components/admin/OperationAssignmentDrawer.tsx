@@ -32,7 +32,8 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
 
   const [formData, setFormData] = useState({
     driver: "",
-    truckId: "", // New field
+    driverId: "", // New field
+    truckId: "",
     truckNumber: "",
     truckHealth: "Excellent",
     collection: ""
@@ -79,7 +80,8 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
       setFormData({
         ...formData,
         driver: driver.name,
-        truckId: driver.assignedTruck?._id || "", // Capture truckId
+        driverId: driver._id, // Capture driverId
+        truckId: driver.assignedTruck?._id || "",
         truckNumber: driver.assignedTruck?.truckId || "N/A",
         truckHealth: driver.assignedTruck?.health || "Good"
       });
@@ -87,6 +89,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
       setFormData({
         ...formData,
         driver: "",
+        driverId: "",
         truckId: "",
         truckNumber: "",
         truckHealth: "Excellent"
@@ -99,6 +102,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
       if (job.assignment) {
         setFormData({
           driver: job.assignment.driverName || "",
+          driverId: job.assignment.driverId || "",
           truckId: job.assignment.truckId || "",
           truckNumber: job.assignment.truckNumber || "",
           truckHealth: job.assignment.truckHealth || "Excellent",
@@ -107,6 +111,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
       } else {
         setFormData({
           driver: "",
+          driverId: "",
           truckId: "",
           truckNumber: "",
           truckHealth: "Excellent",

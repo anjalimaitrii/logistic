@@ -14,6 +14,7 @@ import {
   Search
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
+import EditJobDrawer from "@/components/admin/EditJobDrawer";
 
 export default function AdminJobsPage() {
   const [bookings, setBookings] = useState<any[]>([]);
@@ -21,6 +22,8 @@ export default function AdminJobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
+  const [selectedJob, setSelectedJob] = useState<any>(null);
+  const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
 
   useEffect(() => {
     loadBookings();
@@ -39,6 +42,16 @@ export default function AdminJobsPage() {
       console.error("Failed to fetch bookings:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleUpdateJob = async (id: string, payload: any) => {
+    try {
+      await bookingService.update(id, payload);
+      await loadBookings(); // Refresh list
+    } catch (error) {
+      console.error("Failed to update job:", error);
+      throw error;
     }
   };
 
@@ -148,7 +161,14 @@ export default function AdminJobsPage() {
           >
             <Eye className="w-3.5 h-3.5" />
           </button>
-          <button className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-900 transition-all border border-slate-100">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedJob(row.raw);
+              setIsEditDrawerOpen(true);
+            }}
+            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-900 transition-all border border-slate-100"
+          >
             <Edit2 className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -286,6 +306,16 @@ export default function AdminJobsPage() {
               </div>
             )
           }
+        />
+
+        <EditJobDrawer 
+          isOpen={isEditDrawerOpen}
+          onClose={() => {
+            setIsEditDrawerOpen(false);
+            setSelectedJob(null);
+          }}
+          job={selectedJob}
+          onUpdate={handleUpdateJob}
         />
       </div>
     </AdminLayout>

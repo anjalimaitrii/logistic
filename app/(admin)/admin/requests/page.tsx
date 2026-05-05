@@ -5,7 +5,8 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
 import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
-import { MessageSquare, CheckCircle, XCircle, Clock, ChevronRight, Package, Search } from "lucide-react";
+import { MessageSquare, CheckCircle, XCircle, Clock, ChevronRight, Package, Search, Edit2 } from "lucide-react";
+import EditJobDrawer from "@/components/admin/EditJobDrawer";
 import StatCard from "@/components/admin/StatCard";
 import { bookingService } from "@/services/bookingService";
 import { useRouter } from "next/navigation";
@@ -20,6 +21,8 @@ export default function BookingRequestsPage() {
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isFinalizeDrawerOpen, setIsFinalizeDrawerOpen] = useState(false);
+  const [isEditJobDrawerOpen, setIsEditJobDrawerOpen] = useState(false);
+  const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
@@ -92,6 +95,16 @@ export default function BookingRequestsPage() {
       loadRequests();
     } catch (error) {
       console.error("Status update error:", error);
+    }
+  };
+
+  const handleUpdateJob = async (id: string, payload: any) => {
+    try {
+      await bookingService.update(id, payload);
+      await loadRequests(); // Refresh list
+    } catch (error) {
+      console.error("Failed to update job:", error);
+      throw error;
     }
   };
 
@@ -256,10 +269,17 @@ export default function BookingRequestsPage() {
           )}
 
           {row.status === "Finalized" && (
-            <div className="flex items-center gap-1 text-[9px] font-semibold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full">
-              <CheckCircle className="w-3 h-3" />
-              Completed
-            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedJob(row.raw);
+                setIsEditJobDrawerOpen(true);
+              }}
+              className="p-2 bg-slate-50 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all border border-transparent hover:border-slate-200 group"
+              title="Edit Finalized Job"
+            >
+              <Edit2 className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
+            </button>
           )}
 
           {row.status === "Rejected" && (
@@ -409,13 +429,22 @@ export default function BookingRequestsPage() {
               });
             }
             setIsFinalizeDrawerOpen(false);
-            console.log("Finalizing deal with data:", data);
           }}
         />
         <CreateBookingDrawer
           isOpen={isCreateDrawerOpen}
           onClose={() => setIsCreateDrawerOpen(false)}
           onSubmit={handleCreateBooking}
+        />
+
+        <EditJobDrawer
+          isOpen={isEditJobDrawerOpen}
+          onClose={() => {
+            setIsEditJobDrawerOpen(false);
+            setSelectedJob(null);
+          }}
+          job={selectedJob}
+          onUpdate={handleUpdateJob}
         />
       </div>
     </AdminLayout>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
@@ -13,39 +13,60 @@ import {
   Truck, 
   Award,
   Clock,
-  Navigation
+  Navigation,
+  Package
 } from "lucide-react";
+import { driverService } from "@/services/driverService";
+import { assignmentService } from "@/services/assignmentService";
+import { format } from "date-fns";
+
 
 export default function DriverProfilePage() {
   const params = useParams();
   const router = useRouter();
   const driverId = params.id as string;
 
-  // Mock data for the driver profile
-  const driverDetails = {
-    id: driverId,
-    name: "Adaeze Okafor",
-    status: "Active",
-    assignedTruck: "TRK-014",
-    phone: "+234 803 123 4567",
-    experience: "5 Years",
-    rating: "4.9/5"
+  const [driver, setDriver] = useState<any>(null);
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (driverId) {
+      loadData();
+    }
+  }, [driverId]);
+
+  const loadData = async () => {
+    try {
+      setIsLoading(true);
+      const [driverData, assignmentsData] = await Promise.all([
+        driverService.getById(driverId),
+        assignmentService.getByDriverId(driverId)
+      ]);
+      setDriver(driverData);
+      setAssignments(assignmentsData || []);
+    } catch (error) {
+      console.error("Failed to fetch driver details:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const kpis = [
-    { label: "Total Trips", value: "142", icon: "🛣️", subText: "Lifetime completions", trend: "↑ 12%", variant: "primary" as const },
+    { label: "Total Trips", value: assignments.length.toString(), icon: "🛣️", subText: "Lifetime completions", trend: "Live", variant: "primary" as const },
     { label: "On-Time Delivery", value: "98%", icon: "⏱️", subText: "Scheduled precision", trend: "Stable", variant: "success" as const },
-    { label: "Total Distance", value: "42,400", icon: "📏", subText: "KM covered", trend: "—", variant: "warning" as const },
-    { label: "Asset health", value: "A+", icon: "🛡️", subText: "Safety score", trend: "No incidents", variant: "success" as const },
+    { label: "Experience", value: driver?.experience ? `${driver.experience} Years` : "N/A", icon: "📏", subText: "Career depth", trend: "—", variant: "warning" as const },
+    { label: "Status", value: driver?.status || "Active", icon: "🛡️", subText: "Current standing", trend: "Normal", variant: "success" as const },
   ];
 
-  const tripHistory = [
-    { id: "JOB-4521", date: "2026-04-05", route: "Lagos → Abuja", truck: "TRK-014", status: "Completed", distance: "750 km" },
-    { id: "JOB-4498", date: "2026-04-02", route: "Kano → Lagos", truck: "TRK-014", status: "Completed", distance: "1,100 km" },
-    { id: "JOB-4450", date: "2026-03-28", route: "Lagos → Port Harcourt", truck: "TRK-022", status: "Completed", distance: "600 km" },
-    { id: "JOB-4389", date: "2026-03-20", route: "Abuja → Lagos", truck: "TRK-014", status: "Completed", distance: "750 km" },
-    { id: "JOB-4322", date: "2026-03-15", route: "Enugu → Lagos", truck: "TRK-007", status: "Completed", distance: "550 km" },
-  ];
+  const tripHistory = assignments.map(a => ({
+    id: a.bookingId?.jobId || "N/A",
+    date: a.assignedAt ? format(new Date(a.assignedAt), "yyyy-MM-dd") : "N/A",
+    route: `${a.bookingId?.pickup?.address?.city || 'N/A'} → ${a.bookingId?.dropoff?.address?.city || 'N/A'}`,
+    truck: a.truckNumber,
+    status: a.status,
+    distance: "TBD"
+  }));
 
   const columns = [
     { label: "Date", key: "date", render: (val: string) => (
@@ -82,6 +103,28 @@ export default function DriverProfilePage() {
     },
   ];
 
+  if (isLoading) {
+    return (
+      <AdminLayout>
+        <div className="p-6 bg-neutral-50 min-h-screen flex items-center justify-center">
+          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  if (!driver) {
+    return (
+      <AdminLayout>
+        <div className="p-6 bg-neutral-50 min-h-screen flex flex-col items-center justify-center gap-4">
+          <Package className="w-12 h-12 text-neutral-200" />
+          <h2 className="text-xl font-bold text-slate-900">Driver Not Found</h2>
+          <button onClick={() => router.push('/admin/drivers')} className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold uppercase tracking-widest">Back to Drivers</button>
+        </div>
+      </AdminLayout>
+    );
+  }
+
   return (
     <AdminLayout>
       <div className="p-6 pb-20 space-y-8 bg-neutral-50 min-h-screen">
@@ -104,15 +147,22 @@ export default function DriverProfilePage() {
                  </button>
                  <div>
                     <div className="flex items-center gap-3">
-                       <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{driverDetails.name}</h1>
-                       <span className="px-2.5 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
-                          <span className="w-1 h-1 bg-emerald-500 rounded-full animate-pulse" />
-                          {driverDetails.status}
+                       <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{driver.name}</h1>
+                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 border ${
+                          driver.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                          driver.status === 'On Leave' ? 'bg-amber-50 text-amber-500 border-amber-100' :
+                          'bg-rose-50 text-rose-500 border-rose-100'
+                       }`}>
+                          <span className={`w-1 h-1 rounded-full ${
+                             driver.status === 'Active' ? 'bg-emerald-500 animate-pulse' :
+                             driver.status === 'On Leave' ? 'bg-amber-500' : 'bg-rose-500'
+                          }`} />
+                          {driver.status}
                        </span>
                     </div>
                     <div className="flex items-center gap-4 mt-1.5 text-[11px] text-neutral-400 font-medium">
-                       <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-amber-500" /> {driverDetails.experience} Exp</span>
-                       <span className="flex items-center gap-1.5"><Navigation className="w-3.5 h-3.5" /> Rated {driverDetails.rating}</span>
+                       <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-amber-500" /> {driver.experience} Yrs Exp</span>
+                       <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Registered {format(new Date(driver.createdAt), "MMM yyyy")}</span>
                        <span className="text-neutral-200">|</span>
                        <span>ID: <span className="text-slate-900 font-bold tracking-wider">{driverId}</span></span>
                     </div>
@@ -126,7 +176,9 @@ export default function DriverProfilePage() {
               </div>
               <div className="flex flex-col">
                  <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-[0.2em] leading-none mb-1">Assigned Asset</span>
-                 <span className="text-[16px] font-bold text-slate-900 tracking-tight leading-none">{driverDetails.assignedTruck}</span>
+                 <span className="text-[16px] font-bold text-slate-900 tracking-tight leading-none">
+                    {driver.assignedTruck?.truckId || "No asset assigned"}
+                 </span>
               </div>
            </div>
         </div>

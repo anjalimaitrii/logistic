@@ -32,5 +32,9 @@ export const assignmentService = {
 
   getByTruckId: async (truckId: string) => {
     return await fetchApi(`/api/assignments/truck/${truckId}`);
+  },
+
+  getByDriverId: async (driverId: string) => {
+    return await fetchApi(`/api/assignments/driver/${driverId}`);
   }
 };
