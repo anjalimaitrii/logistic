@@ -14,10 +14,12 @@ import {
   Search
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
+import { assignmentService } from "@/services/assignmentService";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
 
 export default function AdminJobsPage() {
   const [bookings, setBookings] = useState<any[]>([]);
+  const [assignments, setAssignments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
@@ -32,12 +34,17 @@ export default function AdminJobsPage() {
   const loadBookings = async () => {
     try {
       setIsLoading(true);
-      const data = await bookingService.getAll();
+      const [bookingsData, assignmentsData] = await Promise.all([
+        bookingService.getAll(),
+        assignmentService.getAll()
+      ]);
+      
       // ONLY SHOW FINALIZED JOBS
-      const finalizedOnly = (data || []).filter((b: any) =>
+      const finalizedOnly = (bookingsData || []).filter((b: any) =>
         b.status === 'finalized'
       );
       setBookings(finalizedOnly);
+      setAssignments(assignmentsData || []);
     } catch (error) {
       console.error("Failed to fetch bookings:", error);
     } finally {
@@ -94,15 +101,18 @@ export default function AdminJobsPage() {
     return matchesSearch && matchesCompany && matchesClient;
   });
 
-  const jobsData = filteredBookings.map(b => ({
-    id: b?.jobId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
-    client: (b?.clientId as any)?.name || "Direct Client",
-    companyName: (b?.clientId as any)?.company?.companyName || "Direct Booking",
-    status: getStatusType(b?.status),
-    driver: b?.metadata?.driverName || "Assign Driver",
-    route: `${b?.pickup?.address?.city || "Origin"} → ${b?.dropoff?.address?.city || "Dest."}`,
-    raw: b
-  }));
+  const jobsData = filteredBookings.map(b => {
+    const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
+    return {
+      id: b?.jobId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
+      client: (b?.clientId as any)?.name || "Direct Client",
+      companyName: (b?.clientId as any)?.company?.companyName || "Direct Booking",
+      status: getStatusType(b?.status),
+      driver: assignment?.driverName || "Assign Driver",
+      route: `${b?.pickup?.address?.city || "Origin"} → ${b?.dropoff?.address?.city || "Dest."}`,
+      raw: b
+    };
+  });
 
   const columns = [
     {
