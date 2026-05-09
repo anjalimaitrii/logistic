@@ -5,23 +5,12 @@ import { useRouter, useParams } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import {
   ArrowLeft,
-  Truck,
   Fuel,
   MapPin,
-  User,
-  Check,
-  Clock,
   CheckCircle2,
   ChevronRight,
   TrendingUp,
-  Activity,
-  DollarSign,
-  Plus,
-  Trash2,
-  Receipt,
-  Settings,
-  Calendar,
-  Phone
+  DollarSign
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
@@ -33,6 +22,7 @@ export default function AccountantJobDetail() {
   const [jobData, setJobData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isApproved, setIsApproved] = useState(false);
+  const [jobSettlement, setJobSettlement] = useState<any>(null);
 
   // Local state for calculations - Using clear naming
   const [calcData, setCalcData] = useState({
@@ -44,13 +34,6 @@ export default function AccountantJobDetail() {
     allocationMoney: ""
   });
 
-  // State for additional transactions/expenses
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [newTransaction, setNewTransaction] = useState({
-    description: "",
-    amount: "",
-    category: "Other"
-  });
 
   useEffect(() => {
     if (id) {
@@ -58,13 +41,14 @@ export default function AccountantJobDetail() {
     }
   }, [id]);
 
-  // Improved calculation logic based on User's requirements
+  // Calculation logic: Fuel estimate + Cash allocation
   const calculations = useMemo(() => {
     const pKm = parseFloat(calcData.pickupKm) || 0;
-    const pMileage = parseFloat(calcData.pickupMileage) || 1; // Divisor
+    const pMileage = parseFloat(calcData.pickupMileage) || 1;
     const dKm = parseFloat(calcData.dropoffKm) || 0;
-    const dMileage = parseFloat(calcData.dropoffMileage) || 1; // Divisor
-    const fuelRate = parseFloat(calcData.fuelRate) || 0; // Multiplier
+    const dMileage = parseFloat(calcData.dropoffMileage) || 1;
+    const fuelRate = parseFloat(calcData.fuelRate) || 0;
+    const cashAllocation = parseFloat(calcData.allocationMoney) || 0;
 
     const pLiters = pKm / pMileage;
     const pAmount = pLiters * fuelRate;
@@ -72,7 +56,7 @@ export default function AccountantJobDetail() {
     const dLiters = dKm / dMileage;
     const dAmount = dLiters * fuelRate;
 
-    const transactionTotal = transactions.reduce((sum, t) => sum + t.amount, 0);
+    const fuelTotal = Math.round(pAmount + dAmount);
 
     return {
       pickupLiters: pLiters.toFixed(1),
@@ -80,11 +64,10 @@ export default function AccountantJobDetail() {
       dropoffLiters: dLiters.toFixed(1),
       dropoffAmount: Math.round(dAmount),
       totalLiters: (pLiters + dLiters).toFixed(1),
-      fuelTotal: Math.round(pAmount + dAmount),
-      transactionTotal,
-      grandTotal: Math.round(pAmount + dAmount + transactionTotal)
+      fuelTotal,
+      grandTotal: fuelTotal + Math.round(cashAllocation)
     };
-  }, [calcData, transactions]);
+  }, [calcData]);
 
   const loadJobDetails = async () => {
     try {
@@ -99,6 +82,7 @@ export default function AccountantJobDetail() {
       ]);
 
       setJobData({ ...data, assignment });
+      setJobSettlement(settlement);
 
       if (settlement) {
         setIsApproved(true);
@@ -110,10 +94,6 @@ export default function AccountantJobDetail() {
           fuelRate: settlement.fuelDetails.fuelRate.toString(),
           allocationMoney: settlement.financials.advancePaid.toString()
         });
-        setTransactions((settlement.expenses || []).map((t: any) => ({
-          ...t,
-          id: t._id || t.id
-        })));
       } else if (data.advancePaid) {
         setCalcData(prev => ({ ...prev, allocationMoney: data.advancePaid.toString() }));
       }
@@ -146,7 +126,7 @@ export default function AccountantJobDetail() {
           dropoffMileage: Number(calcData.dropoffMileage),
           fuelRate: Number(calcData.fuelRate)
         },
-        expenses: transactions,
+        expenses: jobSettlement?.expenses || [], // Preserving existing operational expenses
         financials: {
           advancePaid: Number(calcData.allocationMoney),
           grandTotal: calculations.grandTotal
@@ -171,61 +151,6 @@ export default function AccountantJobDetail() {
       if (!silent) alert("Error approving trip");
     }
   };
-
-  const handleAddTransaction = () => {
-    if (!newTransaction.description || !newTransaction.amount) return;
-    const tId = Math.random().toString(36).substr(2, 9);
-    const updatedTransactions = [...transactions, {
-      id: tId,
-      date: new Date().toLocaleDateString(),
-      ...newTransaction,
-      amount: parseFloat(newTransaction.amount)
-    }];
-    setTransactions(updatedTransactions);
-    setNewTransaction({ description: "", amount: "", category: "Other" });
-    
-    // If already approved, sync immediately
-    if (isApproved) {
-      syncSettlement(updatedTransactions);
-    }
-  };
-
-  // Dedicated sync function for post-approval expenses
-  const syncSettlement = async (currentTransactions: any[]) => {
-    if (!isApproved) return;
-    try {
-      const bookingId = (Array.isArray(id) ? id[0] : id) as string;
-      const settlementPayload = {
-        bookingId,
-        assignmentId: jobData.assignment?._id,
-        fuelDetails: {
-          pickupKm: Number(calcData.pickupKm),
-          pickupMileage: Number(calcData.pickupMileage),
-          dropoffKm: Number(calcData.dropoffKm),
-          dropoffMileage: Number(calcData.dropoffMileage),
-          fuelRate: Number(calcData.fuelRate)
-        },
-        expenses: currentTransactions,
-        financials: {
-          advancePaid: Number(calcData.allocationMoney),
-          grandTotal: currentTransactions.reduce((sum, t) => sum + t.amount, 0) + calculations.fuelTotal
-        }
-      };
-      await settlementService.process(settlementPayload);
-    } catch (error) {
-      console.error("Sync failed:", error);
-    }
-  };
-
-  const removeTransaction = (tId: string) => {
-    const updated = transactions.filter(t => (t.id || t._id) !== tId);
-    setTransactions(updated);
-    if (isApproved) {
-      syncSettlement(updated);
-    }
-  };
-
-
 
   // Data mapping for the specific job
   const jobIdStr = Array.isArray(id) ? id[0] : id;
@@ -259,10 +184,8 @@ export default function AccountantJobDetail() {
   };
 
   const statCards = [
-    { label: "Fuel Allocation", value: `₦${calculations.fuelTotal.toLocaleString()}`, icon: <Fuel className="w-4 h-4 text-amber-500" />, color: "border-amber-500" },
-    { label: "Other Expenses", value: `₦${calculations.transactionTotal.toLocaleString()}`, icon: <Receipt className="w-4 h-4 text-blue-500" />, color: "border-blue-500" },
-    { label: "Grand Total", value: `₦${calculations.grandTotal.toLocaleString()}`, icon: <DollarSign className="w-4 h-4 text-emerald-500" />, color: "border-emerald-500" },
-    { label: "Driver Cash", value: calcData.allocationMoney ? `₦${parseFloat(calcData.allocationMoney).toLocaleString()}` : "---", icon: <TrendingUp className="w-4 h-4 text-primary" />, color: "border-primary" },
+    { label: "Est. Fuel Cost", value: `₦${calculations.fuelTotal.toLocaleString()}`, icon: <Fuel className="w-4 h-4 text-amber-500" />, color: "border-amber-500" },
+    { label: "Cash Allocation", value: calcData.allocationMoney ? `₦${parseFloat(calcData.allocationMoney).toLocaleString()}` : "---", icon: <DollarSign className="w-4 h-4 text-blue-500" />, color: "border-blue-500" },
   ];
 
   return (
@@ -302,7 +225,7 @@ export default function AccountantJobDetail() {
         </div>
 
         <div className="p-4 md:p-6 max-w-[1280px] mx-auto space-y-4 md:space-y-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             {statCards.map((card, i) => (
               <div key={i} className={`bg-white rounded-xl md:rounded-2xl p-4 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] border-t-2 ${card.color} transition-transform hover:-translate-y-1`}>
                 <div className="flex items-center justify-between mb-2">
@@ -347,70 +270,36 @@ export default function AccountantJobDetail() {
                 </div>
               </div>
 
-              {/* Expense Ledger */}
+              {/* Cash Allocation - Food & Other Expenses */}
               <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100">
-                <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 md:w-9 md:h-9 rounded-lg md:rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0"><Receipt className="w-4 h-4 md:w-4.5 md:h-4.5" /></div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1 px-1.5 rounded-lg bg-blue-50 text-blue-600"><DollarSign className="w-3.5 h-3.5" /></div>
                     <div>
-                      <h2 className="text-xs md:text-sm font-semibold text-slate-950">Expense Ledger</h2>
-                      <p className="text-[8px] md:text-[10px] font-normal text-neutral-400 uppercase tracking-widest">Ongoing transaction history</p>
+                      <h2 className="text-xs md:text-sm font-semibold text-slate-950">Cash Allocation</h2>
+                      <p className="text-[8px] md:text-[9px] font-normal text-neutral-400 uppercase tracking-widest">Food & Other Expenses</p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 bg-neutral-50 p-2.5 px-3 rounded-xl">
-                    <div className="text-[8px] md:text-[9px] font-medium text-neutral-400 uppercase tracking-widest">Total Extra:</div>
-                    <div className="text-sm font-semibold text-slate-950">₦{calculations.transactionTotal.toLocaleString()}</div>
                   </div>
                 </div>
-                <div className="p-4 md:p-5 bg-neutral-50/50 rounded-xl border border-neutral-100 mb-6">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div className="space-y-1">
-                      <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest ml-1">Description</label>
-                      <input type="text" value={newTransaction.description} onChange={(e) => setNewTransaction({ ...newTransaction, description: e.target.value })} placeholder="e.g. Repair..." className="w-full bg-white border border-neutral-200 rounded-lg py-2 px-3 text-[11px] font-normal outline-none focus:border-slate-400 transition-all" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest ml-1">Amount (₦)</label>
-                      <input type="number" value={newTransaction.amount} onChange={(e) => setNewTransaction({ ...newTransaction, amount: e.target.value })} placeholder="0.00" className="w-full bg-white border border-neutral-200 rounded-lg py-2 px-3 text-[11px] font-semibold text-slate-900 outline-none focus:border-slate-400 transition-all" />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest ml-1">Category</label>
-                      <select value={newTransaction.category} onChange={(e) => setNewTransaction({ ...newTransaction, category: e.target.value })} className="w-full bg-white border border-neutral-200 rounded-lg py-2 px-3 text-[11px] font-medium text-slate-900 outline-none focus:border-slate-400 transition-all">
-                        <option value="Fuel">Fuel</option><option value="Repair">Repair</option><option value="Food">Food</option><option value="Other">Other</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button onClick={handleAddTransaction} className="px-6 py-2 bg-slate-900 text-white rounded-lg text-[9px] font-semibold uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center justify-center gap-2 shadow-sm active:scale-95"><Check className="w-3 h-3" /> Save Expense</button>
-                  </div>
+                <div className="p-4 rounded-xl bg-blue-50/30 border border-blue-100/50 mb-4">
+                  <p className="text-[10px] font-medium text-blue-700 leading-relaxed">This amount is given to the driver for food, lodging, tolls and other miscellaneous expenses during the trip. This is <strong>not</strong> for fuel/petrol.</p>
                 </div>
-                <div className="space-y-3">
-                  {transactions.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between p-3.5 bg-white border border-neutral-100 rounded-xl shadow-sm relative overflow-hidden">
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-neutral-50 text-slate-400"><Receipt className="w-3.5 h-3.5" /></div>
-                        <div>
-                          <div className="text-[11px] font-semibold text-slate-900">{t.description}</div>
-                          <div className="text-[9px] font-medium text-neutral-400 uppercase tracking-widest">{t.category} · {t.date}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-[12px] font-bold text-slate-900">₦{t.amount.toLocaleString()}</div>
-                        <button onClick={() => removeTransaction(t.id)} className="p-1.5 text-neutral-300 hover:text-rose-500 rounded-lg transition-all"><Trash2 className="w-3.5 h-3.5" /></button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  <label className="text-[9px] font-bold text-slate-600 uppercase tracking-widest font-sans ml-1">Allocation Amount (₦)</label>
+                  <input type="number" value={calcData.allocationMoney} onChange={(e) => setCalcData({ ...calcData, allocationMoney: e.target.value })} placeholder="0.00" className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-400 focus:bg-white transition-all placeholder:text-neutral-300" />
                 </div>
+
               </div>
             </div>
 
-            <div className="space-y-4 md:space-y-6 lg:h-full">
-              <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100 h-full">
+            <div className="space-y-4 md:space-y-6">
+              <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100">
                 <div className="flex items-center justify-between mb-6 md:mb-8">
                   <div className="flex items-center gap-2">
                     <div className="p-1 px-1.5 rounded-lg bg-orange-50 text-orange-600"><Fuel className="w-3.5 h-3.5" /></div>
-                    <h2 className="text-xs md:text-sm font-semibold text-slate-950">Trip Summary</h2>
+                    <h2 className="text-xs md:text-sm font-semibold text-slate-950">Fuel Estimate</h2>
                   </div>
-                  <div className="px-2 py-0.5 rounded-full bg-slate-100 text-[8px] md:text-[9px] font-medium text-slate-600 uppercase tracking-widest">Calc Live</div>
+                  <div className="px-2 py-0.5 rounded-full bg-amber-50 text-[8px] md:text-[9px] font-medium text-amber-600 uppercase tracking-widest">Auto Calc</div>
                 </div>
 
                 <div className="space-y-4 md:space-y-5">
@@ -464,24 +353,15 @@ export default function AccountantJobDetail() {
                     </div>
                   </div>
 
-                  {/* Summary Section */}
-                  <div className="py-4 border-t border-neutral-100 bg-emerald-50/20 rounded-xl px-4 mt-2">
+                  {/* Fuel Summary */}
+                  <div className="py-4 border-t border-neutral-100 bg-amber-50/30 rounded-xl px-4 mt-2">
                     <div className="flex items-center justify-between">
                       <div className="flex flex-col">
-                        <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest font-sans">Total Settlement</span>
-                        <span className="text-[8px] font-bold text-emerald-600 uppercase">{calculations.totalLiters}L total fuel</span>
+                        <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest font-sans">Est. Fuel Cost</span>
+                        <span className="text-[8px] font-bold text-amber-600 uppercase">{calculations.totalLiters}L total fuel</span>
                       </div>
-                      <span className="text-base md:text-xl font-bold text-emerald-600">₦{calculations.grandTotal.toLocaleString()}</span>
+                      <span className="text-base md:text-xl font-bold text-amber-600">₦{calculations.fuelTotal.toLocaleString()}</span>
                     </div>
-                  </div>
-
-                  {/* Allocation Input */}
-                  <div className="space-y-2 pt-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-1 h-3 bg-slate-900 rounded-full" />
-                      <label className="text-[9px] font-bold text-slate-600 uppercase tracking-widest font-sans">Cash Allocation (₦)</label>
-                    </div>
-                    <input type="number" value={calcData.allocationMoney} onChange={(e) => setCalcData({ ...calcData, allocationMoney: e.target.value })} placeholder="0.00" className="w-full bg-white border border-neutral-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-slate-400 transition-all placeholder:text-neutral-300" />
                   </div>
                 </div>
               </div>

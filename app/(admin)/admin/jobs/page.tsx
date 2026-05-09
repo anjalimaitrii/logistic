@@ -38,7 +38,7 @@ export default function AdminJobsPage() {
         bookingService.getAll(),
         assignmentService.getAll()
       ]);
-      
+
       // ONLY SHOW FINALIZED JOBS
       const finalizedOnly = (bookingsData || []).filter((b: any) =>
         b.status === 'finalized'
@@ -138,8 +138,8 @@ export default function AdminJobsPage() {
       render: (val: string) => (
         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(val)}`}>
           <div className={`w-1 h-1 rounded-full mr-1.5 ${val === 'IN TRANSIT' ? 'bg-orange-500' :
-              val === 'DELIVERED' ? 'bg-emerald-500' :
-                val === 'DELAYED' ? 'bg-rose-500' : 'bg-indigo-500'
+            val === 'DELIVERED' ? 'bg-emerald-500' :
+              val === 'DELAYED' ? 'bg-rose-500' : 'bg-indigo-500'
             }`} />
           {val}
         </span>
@@ -171,7 +171,7 @@ export default function AdminJobsPage() {
           >
             <Eye className="w-3.5 h-3.5" />
           </button>
-          <button 
+          <button
             onClick={(e) => {
               e.stopPropagation();
               setSelectedJob(row.raw);
@@ -244,8 +244,8 @@ export default function AdminJobsPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-[24px] font-bold text-slate-900">{kpi.value}</span>
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${kpi.variant === 'primary' ? 'bg-emerald-50 text-emerald-500' :
-                        kpi.variant === 'warning' ? 'bg-amber-50 text-amber-500' :
-                          kpi.variant === 'success' ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500'
+                      kpi.variant === 'warning' ? 'bg-amber-50 text-amber-500' :
+                        kpi.variant === 'success' ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500'
                       }`}>
                       {kpi.trend}
                     </span>
@@ -318,7 +318,7 @@ export default function AdminJobsPage() {
           }
         />
 
-        <EditJobDrawer 
+        <EditJobDrawer
           isOpen={isEditDrawerOpen}
           onClose={() => {
             setIsEditDrawerOpen(false);

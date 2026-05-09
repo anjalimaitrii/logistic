@@ -15,7 +15,13 @@ import {
   CreditCard,
   Clock,
   Package,
-  Activity
+  Activity,
+  Play,
+  Box,
+  ArrowDownCircle,
+  Coffee,
+  Flag,
+  RotateCcw
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
@@ -32,6 +38,17 @@ export default function JobDetailReport() {
   const [assignment, setAssignment] = useState<any>(null);
   const [settlement, setSettlement] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Trip Expense Tracker State
+  const [tripExpenses, setTripExpenses] = useState<any[]>([]);
+  const [newExpenseEntry, setNewExpenseEntry] = useState({
+    category: "Fuel",
+    description: "",
+    amount: "",
+    litres: "",
+    rate: "",
+    date: new Date().toISOString().split('T')[0]
+  });
 
   useEffect(() => {
     if (id) {
@@ -50,6 +67,11 @@ export default function JobDetailReport() {
       setBooking(bookingData);
       setAssignment(assignmentData);
       setSettlement(settlementData);
+      
+      // Load existing expenses into local tracker
+      if (settlementData?.expenses) {
+        setTripExpenses(settlementData.expenses);
+      }
     } catch (error) {
       console.error("Failed to fetch job details:", error);
     } finally {
@@ -99,6 +121,137 @@ export default function JobDetailReport() {
       remainingProfit: allocationMoney - totalCost
     };
   }, [settlement]);
+
+  const handleAddExpense = async () => {
+    if (!newExpenseEntry.description || (!newExpenseEntry.amount && !newExpenseEntry.litres)) {
+      alert("Please fill all required details");
+      return;
+    }
+
+    const calculatedAmount = newExpenseEntry.category === "Fuel" 
+      ? (parseFloat(newExpenseEntry.litres) || 0) * (parseFloat(newExpenseEntry.rate) || 0)
+      : parseFloat(newExpenseEntry.amount) || 0;
+
+    const entry = {
+      id: Math.random().toString(36).substr(2, 9),
+      ...newExpenseEntry,
+      amount: calculatedAmount
+    };
+
+    const updatedExpenses = [...tripExpenses, entry];
+    setTripExpenses(updatedExpenses);
+
+    // Sync with backend Settlement record
+    try {
+      await settlementService.process({
+        bookingId: id,
+        assignmentId: assignment?._id,
+        expenses: updatedExpenses.map(({ id, ...rest }) => rest) // Remove local UI IDs
+      });
+    } catch (error) {
+      console.error("Failed to sync expense with backend:", error);
+    }
+
+    setNewExpenseEntry({
+      category: "Fuel",
+      description: "",
+      amount: "",
+      litres: "",
+      rate: "",
+      date: new Date().toISOString().split('T')[0]
+    });
+  };
+
+  const handleRemoveExpense = async (expenseId: string) => {
+    const updatedExpenses = tripExpenses.filter(e => e.id !== expenseId && e._id !== expenseId);
+    setTripExpenses(updatedExpenses);
+
+    try {
+      await settlementService.process({
+        bookingId: id,
+        assignmentId: assignment?._id,
+        expenses: updatedExpenses.map(({ id, ...rest }) => rest)
+      });
+    } catch (error) {
+      console.error("Failed to sync removal with backend:", error);
+    }
+  };
+
+  const handleStatusUpdate = async (newStatus: string) => {
+    try {
+      await bookingService.updateStatus(id, newStatus.toLowerCase());
+      // Refresh data to reflect status change in UI and Timeline
+      await loadData();
+    } catch (error) {
+      console.error("Status update failed:", error);
+    }
+  };
+
+  const timelineEvents = useMemo(() => {
+    if (!booking) return [];
+    
+    const status = booking.status?.toUpperCase() || "PENDING";
+    const backendTimeline = booking.timeline || [];
+    
+    // Map backend events to UI format
+    const historicalEvents = backendTimeline.map((item: any) => ({
+      title: item.title,
+      description: item.description,
+      time: item.time ? format(new Date(item.time), "MMM d, h:mm a") : "---",
+      status: "completed",
+      icon: item.title === "Petrol Refilled" ? <Fuel className="w-3.5 h-3.5" /> :
+            item.title === "Driver Assigned" ? <Truck className="w-3.5 h-3.5" /> :
+            item.title === "Booking Created" ? <Package className="w-3.5 h-3.5" /> :
+            item.title === "Trip Approved" ? <CreditCard className="w-3.5 h-3.5" /> :
+            <CheckCircle2 className="w-3.5 h-3.5" />
+    }));
+
+    // Future/Pending Milestones (only if they haven't happened yet)
+    const futureMilestones = [
+      {
+        title: "Loaded",
+        description: "Cargo loading completed at the origin point",
+        time: status === "LOADING" ? "Active" : "---",
+        status: status === "LOADING" ? "active" : "pending",
+        icon: <Box className="w-3.5 h-3.5" />,
+        hide: ["STARTED", "RESTING", "IN TRANSIT", "OFFLOADING", "REACHED", "RETURNING", "COMPLETED"].includes(status) || backendTimeline.some((e: any) => e.title.toUpperCase() === "LOADED")
+      },
+      {
+        title: "Started",
+        description: "Truck has officially departed from the origin",
+        time: status === "STARTED" ? "Just now" : "---",
+        status: status === "STARTED" ? "active" : "pending",
+        icon: <Play className="w-3.5 h-3.5" />,
+        hide: ["RESTING", "IN TRANSIT", "OFFLOADING", "REACHED", "RETURNING", "COMPLETED"].includes(status) || backendTimeline.some((e: any) => e.title.toUpperCase() === "STARTED")
+      },
+      {
+        title: "Reached",
+        description: "Vehicle has arrived at the destination point",
+        time: status === "REACHED" ? "Just now" : "---",
+        status: status === "REACHED" ? "active" : "pending",
+        icon: <Flag className="w-3.5 h-3.5" />,
+        hide: ["OFFLOADING", "RETURNING", "COMPLETED"].includes(status) || backendTimeline.some((e: any) => e.title.toUpperCase() === "REACHED")
+      },
+      {
+        title: "Offloaded",
+        description: "Unloading of cargo completed successfully",
+        time: status === "OFFLOADING" ? "Just now" : "---",
+        status: status === "OFFLOADING" ? "active" : "pending",
+        icon: <ArrowDownCircle className="w-3.5 h-3.5" />,
+        hide: ["RETURNING", "COMPLETED"].includes(status) || backendTimeline.some((e: any) => e.title.toUpperCase() === "OFFLOADED")
+      },
+      {
+        title: "Return Journey",
+        description: "Vehicle is heading back or assigned to next task",
+        time: status === "RETURNING" ? "Active" : "---",
+        status: status === "RETURNING" ? "active" : "pending",
+        icon: <RotateCcw className="w-3.5 h-3.5" />,
+        hide: status === "COMPLETED" || backendTimeline.some((e: any) => e.title.toUpperCase() === "RETURNING")
+      }
+    ].filter(m => !m.hide);
+
+    return [...historicalEvents, ...futureMilestones];
+  }, [booking, assignment, settlement]);
 
   const statCards = [
     { label: "Fuel Total", value: `₦${financialSummary.fuelTotal.toLocaleString()}`, icon: <Fuel className="w-4 h-4 text-orange-500" />, color: "border-orange-500" },
@@ -246,80 +399,256 @@ export default function JobDetailReport() {
                 </div>
               </div>
 
-              {/* Expense Analysis Section */}
-              <div className="bg-white rounded-[24px] p-8 shadow-sm border border-slate-100">
-                <div className="flex items-center gap-3 mb-8">
-                  <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400">
-                    <Receipt className="w-5 h-5" />
+              {/* Trip Expense Tracker */}
+              <div className="bg-white rounded-[24px] p-6 md:p-8 shadow-sm border border-slate-100">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-500">
+                      <Receipt className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Trip Expenses</h2>
+                      <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-0.5 font-sans">Fuel, Tolls & Operational costs</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Expense Analysis</h2>
-                    <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-0.5 font-sans">Fuel & operational costs log</p>
+                  <div className="px-3 py-1 rounded-full bg-slate-50 text-[9px] font-bold text-slate-400 uppercase tracking-widest border border-slate-100">
+                    {tripExpenses.length} Record{tripExpenses.length !== 1 ? 's' : ''}
                   </div>
                 </div>
 
-                <div className="space-y-4">
-                  {settlement?.expenses && settlement.expenses.length > 0 ? (
-                    settlement.expenses.map((exp: any, idx: number) => (
-                      <div key={idx} className="flex items-center justify-between p-4 bg-slate-50/50 border border-slate-100 rounded-[20px] hover:bg-white hover:shadow-md hover:border-transparent transition-all group">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 text-slate-300 flex items-center justify-center group-hover:text-primary transition-colors">
-                            {exp.category === 'Fuel' ? <Fuel className="w-4 h-4" /> : <Receipt className="w-4 h-4" />}
-                          </div>
-                          <div>
-                            <div className="text-[13px] font-bold text-slate-900">{exp.description}</div>
-                            <div className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-0.5">{exp.category} · {exp.date || "N/A"}</div>
-                          </div>
-                        </div>
-                        <div className="text-[14px] font-bold text-slate-900 tracking-tight">₦{exp.amount.toLocaleString()}</div>
+                {/* Add Expense Form */}
+                <div className="p-5 bg-slate-50/70 rounded-2xl border border-slate-100 mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1 h-4 bg-indigo-500 rounded-full" />
+                      <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Add Expense Entry</span>
+                    </div>
+                    <select 
+                      value={newExpenseEntry.category} 
+                      onChange={(e) => setNewExpenseEntry({...newExpenseEntry, category: e.target.value})}
+                      className="bg-white border border-slate-200 rounded-lg py-1 px-2 text-[10px] font-bold text-slate-600 outline-none uppercase"
+                    >
+                      <option value="Fuel">⛽ Fuel</option>
+                      <option value="Food">🍲 Food</option>
+                      <option value="Repair">🛠️ Repair</option>
+                      <option value="Other">📝 Other</option>
+                    </select>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">
+                        {newExpenseEntry.category === "Fuel" ? "Petrol Pump Name" : "Description / Remarks"}
+                      </label>
+                      <input 
+                        type="text" 
+                        value={newExpenseEntry.description} 
+                        onChange={(e) => setNewExpenseEntry({...newExpenseEntry, description: e.target.value})} 
+                        placeholder={newExpenseEntry.category === "Fuel" ? "e.g. NNPC Station" : "e.g. Bridge Toll / Dinner"} 
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-medium text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder:text-slate-300" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Date</label>
+                      <input type="date" value={newExpenseEntry.date} onChange={(e) => setNewExpenseEntry({...newExpenseEntry, date: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-medium text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
+                    </div>
+                  </div>
+
+                  {newExpenseEntry.category === "Fuel" ? (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
+                      <div className="space-y-1.5">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Litres</label>
+                        <input type="number" value={newExpenseEntry.litres} onChange={(e) => setNewExpenseEntry({...newExpenseEntry, litres: e.target.value})} placeholder="0" className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
                       </div>
-                    ))
-                  ) : settlement ? (
-                    <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-[20px]">
-                      <p className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">No additional expenses logged</p>
+                      <div className="space-y-1.5">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Rate (₦/L)</label>
+                        <input type="number" value={newExpenseEntry.rate} onChange={(e) => setNewExpenseEntry({...newExpenseEntry, rate: e.target.value})} placeholder="0" className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Total (₦)</label>
+                        <div className="w-full bg-amber-50 border border-amber-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-amber-700">
+                          ₦{((parseFloat(newExpenseEntry.litres) || 0) * (parseFloat(newExpenseEntry.rate) || 0)).toLocaleString()}
+                        </div>
+                      </div>
                     </div>
                   ) : (
-                    <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-[20px]">
-                      <p className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">Awaiting settlement data</p>
+                    <div className="grid grid-cols-1 mb-5">
+                      <div className="space-y-1.5">
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Amount (₦)</label>
+                        <input type="number" value={newExpenseEntry.amount} onChange={(e) => setNewExpenseEntry({...newExpenseEntry, amount: e.target.value})} placeholder="0" className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
+                      </div>
                     </div>
                   )}
+                  
+                  <button onClick={handleAddExpense} className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 active:scale-[0.98] transition-all flex items-center gap-2 shadow-sm">
+                    <Receipt className="w-3.5 h-3.5" /> Log Trip Expense
+                  </button>
+                </div>
+
+                {/* Expense List */}
+                <div className="space-y-3">
+                  {tripExpenses.length > 0 ? tripExpenses.map((entry) => (
+                    <div key={entry.id} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl hover:shadow-md hover:border-transparent transition-all group">
+                      <div className="flex items-center gap-4">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
+                          entry.category === "Fuel" ? "bg-amber-50 text-amber-500 border border-amber-100" :
+                          entry.category === "Food" ? "bg-emerald-50 text-emerald-500 border border-emerald-100" :
+                          "bg-slate-50 text-slate-500 border border-slate-100"
+                        }`}>
+                          {entry.category === "Fuel" ? <Fuel className="w-4 h-4" /> : 
+                           entry.category === "Food" ? <Coffee className="w-4 h-4" /> :
+                           <Receipt className="w-4 h-4" />}
+                        </div>
+                        <div>
+                          <div className="text-[13px] font-bold text-slate-900">{entry.description}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest ${
+                              entry.category === "Fuel" ? "bg-amber-50 text-amber-600" :
+                              entry.category === "Food" ? "bg-emerald-50 text-emerald-600" :
+                              "bg-slate-50 text-slate-400"
+                            }`}>{entry.category}</span>
+                            {entry.category === "Fuel" && (
+                              <span className="text-[9px] font-bold text-slate-400">{entry.litres}L @ ₦{entry.rate}</span>
+                            )}
+                            <span className="text-[9px] font-medium text-slate-300">· {entry.date}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-[14px] font-bold text-slate-900 tracking-tight">₦{entry.amount.toLocaleString()}</div>
+                        <button onClick={() => handleRemoveExpense(entry.id || entry._id)} className="p-1.5 text-slate-200 hover:text-rose-500 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="p-8 text-center border-2 border-dashed border-slate-100 rounded-2xl">
+                      <Receipt className="w-8 h-8 text-slate-100 mx-auto mb-2" />
+                      <p className="text-[11px] font-bold text-slate-300 uppercase tracking-widest">No expenses logged yet</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Total Summary */}
+                {tripExpenses.length > 0 && (
+                  <div className="mt-5 pt-5 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-xl p-4">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Trip Spend</span>
+                    <span className="text-lg font-bold text-slate-900">₦{tripExpenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Journey Timeline */}
+              <div className="bg-white rounded-[24px] p-8 shadow-sm border border-slate-100">
+                <div className="flex items-center gap-3 mb-10">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-500">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Journey Timeline</h2>
+                    <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-0.5 font-sans">System logs & operational milestones</p>
+                  </div>
+                </div>
+
+                <div className="relative pl-8 space-y-10">
+                  {/* Vertical Line */}
+                  <div className="absolute left-[15px] top-2 bottom-2 w-px bg-slate-100 border-l border-dashed border-slate-300" />
+                  
+                  {timelineEvents.map((event, idx) => (
+                    <div key={idx} className="relative">
+                      {/* Timeline Dot */}
+                      <div className={`absolute -left-[25px] w-5 h-5 rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 ${
+                        event.status === 'completed' ? 'bg-emerald-500' : 
+                        event.status === 'active' ? 'bg-blue-500 animate-pulse' : 
+                        event.status === 'warning' ? 'bg-amber-500' : 'bg-slate-200'
+                      }`}>
+                        {/* Status Icon/Indicator */}
+                        {event.status === 'completed' && <CheckCircle2 className="w-2.5 h-2.5 text-white" />}
+                      </div>
+                      
+                      <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[13px] font-bold ${event.status === 'pending' ? 'text-slate-400' : 'text-slate-900'}`}>
+                              {event.title}
+                            </span>
+                            {event.status === 'active' && (
+                              <span className="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[8px] font-bold uppercase tracking-wider animate-pulse">Live</span>
+                            )}
+                          </div>
+                          <p className={`text-[11px] font-medium leading-relaxed ${event.status === 'pending' ? 'text-slate-300' : 'text-slate-500'}`}>
+                            {event.description}
+                          </p>
+                        </div>
+                        <div className="shrink-0 pt-0.5">
+                          <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-100">
+                            {event.time}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
 
             {/* Right Side Cards */}
             <div className="space-y-6">
+              {/* Trip Status Management */}
+              <div className="bg-white rounded-[24px] p-8 shadow-sm border border-slate-100">
+                <div className="flex items-center gap-3 mb-8">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                    <Activity className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Update Status</h2>
+                    <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-0.5 font-sans">Active Controls</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: "LOADING", label: "Loading", icon: <Box className="w-4 h-4" /> },
+                    { id: "STARTED", label: "Trip Start", icon: <Play className="w-4 h-4" /> },
+                    { id: "RESTING", label: "Resting", icon: <Coffee className="w-4 h-4" /> },
+                    { id: "IN TRANSIT", label: "In Transit", icon: <Truck className="w-4 h-4" /> },
+                    { id: "OFFLOADING", label: "Offloading", icon: <ArrowDownCircle className="w-4 h-4" /> },
+                    { id: "REACHED", label: "Reached", icon: <Flag className="w-4 h-4" /> },
+                    { id: "RETURNING", label: "Returning", icon: <RotateCcw className="w-4 h-4" /> },
+                    { id: "COMPLETED", label: "Completed", icon: <CheckCircle2 className="w-4 h-4" /> },
+                  ].map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => handleStatusUpdate(s.id)}
+                      className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-2 group ${
+                        jobInfo?.status === s.id 
+                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 scale-[1.02]' 
+                          : 'bg-slate-50 border-slate-100 text-slate-400 hover:bg-white hover:border-indigo-200 hover:text-indigo-600'
+                      }`}
+                    >
+                      <div className={`${jobInfo?.status === s.id ? 'text-white' : 'text-slate-300 group-hover:text-indigo-500'} transition-colors`}>
+                        {s.icon}
+                      </div>
+                      <span className="text-[9px] font-bold uppercase tracking-widest">{s.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Job Settlement Summary */}
               <div className="bg-white rounded-[24px] p-8 shadow-sm border border-slate-100">
                 <div className="flex items-center gap-3 mb-8">
                    <CreditCard className="w-5 h-5 text-orange-400" />
-                   <h2 className="text-[12px] font-bold text-slate-900 uppercase tracking-[0.1em]">Job Settlement Summary</h2>
+                   <h2 className="text-[12px] font-bold text-slate-900 uppercase tracking-[0.1em]">Settlement Overview</h2>
                 </div>
 
                 <div className="space-y-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
+                  <div className="p-5 rounded-[20px] bg-slate-50/50 border border-slate-100">
+                    <div className="flex flex-col gap-1">
                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Allocation Money</span>
-                      <span className="text-[13px] font-bold text-slate-900">₦{financialSummary.allocationMoney.toLocaleString()}</span>
+                      <span className="text-[24px] font-bold text-slate-900 tracking-tight">₦{financialSummary.allocationMoney.toLocaleString()}</span>
                     </div>
-                    <div className="flex items-center justify-between pb-4 border-b border-slate-50">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Expenses</span>
-                      <span className="text-[13px] font-bold text-rose-500">- ₦{financialSummary.totalCost.toLocaleString()}</span>
-                    </div>
-                  </div>
-
-                  <div className="py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                          Remaining Profit
-                        </span>
-                        <span className="text-[9px] font-medium text-slate-300 italic">Pre-tax settlement</span>
-                      </div>
-                      <span className="text-[24px] font-bold text-emerald-500 tracking-tighter">
-                        ₦{financialSummary.remainingProfit.toLocaleString()}
-                      </span>
-                    </div>
+                    <p className="text-[9px] font-medium text-slate-300 mt-2 italic uppercase tracking-wider">Approved cash for driver support</p>
                   </div>
 
                   {/* Workflow Stage */}
