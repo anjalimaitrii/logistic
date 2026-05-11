@@ -106,7 +106,7 @@ export default function JobDetailReport() {
       id: booking.jobId || `#FL-${booking._id.substring(booking._id.length - 4).toUpperCase()}`,
       driver: assignment?.driverName || "Not Assigned",
       truckNumber: assignment?.truckNumber || "N/A",
-      status: booking.status?.toUpperCase() || "PENDING",
+      status: (booking.tripStatus || booking.status || "PENDING").toUpperCase(),
       truckHealth: assignment?.truckHealth || "N/A",
       pickup: `${booking.pickup?.address?.city || 'N/A'}`,
       pickupFull: `${booking.pickup?.address?.plotNo || ''} ${booking.pickup?.address?.street || ''}, ${booking.pickup?.address?.city || ''}`,
@@ -200,7 +200,7 @@ export default function JobDetailReport() {
 
   const handleStatusUpdate = async (newStatus: string) => {
     try {
-      await bookingService.updateStatus(id, newStatus.toLowerCase());
+      await bookingService.updateTripStatus(id, newStatus.toLowerCase());
       // Refresh data to reflect status change in UI and Timeline
       await loadData();
     } catch (error) {
@@ -281,7 +281,7 @@ export default function JobDetailReport() {
   const timelineEvents = useMemo(() => {
     if (!booking) return [];
     
-    const status = booking.status?.toUpperCase() || "PENDING";
+    const status = (booking.tripStatus || booking.status || "PENDING").toUpperCase();
     const backendTimeline = booking.timeline || [];
     
     // Map backend events to UI format

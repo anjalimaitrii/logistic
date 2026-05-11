@@ -33,6 +33,7 @@ export interface BookingPayload {
     bodyType: string;
   };
   status?: string;
+  tripStatus?: string;
   metadata?: {
     source: string;
     createdAt: string;
@@ -60,6 +61,13 @@ export const bookingService = {
     return await fetchApi(`/api/bookings/${id}/status`, {
       method: 'PATCH',
       body: JSON.stringify({ status, ...additionalData }),
+    });
+  },
+  
+  updateTripStatus: async (id: string, tripStatus: string) => {
+    return await fetchApi(`/api/bookings/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ tripStatus }),
     });
   },
 

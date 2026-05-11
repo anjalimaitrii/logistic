@@ -107,7 +107,7 @@ export default function AdminJobsPage() {
       id: b?.jobId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
       client: (b?.clientId as any)?.name || "Direct Client",
       companyName: (b?.clientId as any)?.company?.companyName || "Direct Booking",
-      status: getStatusType(b?.status),
+      status: getStatusType(b?.tripStatus || b?.status),
       driver: assignment?.driverName || "Assign Driver",
       route: `${b?.pickup?.address?.city || "Origin"} → ${b?.dropoff?.address?.city || "Dest."}`,
       raw: b

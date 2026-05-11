@@ -37,14 +37,14 @@ export default function AdminAccountant() {
         bookingService.getAll(),
         assignmentService.getAll()
       ]);
-      
+
       const assignments = assignmentsData || [];
-      const assignedBookingIds = new Set(assignments.map((a: any) => 
+      const assignedBookingIds = new Set(assignments.map((a: any) =>
         (a.bookingId?._id || a.bookingId)?.toString()
       ));
 
       // Only show finalized bookings that have been assigned to a driver
-      const finalizedAndAssigned = (bookingsData || []).filter((b: any) => 
+      const finalizedAndAssigned = (bookingsData || []).filter((b: any) =>
         b.status === "finalized" && assignedBookingIds.has(b._id.toString())
       );
 
@@ -156,20 +156,6 @@ export default function AdminAccountant() {
     },
     { label: "Route", key: "route", render: (val: string) => <span className="text-[11px] font-normal text-neutral-400">{val}</span> },
     {
-      label: "Process Status",
-      key: "status",
-      render: (val: string, row: any) => (
-        <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${val === "Settled"
-            ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
-            : "bg-amber-50 text-amber-600 border border-amber-100"
-            }`}
-        >
-          {val}
-        </span>
-      ),
-    },
-    {
       label: "Action",
       key: "actions",
       align: "center" as const,
@@ -180,10 +166,13 @@ export default function AdminAccountant() {
               e.stopPropagation();
               router.push(`/admin/accountant/${row.raw._id}`);
             }}
-            className="px-4 py-1.5 flex items-center gap-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-all text-[9px] font-semibold uppercase tracking-widest shadow-sm shadow-emerald-700/10"
+            className={`px-4 py-1.5 flex items-center gap-2 rounded-lg transition-all text-[9px] font-semibold uppercase tracking-widest shadow-sm ${row.status === "Approved"
+              ? "bg-slate-100 text-slate-500 cursor-default"
+              : "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-700/10"
+              }`}
           >
             <Eye className="w-3.5 h-3.5" />
-            Process
+            {row.status === "Approved" ? "Approved" : "Approve"}
           </button>
         </div>
       ),
