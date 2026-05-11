@@ -68,5 +68,12 @@ export const bookingService = {
       method: 'PATCH',
       body: JSON.stringify(payload),
     });
+  },
+
+  changeAddress: async (id: string, newPickup: any, newDropoff: any, reason: string, financials?: { newPickupKm: number; newDropoffKm: number; newFinalAmount: number }) => {
+    return await fetchApi(`/api/bookings/${id}/address`, {
+      method: 'PATCH',
+      body: JSON.stringify({ newPickup, newDropoff, reason, financials }),
+    });
   }
 };

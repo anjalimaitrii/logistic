@@ -50,6 +50,27 @@ export default function JobDetailReport() {
     date: new Date().toISOString().split('T')[0]
   });
 
+  // Address Change Modal State
+  const [showAddressModal, setShowAddressModal] = useState(false);
+  const [addressChangeData, setAddressChangeData] = useState({
+    pContactPerson: "",
+    pContactNumber: "",
+    pPlotNo: "",
+    pStreet: "",
+    pCity: "",
+    pPincode: "",
+    dContactPerson: "",
+    dContactNumber: "",
+    dPlotNo: "",
+    dStreet: "",
+    dCity: "",
+    dPincode: "",
+    reason: "",
+    newPickupKm: "",
+    newDropoffKm: "",
+    newFinalAmount: ""
+  });
+
   useEffect(() => {
     if (id) {
       loadData();
@@ -184,6 +205,76 @@ export default function JobDetailReport() {
       await loadData();
     } catch (error) {
       console.error("Status update failed:", error);
+    }
+  };
+
+  const openAddressModal = () => {
+    setAddressChangeData({
+      pContactPerson: booking.pickup?.contactPerson || "",
+      pContactNumber: booking.pickup?.contactNumber || "",
+      pPlotNo: booking.pickup?.address?.plotNo || "",
+      pStreet: booking.pickup?.address?.street || "",
+      pCity: booking.pickup?.address?.city || "",
+      pPincode: booking.pickup?.address?.pincode || "",
+      dContactPerson: booking.dropoff?.contactPerson || "",
+      dContactNumber: booking.dropoff?.contactNumber || "",
+      dPlotNo: booking.dropoff?.address?.plotNo || "",
+      dStreet: booking.dropoff?.address?.street || "",
+      dCity: booking.dropoff?.address?.city || "",
+      dPincode: booking.dropoff?.address?.pincode || "",
+      reason: "",
+      newPickupKm: settlement?.fuelDetails?.pickupKm || "",
+      newDropoffKm: settlement?.fuelDetails?.dropoffKm || "",
+      newFinalAmount: booking?.finalAmount || ""
+    });
+    setShowAddressModal(true);
+  };
+
+  const handleAddressChange = async () => {
+    if (!addressChangeData.pCity || !addressChangeData.dCity) {
+      alert("Please ensure at least City is provided for both Pickup and Drop-off");
+      return;
+    }
+    try {
+      await bookingService.changeAddress(id, 
+        {
+          contactPerson: addressChangeData.pContactPerson,
+          contactNumber: addressChangeData.pContactNumber,
+          address: {
+            plotNo: addressChangeData.pPlotNo,
+            street: addressChangeData.pStreet,
+            city: addressChangeData.pCity,
+            pincode: addressChangeData.pPincode
+          }
+        }, 
+        {
+          contactPerson: addressChangeData.dContactPerson,
+          contactNumber: addressChangeData.dContactNumber,
+          address: {
+            plotNo: addressChangeData.dPlotNo,
+            street: addressChangeData.dStreet,
+            city: addressChangeData.dCity,
+            pincode: addressChangeData.dPincode
+          }
+        },
+        addressChangeData.reason, 
+        {
+          newPickupKm: Number(addressChangeData.newPickupKm) || 0,
+          newDropoffKm: Number(addressChangeData.newDropoffKm) || 0,
+          newFinalAmount: Number(addressChangeData.newFinalAmount) || 0
+        }
+      );
+
+      setShowAddressModal(false);
+      setAddressChangeData({ 
+        pContactPerson: "", pContactNumber: "", pPlotNo: "", pStreet: "", pCity: "", pPincode: "",
+        dContactPerson: "", dContactNumber: "", dPlotNo: "", dStreet: "", dCity: "", dPincode: "",
+        reason: "", newPickupKm: "", newDropoffKm: "", newFinalAmount: "" 
+      });
+      await loadData();
+    } catch (error) {
+      console.error("Address change failed:", error);
+      alert("Failed to change address");
     }
   };
 
@@ -358,7 +449,15 @@ export default function JobDetailReport() {
                            ORIGIN / PICKUP
                         </div>
                         <h3 className="text-base font-bold text-slate-900 mb-1">{jobInfo?.pickupFull}</h3>
-                        <div className="text-[11px] font-medium text-slate-400 italic">Scheduled: {jobInfo?.loadingDate}</div>
+                        <div className="flex items-center gap-3 mt-2">
+                          <div className="text-[11px] font-medium text-slate-400 italic">Scheduled: {jobInfo?.loadingDate}</div>
+                          <button 
+                            onClick={openAddressModal}
+                            className="px-3 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-bold uppercase tracking-widest hover:bg-amber-100 transition-all"
+                          >
+                            Change Address
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -372,9 +471,42 @@ export default function JobDetailReport() {
                          DESTINATION / DROP-OFF
                       </div>
                       <h3 className="text-base font-bold text-slate-900 mb-1">{jobInfo?.dropoffFull}</h3>
-                      <div className="text-[11px] font-medium text-slate-400 italic">Expected Completion</div>
+                      <div className="flex items-center gap-3 mt-2">
+                        <div className="text-[11px] font-medium text-slate-400 italic">Expected Completion</div>
+                        <button 
+                          onClick={openAddressModal}
+                          className="px-3 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-bold uppercase tracking-widest hover:bg-amber-100 transition-all"
+                        >
+                          Change Address
+                        </button>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Address History */}
+                  {booking?.addressHistory && booking.addressHistory.length > 0 && (
+                    <div className="mt-6 pt-4 border-t border-dashed border-slate-100">
+                      <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-3">Previous Addresses</div>
+                      <div className="space-y-3">
+                        {booking.addressHistory.map((hist: any, idx: number) => (
+                          <div key={idx} className="flex items-start gap-3 p-3 rounded-xl bg-slate-50/70 border border-slate-100">
+                            <div className="w-6 h-6 rounded-lg bg-slate-100 text-slate-400 flex items-center justify-center shrink-0 text-[9px] font-bold">{idx + 1}</div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
+                                {hist.type?.toUpperCase() || "DROP-OFF"} ADDRESS
+                              </div>
+                              <div className="text-[11px] font-semibold text-slate-700">
+                                {hist.oldAddress?.address?.plotNo} {hist.oldAddress?.address?.street}, {hist.oldAddress?.address?.city}
+                              </div>
+                              <div className="text-[9px] text-slate-400 mt-0.5">
+                                Changed: {hist.changedAt ? format(new Date(hist.changedAt), "MMM d, h:mm a") : "---"} • {hist.reason || "No reason"}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-12 pt-8 border-t border-slate-50 grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -688,6 +820,220 @@ export default function JobDetailReport() {
           </div>
         </div>
       </div>
+      {/* Address Change Modal */}
+      {showAddressModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+            <div className="px-8 pt-8 pb-4">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500">
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Update Job Locations</h3>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Modify origin or destination. Changes are logged to history.</p>
+                </div>
+              </div>
+
+              <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                {/* Pickup Section */}
+                <div className="p-5 rounded-2xl bg-emerald-50/50 border border-emerald-100/50">
+                  <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <MapPin className="w-3 h-3" /> Pickup Details (Origin)
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Contact Person</label>
+                      <input
+                        type="text"
+                        value={addressChangeData.pContactPerson}
+                        onChange={(e) => setAddressChangeData(p => ({...p, pContactPerson: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Contact Number</label>
+                      <input
+                        type="text"
+                        value={addressChangeData.pContactNumber}
+                        onChange={(e) => setAddressChangeData(p => ({...p, pContactNumber: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Plot No</label>
+                      <input
+                        type="text"
+                        value={addressChangeData.pPlotNo}
+                        onChange={(e) => setAddressChangeData(p => ({...p, pPlotNo: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Street</label>
+                      <input
+                        type="text"
+                        value={addressChangeData.pStreet}
+                        onChange={(e) => setAddressChangeData(p => ({...p, pStreet: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">City *</label>
+                      <input
+                        type="text"
+                        value={addressChangeData.pCity}
+                        onChange={(e) => setAddressChangeData(p => ({...p, pCity: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Pincode</label>
+                      <input
+                        type="text"
+                        value={addressChangeData.pPincode}
+                        onChange={(e) => setAddressChangeData(p => ({...p, pPincode: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dropoff Section */}
+                <div className="p-5 rounded-2xl bg-rose-50/50 border border-rose-100/50">
+                  <div className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                    <MapPin className="w-3 h-3" /> Drop-off Details (Destination)
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Contact Person</label>
+                      <input
+                        type="text"
+                        value={addressChangeData.dContactPerson}
+                        onChange={(e) => setAddressChangeData(p => ({...p, dContactPerson: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Contact Number</label>
+                      <input
+                        type="text"
+                        value={addressChangeData.dContactNumber}
+                        onChange={(e) => setAddressChangeData(p => ({...p, dContactNumber: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Plot No</label>
+                      <input
+                        type="text"
+                        value={addressChangeData.dPlotNo}
+                        onChange={(e) => setAddressChangeData(p => ({...p, dPlotNo: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Street</label>
+                      <input
+                        type="text"
+                        value={addressChangeData.dStreet}
+                        onChange={(e) => setAddressChangeData(p => ({...p, dStreet: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">City *</label>
+                      <input
+                        type="text"
+                        value={addressChangeData.dCity}
+                        onChange={(e) => setAddressChangeData(p => ({...p, dCity: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Pincode</label>
+                      <input
+                        type="text"
+                        value={addressChangeData.dPincode}
+                        onChange={(e) => setAddressChangeData(p => ({...p, dPincode: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Reason for Change</label>
+                  <input
+                    type="text"
+                    value={addressChangeData.reason}
+                    onChange={(e) => setAddressChangeData(p => ({...p, reason: e.target.value}))}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-amber-300 transition-colors"
+                    placeholder="e.g. Client changed location"
+                  />
+                </div>
+
+                {/* Financial Impact */}
+                <div className="pt-4 mt-2 border-t border-dashed border-slate-200">
+                  <div className="text-[9px] font-bold text-amber-500 uppercase tracking-widest mb-3">📊 Financial Impact</div>
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">New Pickup Distance (KM)</label>
+                      <input
+                        type="number"
+                        value={addressChangeData.newPickupKm}
+                        onChange={(e) => setAddressChangeData(p => ({...p, newPickupKm: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-amber-300 transition-colors"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">New Dropoff Distance (KM)</label>
+                      <input
+                        type="number"
+                        value={addressChangeData.newDropoffKm}
+                        onChange={(e) => setAddressChangeData(p => ({...p, newDropoffKm: e.target.value}))}
+                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-amber-300 transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">New Final Amount (₦)</label>
+                    <input
+                      type="number"
+                      value={addressChangeData.newFinalAmount}
+                      onChange={(e) => setAddressChangeData(p => ({...p, newFinalAmount: e.target.value}))}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-amber-300 transition-colors"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-8 py-5 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowAddressModal(false)}
+                className="px-5 py-2.5 rounded-xl border border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-widest hover:bg-white transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAddressChange}
+                className="px-5 py-2.5 rounded-xl bg-amber-500 text-white text-[10px] font-bold uppercase tracking-widest hover:bg-amber-600 transition-all shadow-lg shadow-amber-100"
+              >
+                Update Job Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }
