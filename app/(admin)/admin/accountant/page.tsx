@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
+import { settlementService } from "@/services/settlementService";
 
 export default function AdminAccountant() {
   const router = useRouter();
@@ -33,23 +34,27 @@ export default function AdminAccountant() {
   const loadBookings = async () => {
     try {
       setIsLoading(true);
-      const [bookingsData, assignmentsData] = await Promise.all([
+      const [bookingsData, assignmentsData, settlementsData] = await Promise.all([
         bookingService.getAll(),
-        assignmentService.getAll()
+        assignmentService.getAll(),
+        settlementService.getAll().catch(() => [])
       ]);
 
       const assignments = assignmentsData || [];
+      const settlements = settlementsData || [];
+
       const assignedBookingIds = new Set(assignments.map((a: any) =>
         (a.bookingId?._id || a.bookingId)?.toString()
       ));
 
       // Only show finalized bookings that have been assigned to a driver
       const finalizedAndAssigned = (bookingsData || []).filter((b: any) =>
-        b.status === "finalized" && assignedBookingIds.has(b._id.toString())
+        b.status?.toLowerCase() === "finalized" && assignedBookingIds.has(b._id.toString())
       );
 
       setBookings(finalizedAndAssigned);
       setAssignments(assignments);
+      setSettlements(settlements);
     } catch (error) {
       console.error("Failed to load accountant data:", error);
     } finally {
@@ -58,6 +63,7 @@ export default function AdminAccountant() {
   };
 
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [settlements, setSettlements] = useState<any[]>([]);
 
   const kpis = [
     {
@@ -70,7 +76,7 @@ export default function AdminAccountant() {
     },
     {
       label: "Pending Settlement",
-      value: bookings.filter(b => !b.advancePaid).length.toString(),
+      value: (bookings.length - settlements.length).toString(),
       icon: <Clock className="w-5 h-5 text-amber-500" />,
       subText: "Awaiting payments",
       trend: "Action Required",
@@ -86,7 +92,7 @@ export default function AdminAccountant() {
     },
     {
       label: "Approved Trips",
-      value: bookings.filter(b => b.advancePaid > 0).length.toString(),
+      value: settlements.length.toString(),
       icon: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
       subText: "Verified Ledger",
       trend: "Live",
@@ -115,14 +121,21 @@ export default function AdminAccountant() {
     return matchesSearch && matchesCompany && matchesClient;
   });
 
+  const settledBookingIds = new Set(
+    settlements.map((s: any) => (s.bookingId?._id || s.bookingId)?.toString())
+  );
+
   const tableData = filteredBookings.map(b => {
     const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
+    const isApproved = settledBookingIds.has(b._id.toString());
+    const pickupCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "N/A";
+    const dropoffCity = b.dropoffLocations?.[0]?.address?.city || b.dropoff?.address?.city || "N/A";
     return {
       id: b.jobId || `#JOB-${b._id.substring(b._id.length - 4).toUpperCase()}`,
       companyName: (b.clientId as any)?.company?.companyName || "Direct Booking",
       clientName: (b.clientId as any)?.name || "N/A",
-      route: `${b.pickup?.address?.city || 'N/A'} → ${b.dropoff?.address?.city || 'N/A'}`,
-      status: b.advancePaid ? "Approved" : "Pending",
+      route: `${pickupCity} → ${dropoffCity}`,
+      status: isApproved ? "Approved" : "Assigned",
       driver: assignment?.driverName || "Unassigned",
       truckNumber: assignment?.truckNumber || "N/A",
       collection: assignment?.collectionArea || "N/A",
@@ -172,7 +185,7 @@ export default function AdminAccountant() {
               }`}
           >
             <Eye className="w-3.5 h-3.5" />
-            {row.status === "Approved" ? "Approved" : "Approve"}
+            {row.status === "Approved" ? "Approved" : "Review & Approve"}
           </button>
         </div>
       ),

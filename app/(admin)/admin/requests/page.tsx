@@ -46,46 +46,9 @@ export default function BookingRequestsPage() {
 
   const handleCreateBooking = async (data: any) => {
     try {
-      const payload = {
-        clientId: data.clientId,
-        cargoDetails: {
-          goodsType: data.goodsType,
-          weight: Number(data.weight),
-          loadingDate: data.scheduleDate,
-        },
-        pickup: {
-          contactPerson: data.pickupContactPerson,
-          contactNumber: data.pickupContact,
-          address: {
-            plotNo: data.pickupPlotNo,
-            street: data.pickupStreet,
-            city: data.pickupCity,
-            pincode: data.pickupPincode,
-          },
-          gpsEnabled: false
-        },
-        dropoff: {
-          contactPerson: data.dropoffContactPerson,
-          contactNumber: data.dropoffContact,
-          address: {
-            plotNo: data.dropoffPlotNo,
-            street: data.dropoffStreet,
-            city: data.dropoffCity,
-            pincode: data.dropoffPincode,
-          },
-          gpsEnabled: false
-        },
-        requirement: {
-          bodyType: data.truckType
-        },
-        status: "accepted"
-      };
-      await bookingService.create(payload);
-      loadRequests();
-      setIsCreateDrawerOpen(false);
+      await loadRequests();
     } catch (error) {
-      console.error("Create booking error:", error);
-      alert("Failed to create booking.");
+      console.error("Refresh after booking error:", error);
     }
   };
 
@@ -118,6 +81,12 @@ export default function BookingRequestsPage() {
     return 'Pending';
   };
 
+  const getRequestRoute = (req: any) => {
+    const pickupCity = req.pickupLocations?.[0]?.address?.city || req.pickup?.address?.city || "Unknown";
+    const dropoffCity = req.dropoffLocations?.[0]?.address?.city || req.dropoff?.address?.city || "Unknown";
+    return `${pickupCity} → ${dropoffCity}`;
+  };
+
   // Derive unique companies and clients for filter dropdowns
   const uniqueCompanies = Array.from(new Set(
     requests.map(req => (req.clientId as any)?.company?.companyName).filter(Boolean)
@@ -128,12 +97,14 @@ export default function BookingRequestsPage() {
   )) as string[];
 
   const filteredRequests = requests.filter(req => {
+    const pickupCity = req.pickupLocations?.[0]?.address?.city || req.pickup?.address?.city || "";
+    const dropoffCity = req.dropoffLocations?.[0]?.address?.city || req.dropoff?.address?.city || "";
     const matchesSearch =
       req._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       req.jobId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (req.clientId as any)?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      req.pickup?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      req.dropoff?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase());
+      pickupCity?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      dropoffCity?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCompany = companyFilter === "all" || (req.clientId as any)?.company?.companyName === companyFilter;
     const matchesClient = clientFilter === "all" || (req.clientId as any)?.name === clientFilter;
     return matchesSearch && matchesCompany && matchesClient;
@@ -143,7 +114,7 @@ export default function BookingRequestsPage() {
     id: req.jobId || `#BR-${req._id?.substring(req._id.length - 7).toUpperCase() || "NEW"}`,
     customer: (req.clientId as any)?.name || "Direct Client",
     companyName: (req.clientId as any)?.company?.companyName || "Direct Booking",
-    route: `${req.pickup.address.city} → ${req.dropoff.address.city}`,
+    route: getRequestRoute(req),
     cargo: req.cargoDetails.goodsType,
     weight: `${req.cargoDetails.weight} KG`,
     price: req.finalAmount ? `₹${req.finalAmount}` : "TBD",
@@ -395,7 +366,7 @@ export default function BookingRequestsPage() {
           request={selectedRequest ? {
             id: selectedRequest.jobId || `#BR-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
             customer: (selectedRequest.clientId as any)?.name || "Direct Client",
-            route: `${selectedRequest.pickup.address.city} → ${selectedRequest.dropoff.address.city}`,
+            route: getRequestRoute(selectedRequest),
             cargo: selectedRequest.cargoDetails.goodsType,
             price: "TBD",
             date: new Date(selectedRequest.createdAt || Date.now()).toLocaleDateString(),
@@ -414,7 +385,7 @@ export default function BookingRequestsPage() {
             ...selectedRequest,
             id: selectedRequest.jobId,
             customer: (selectedRequest.clientId as any)?.name || "Direct Client",
-            route: `${selectedRequest.pickup.address.city} → ${selectedRequest.dropoff.address.city}`,
+            route: getRequestRoute(selectedRequest),
             cargo: selectedRequest.cargoDetails.goodsType,
             price: "TBD",
             date: new Date(selectedRequest.createdAt || Date.now()).toLocaleDateString(),

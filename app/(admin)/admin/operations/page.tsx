@@ -32,10 +32,10 @@ export default function AdminOperations() {
       const [bookingsData, assignmentsData, settlementsData] = await Promise.all([
         bookingService.getAll(),
         assignmentService.getAll(),
-        settlementService.getAll()
+        settlementService.getAll().catch(() => [])
       ]);
 
-      const finalized = (bookingsData || []).filter((b: any) => b.status === "finalized");
+      const finalized = (bookingsData || []).filter((b: any) => b.status?.toLowerCase() === "finalized");
       setBookings(finalized);
       setAssignments(assignmentsData || []);
       setSettlements(settlementsData || []);
@@ -92,12 +92,14 @@ export default function AdminOperations() {
   )) as string[];
 
   const filteredBookings = bookings.filter(b => {
+    const pickupCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "";
+    const dropoffCity = b.dropoffLocations?.[0]?.address?.city || b.dropoff?.address?.city || "";
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.jobId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.clientId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.pickup?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.dropoff?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase());
+      pickupCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      dropoffCity.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesStatus = statusFilter === "all" || b.status === statusFilter;
     const matchesCompany = companyFilter === "all" || (b.clientId as any)?.company?.companyName === companyFilter;
@@ -113,7 +115,7 @@ export default function AdminOperations() {
       id: b.jobId || b._id.substring(b._id.length - 6).toUpperCase(),
       companyName: (b.clientId as any)?.company?.companyName || "Direct Booking",
       clientName: (b.clientId as any)?.name || "N/A",
-      route: `${b.pickup?.address?.city || 'N/A'} → ${b.dropoff?.address?.city || 'N/A'}`,
+      route: `${b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || 'N/A'} → ${b.dropoffLocations?.[0]?.address?.city || b.dropoff?.address?.city || 'N/A'}`,
       status: assignment ? "Assigned" : "Unassigned",
       weight: b.cargoDetails?.weight,
       goodsType: b.cargoDetails?.goodsType,

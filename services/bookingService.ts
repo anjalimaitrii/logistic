@@ -1,5 +1,18 @@
 import { fetchApi } from './api';
 
+export interface LocationStop {
+  contactPerson: string;
+  contactNumber: string;
+  address: {
+    plotNo: string;
+    street: string;
+    city: string;
+    pincode: string;
+  };
+  gpsEnabled?: boolean;
+  sequence: number;
+}
+
 export interface BookingPayload {
   clientId?: string;
   cargoDetails: {
@@ -7,28 +20,8 @@ export interface BookingPayload {
     weight: number;
     loadingDate: string;
   };
-  pickup: {
-    contactPerson: string;
-    contactNumber: string;
-    address: {
-      plotNo: string;
-      street: string;
-      city: string;
-      pincode: string;
-    };
-    gpsEnabled: boolean;
-  };
-  dropoff: {
-    contactPerson: string;
-    contactNumber: string;
-    address: {
-      plotNo: string;
-      street: string;
-      city: string;
-      pincode: string;
-    };
-    gpsEnabled: boolean;
-  };
+  pickupLocations: LocationStop[];
+  dropoffLocations: LocationStop[];
   requirement: {
     bodyType: string;
   };

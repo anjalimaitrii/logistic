@@ -181,38 +181,60 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                   </div>
 
                   <div className="grid grid-cols-1 gap-4">
-                    {/* Pickup Address */}
+                    {/* Pickup Locations */}
                     <div className="p-4 rounded-2xl bg-emerald-50/10 border border-emerald-100/30 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-tight bg-emerald-50 px-2 py-0.5 rounded-full">Pickup</span>
-                        <div className="flex items-center gap-1.5 text-neutral-400">
-                          <Phone className="w-3 h-3" />
-                          <span className="text-[10px] font-semibold">{job?.pickup?.contactNumber}</span>
-                        </div>
+                        <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-tight bg-emerald-50 px-2 py-0.5 rounded-full">
+                          Pickup {(job?.pickupLocations?.length || 0) > 1 ? `(${job.pickupLocations.length} stops)` : ""}
+                        </span>
                       </div>
-                      <div className="flex gap-3">
-                        <MapPin className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-                        <div className="text-[12px] font-medium text-neutral-900 leading-relaxed">
-                          {job?.pickup?.address?.street}, {job?.pickup?.address?.city} ({job?.pickup?.address?.pincode})
+                      {(job?.pickupLocations || []).map((loc: any, idx: number) => (
+                        <div key={idx} className="flex gap-3">
+                          <div className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">
+                            {String.fromCharCode(65 + idx)}
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-[12px] font-semibold text-neutral-900">{loc.address?.city || "—"}</div>
+                            {(loc.address?.plotNo || loc.address?.street) && (
+                              <div className="text-[11px] text-neutral-500 mt-0.5">
+                                {[loc.address?.plotNo, loc.address?.street, loc.address?.pincode].filter(Boolean).join(", ")}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1 text-[10px] text-emerald-600 mt-0.5">
+                              <Phone className="w-3 h-3" />
+                              <span>{loc.contactPerson}{loc.contactNumber ? ` · ${loc.contactNumber}` : ""}</span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
 
-                    {/* Dropoff Address */}
+                    {/* Dropoff Locations */}
                     <div className="p-4 rounded-2xl bg-rose-50/10 border border-rose-100/30 space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-bold text-rose-600 uppercase tracking-tight bg-rose-50 px-2 py-0.5 rounded-full">Drop-off</span>
-                        <div className="flex items-center gap-1.5 text-neutral-400">
-                          <Phone className="w-3 h-3" />
-                          <span className="text-[10px] font-semibold">{job?.dropoff?.contactNumber}</span>
-                        </div>
+                        <span className="text-[9px] font-bold text-rose-600 uppercase tracking-tight bg-rose-50 px-2 py-0.5 rounded-full">
+                          Drop-off {(job?.dropoffLocations?.length || 0) > 1 ? `(${job.dropoffLocations.length} stops)` : ""}
+                        </span>
                       </div>
-                      <div className="flex gap-3">
-                        <MapPin className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
-                        <div className="text-[12px] font-medium text-neutral-900 leading-relaxed">
-                          {job?.dropoff?.address?.street}, {job?.dropoff?.address?.city} ({job?.dropoff?.address?.pincode})
+                      {(job?.dropoffLocations || []).map((loc: any, idx: number) => (
+                        <div key={idx} className="flex gap-3">
+                          <div className="w-5 h-5 rounded-full bg-rose-500 text-white flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5">
+                            {String.fromCharCode(65 + (job?.pickupLocations?.length || 0) + idx)}
+                          </div>
+                          <div className="flex-1">
+                            <div className="text-[12px] font-semibold text-neutral-900">{loc.address?.city || "—"}</div>
+                            {(loc.address?.plotNo || loc.address?.street) && (
+                              <div className="text-[11px] text-neutral-500 mt-0.5">
+                                {[loc.address?.plotNo, loc.address?.street, loc.address?.pincode].filter(Boolean).join(", ")}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1 text-[10px] text-rose-600 mt-0.5">
+                              <Phone className="w-3 h-3" />
+                              <span>{loc.contactPerson}{loc.contactNumber ? ` · ${loc.contactNumber}` : ""}</span>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
                   </div>
 

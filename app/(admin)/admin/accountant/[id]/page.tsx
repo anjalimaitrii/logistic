@@ -9,7 +9,6 @@ import {
   MapPin,
   CheckCircle2,
   ChevronRight,
-  TrendingUp,
   DollarSign
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
@@ -24,50 +23,38 @@ export default function AccountantJobDetail() {
   const [isApproved, setIsApproved] = useState(false);
   const [jobSettlement, setJobSettlement] = useState<any>(null);
 
-  // Local state for calculations - Using clear naming
-  const [calcData, setCalcData] = useState({
-    pickupKm: "200",
-    pickupMileage: "4", // KM/L
-    dropoffKm: "350",
-    dropoffMileage: "4", // KM/L
-    fuelRate: "100", // ₦/L
-    allocationMoney: ""
-  });
-
+  // One entry per leg (stop-to-stop)
+  const [legData, setLegData] = useState<{ km: string; mileage: string }[]>([
+    { km: "200", mileage: "4" },
+  ]);
+  const [fuelRate, setFuelRate] = useState("100");
+  const [allocationMoney, setAllocationMoney] = useState("");
 
   useEffect(() => {
-    if (id) {
-      loadJobDetails();
-    }
+    if (id) loadJobDetails();
   }, [id]);
 
-  // Calculation logic: Fuel estimate + Cash allocation
   const calculations = useMemo(() => {
-    const pKm = parseFloat(calcData.pickupKm) || 0;
-    const pMileage = parseFloat(calcData.pickupMileage) || 1;
-    const dKm = parseFloat(calcData.dropoffKm) || 0;
-    const dMileage = parseFloat(calcData.dropoffMileage) || 1;
-    const fuelRate = parseFloat(calcData.fuelRate) || 0;
-    const cashAllocation = parseFloat(calcData.allocationMoney) || 0;
+    const rate = parseFloat(fuelRate) || 0;
+    const cash = parseFloat(allocationMoney) || 0;
 
-    const pLiters = pKm / pMileage;
-    const pAmount = pLiters * fuelRate;
+    const legCalcs = legData.map((leg) => {
+      const km = parseFloat(leg.km) || 0;
+      const mileage = parseFloat(leg.mileage) || 1;
+      const liters = km / mileage;
+      return { liters, amount: Math.round(liters * rate) };
+    });
 
-    const dLiters = dKm / dMileage;
-    const dAmount = dLiters * fuelRate;
-
-    const fuelTotal = Math.round(pAmount + dAmount);
+    const totalLiters = legCalcs.reduce((s, l) => s + l.liters, 0);
+    const fuelTotal = legCalcs.reduce((s, l) => s + l.amount, 0);
 
     return {
-      pickupLiters: pLiters.toFixed(1),
-      pickupAmount: Math.round(pAmount),
-      dropoffLiters: dLiters.toFixed(1),
-      dropoffAmount: Math.round(dAmount),
-      totalLiters: (pLiters + dLiters).toFixed(1),
+      legCalcs,
+      totalLiters: totalLiters.toFixed(1),
       fuelTotal,
-      grandTotal: fuelTotal + Math.round(cashAllocation)
+      grandTotal: fuelTotal + Math.round(cash),
     };
-  }, [calcData]);
+  }, [legData, fuelRate, allocationMoney]);
 
   const loadJobDetails = async () => {
     try {
@@ -78,24 +65,45 @@ export default function AccountantJobDetail() {
       const [data, assignment, settlement] = await Promise.all([
         bookingService.getById(bookingId),
         assignmentService.getByBookingId(bookingId),
-        settlementService.getByBookingId(bookingId)
+        settlementService.getByBookingId(bookingId),
       ]);
 
       setJobData({ ...data, assignment });
       setJobSettlement(settlement);
 
+      const totalStops =
+        (data.pickupLocations?.length || 0) + (data.dropoffLocations?.length || 0);
+      // +1 for the return journey (last dropoff → first pickup)
+      const totalLegs = Math.max(totalStops, 1);
+
       if (settlement) {
         setIsApproved(true);
-        setCalcData({
-          pickupKm: settlement.fuelDetails.pickupKm.toString(),
-          pickupMileage: settlement.fuelDetails.pickupMileage.toString(),
-          dropoffKm: settlement.fuelDetails.dropoffKm.toString(),
-          dropoffMileage: settlement.fuelDetails.dropoffKm.toString(),
-          fuelRate: settlement.fuelDetails.fuelRate.toString(),
-          allocationMoney: settlement.financials.advancePaid.toString()
-        });
-      } else if (data.advancePaid) {
-        setCalcData(prev => ({ ...prev, allocationMoney: data.advancePaid.toString() }));
+        // Load saved legs if available, else fall back to old two-leg format
+        if (settlement.fuelDetails?.legs) {
+          setLegData(
+            settlement.fuelDetails.legs.map((l: any) => ({
+              km: l.km.toString(),
+              mileage: l.mileage.toString(),
+            }))
+          );
+        } else {
+          // backward-compat: spread old pickup/dropoff values across legs
+          setLegData(
+            Array.from({ length: totalLegs }, (_, i) => ({
+              km: i === 0
+                ? settlement.fuelDetails.pickupKm?.toString() || "200"
+                : settlement.fuelDetails.dropoffKm?.toString() || "200",
+              mileage: i === 0
+                ? settlement.fuelDetails.pickupMileage?.toString() || "4"
+                : settlement.fuelDetails.dropoffMileage?.toString() || "4",
+            }))
+          );
+        }
+        setFuelRate(settlement.fuelDetails.fuelRate?.toString() || "100");
+        setAllocationMoney(settlement.financials.cashAllocation?.toString() || "");
+      } else {
+        setLegData(Array.from({ length: totalLegs }, () => ({ km: "200", mileage: "4" })));
+        if (data.advancePaid) setAllocationMoney(data.advancePaid.toString());
       }
     } catch (error) {
       console.error("Failed to load job details:", error);
@@ -105,7 +113,7 @@ export default function AccountantJobDetail() {
   };
 
   const handleProcessSettlement = async (silent = false) => {
-    if (!calcData.allocationMoney) {
+    if (!allocationMoney) {
       alert("Please enter the Cash Allocation amount");
       return;
     }
@@ -116,34 +124,43 @@ export default function AccountantJobDetail() {
         return;
       }
 
+      const rate = Number(fuelRate) || 0;
       const settlementPayload = {
         bookingId,
-        assignmentId: jobData.assignment._id,
         fuelDetails: {
-          pickupKm: Number(calcData.pickupKm),
-          pickupMileage: Number(calcData.pickupMileage),
-          dropoffKm: Number(calcData.dropoffKm),
-          dropoffMileage: Number(calcData.dropoffMileage),
-          fuelRate: Number(calcData.fuelRate)
+          fuelRate: rate,
+          legs: legData.map((l, i) => {
+            const isReturn = i === allStops.length - 1;
+            const fromStop = isReturn ? allStops[allStops.length - 1] : allStops[i];
+            const toStop   = isReturn ? allStops[0] : allStops[i + 1];
+            const km       = Number(l.km) || 0;
+            const mileage  = Number(l.mileage) || 1;
+            const liters   = Math.round((km / mileage) * 10) / 10;
+            return {
+              from:   fromStop?.address?.city || `Stop ${i + 1}`,
+              to:     isReturn
+                        ? `${toStop?.address?.city || "Origin"} (Return)`
+                        : (toStop?.address?.city || `Stop ${i + 2}`),
+              km,
+              mileage,
+              liters,
+              amount: Math.round(liters * rate),
+            };
+          }),
         },
-        expenses: jobSettlement?.expenses || [], // Preserving existing operational expenses
+        expenses: jobSettlement?.expenses || [],
         financials: {
-          advancePaid: Number(calcData.allocationMoney),
-          grandTotal: calculations.grandTotal
-        }
+          cashAllocation: Number(allocationMoney),
+          fuelTotal: calculations.fuelTotal,
+        },
       };
 
       await settlementService.process(settlementPayload);
 
-      // Also update booking status if needed (optional but good for consistency)
-      await bookingService.updateStatus(bookingId, "finalized", {
-        advancePaid: Number(calcData.allocationMoney),
-        finalAmount: calculations.grandTotal
-      });
-
       if (!silent) {
         alert("Trip approved successfully!");
         setIsApproved(true);
+        router.refresh();
         router.push("/admin/accountant");
       }
     } catch (error) {
@@ -152,40 +169,60 @@ export default function AccountantJobDetail() {
     }
   };
 
-  // Data mapping for the specific job
   const jobIdStr = Array.isArray(id) ? id[0] : id;
-  const job = jobData ? {
-    id: jobData.jobId || `#JOB-${jobData._id.substring(jobData._id.length - 6).toUpperCase()}`,
-    status: jobData.status,
-    client: jobData.clientId?.name || "N/A",
-    company: jobData.clientId?.company?.companyName || "Direct Booking",
-    driver: jobData.assignment?.driverName || "Unassigned",
-    truckNumber: jobData.assignment?.truckNumber || "N/A",
-    truckHealth: jobData.assignment?.truckHealth || "Good",
-    pickup: `${jobData.pickup?.address?.city}, ${jobData.pickup?.address?.street}`,
-    dropoff: `${jobData.dropoff?.address?.city}, ${jobData.dropoff?.address?.street}`,
-    contact: jobData.pickup?.contactNumber || "N/A",
-    cargo: jobData.cargoDetails?.goodsType || "N/A",
-    weight: `${jobData.cargoDetails?.weight || 0} kg`,
-    schedule: jobData.cargoDetails?.loadingDate || "N/A"
-  } : {
-    id: `#${jobIdStr?.toUpperCase() || "JOB-4005"}`,
-    status: "Loading...",
-    client: "Loading...",
-    driver: "Loading...",
-    truckNumber: "Loading...",
-    truckHealth: "---",
-    pickup: "Loading...",
-    dropoff: "Loading...",
-    contact: "---",
-    cargo: "---",
-    weight: "---",
-    schedule: "---"
+  const job = jobData
+    ? {
+        id: jobData.jobId || `#JOB-${jobData._id.substring(jobData._id.length - 6).toUpperCase()}`,
+        status: jobData.status,
+        client: jobData.clientId?.name || "N/A",
+        company: jobData.clientId?.company?.companyName || "Direct Booking",
+        driver: jobData.assignment?.driverName || "Unassigned",
+        truckNumber: jobData.assignment?.truckNumber || "N/A",
+        truckHealth: jobData.assignment?.truckHealth || "Good",
+        pickupLocations: jobData.pickupLocations || [],
+        dropoffLocations: jobData.dropoffLocations || [],
+        cargo: jobData.cargoDetails?.goodsType || "N/A",
+        weight: `${jobData.cargoDetails?.weight || 0} kg`,
+        schedule: jobData.cargoDetails?.loadingDate || "N/A",
+      }
+    : {
+        id: `#${jobIdStr?.toUpperCase() || "JOB-4005"}`,
+        status: "Loading...",
+        client: "Loading...",
+        driver: "Loading...",
+        truckNumber: "Loading...",
+        truckHealth: "---",
+        pickupLocations: [],
+        dropoffLocations: [],
+        cargo: "---",
+        weight: "---",
+        schedule: "---",
+      };
+
+  // All stops in journey order: pickups first, then dropoffs
+  const allStops = [...job.pickupLocations, ...job.dropoffLocations];
+
+  const getLegColor = (legIdx: number) => {
+    const pickupCount = job.pickupLocations.length;
+    if (legIdx === allStops.length - 1) return "violet"; // return journey (last leg)
+    if (legIdx < pickupCount - 1) return "emerald";      // pickup → pickup
+    if (legIdx === pickupCount - 1) return "slate";      // last pickup → first dropoff
+    return "rose";                                        // dropoff → dropoff
   };
 
   const statCards = [
-    { label: "Est. Fuel Cost", value: `₦${calculations.fuelTotal.toLocaleString()}`, icon: <Fuel className="w-4 h-4 text-amber-500" />, color: "border-amber-500" },
-    { label: "Cash Allocation", value: calcData.allocationMoney ? `₦${parseFloat(calcData.allocationMoney).toLocaleString()}` : "---", icon: <DollarSign className="w-4 h-4 text-blue-500" />, color: "border-blue-500" },
+    {
+      label: "Est. Fuel Cost",
+      value: `₦${calculations.fuelTotal.toLocaleString()}`,
+      icon: <Fuel className="w-4 h-4 text-amber-500" />,
+      color: "border-amber-500",
+    },
+    {
+      label: "Cash Allocation",
+      value: allocationMoney ? `₦${parseFloat(allocationMoney).toLocaleString()}` : "---",
+      icon: <DollarSign className="w-4 h-4 text-blue-500" />,
+      color: "border-blue-500",
+    },
   ];
 
   return (
@@ -195,7 +232,10 @@ export default function AccountantJobDetail() {
         <div className="bg-white border-b border-neutral-100 px-4 md:px-8 py-3 md:py-5 sticky top-0 z-20">
           <div className="max-w-[1400px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3 md:gap-5">
-              <button onClick={() => router.back()} className="w-8 h-8 md:w-9 md:h-9 rounded-full border border-neutral-100 flex items-center justify-center text-neutral-400 hover:bg-neutral-50 hover:text-primary transition-all shrink-0">
+              <button
+                onClick={() => router.back()}
+                className="w-8 h-8 md:w-9 md:h-9 rounded-full border border-neutral-100 flex items-center justify-center text-neutral-400 hover:bg-neutral-50 hover:text-primary transition-all shrink-0"
+              >
                 <ArrowLeft className="w-4 h-4" />
               </button>
               <div>
@@ -216,7 +256,10 @@ export default function AccountantJobDetail() {
                   <CheckCircle2 className="w-3.5 h-3.5" /> Approved
                 </div>
               ) : (
-                <button onClick={() => handleProcessSettlement(false)} className="flex-1 md:flex-none px-4 md:px-5 py-1.5 md:py-2 rounded-lg bg-slate-900 text-white text-[10px] md:text-[10px] font-semibold uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-2">
+                <button
+                  onClick={() => handleProcessSettlement(false)}
+                  className="flex-1 md:flex-none px-4 md:px-5 py-1.5 md:py-2 rounded-lg bg-slate-900 text-white text-[10px] font-semibold uppercase tracking-widest hover:brightness-110 transition-all flex items-center justify-center gap-2"
+                >
                   <CheckCircle2 className="w-3.5 h-3.5" /> Approve Trip
                 </button>
               )}
@@ -227,7 +270,10 @@ export default function AccountantJobDetail() {
         <div className="p-4 md:p-6 max-w-[1280px] mx-auto space-y-4 md:space-y-6">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             {statCards.map((card, i) => (
-              <div key={i} className={`bg-white rounded-xl md:rounded-2xl p-4 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] border-t-2 ${card.color} transition-transform hover:-translate-y-1`}>
+              <div
+                key={i}
+                className={`bg-white rounded-xl md:rounded-2xl p-4 shadow-[0_2px_10px_-3px_rgba(0,0,0,0.05)] border-t-2 ${card.color} transition-transform hover:-translate-y-1`}
+              >
                 <div className="flex items-center justify-between mb-2">
                   <div className="p-1 px-1.5 rounded-lg bg-neutral-50 shrink-0">{card.icon}</div>
                 </div>
@@ -239,62 +285,127 @@ export default function AccountantJobDetail() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
+
+              {/* Route Flow */}
               <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100">
-                <div className="flex items-center justify-between mb-6 md:mb-8">
-                  <h2 className="text-xs md:text-sm font-semibold text-slate-950">Trip Address Details</h2>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-xs md:text-sm font-semibold text-slate-950">Trip Route Flow</h2>
                   <div className="px-2 md:px-3 py-1 rounded-full bg-emerald-50 text-[8px] md:text-[9px] font-medium text-emerald-600 uppercase tracking-wider">Live Route</div>
                 </div>
-                <div className="space-y-6 md:space-y-10">
-                  <div className="relative">
-                    <div className="absolute left-4 md:left-4.5 top-8 md:top-8 bottom-0 w-0.5 bg-neutral-50 border-l-2 border-dashed border-neutral-200 -mb-6 md:-mb-10" />
-                    <div className="flex gap-4 md:gap-5 items-start relative z-10">
-                      <div className="w-8 h-8 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><MapPin className="w-4 h-4 md:w-4.5 md:h-4.5" /></div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[8px] md:text-[9px] font-medium text-neutral-400 uppercase tracking-widest mb-1 font-sans">ORIGIN / PICKUP</div>
-                        <h3 className="text-sm md:text-base font-semibold text-slate-900 leading-tight mb-1 md:mb-1.5 wrap-break-words">{job.pickup}</h3>
-                        <div className="flex flex-wrap items-center gap-2 md:gap-3">
-                          <span className="text-[9px] md:text-[10px] font-normal text-neutral-500 bg-neutral-50 px-2 py-0.5 rounded-md">Expected: 10:00 AM</span>
-                          <span className="text-[9px] md:text-[10px] font-medium text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3" /> Ready</span>
+
+                <div className="relative">
+                  <div className="absolute left-3.75 top-4 bottom-4 w-px bg-neutral-100" />
+                  <div className="space-y-0">
+                    {/* Pickup stops */}
+                    {job.pickupLocations.map((loc: any, idx: number) => (
+                      <div key={`p-${idx}`} className="relative flex gap-4 pb-6">
+                        <div className="relative z-10 w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 text-[10px] font-bold shadow-md shadow-emerald-200">
+                          {String.fromCharCode(65 + idx)}
+                        </div>
+                        <div className="flex-1 min-w-0 pt-1">
+                          <div className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mb-0.5">Pickup Stop</div>
+                          <div className="text-sm font-semibold text-slate-900 leading-tight">{loc.address?.city || "—"}</div>
+                          {(loc.address?.plotNo || loc.address?.street) && (
+                            <div className="text-[11px] text-neutral-500 mt-0.5">
+                              {[loc.address?.plotNo, loc.address?.street, loc.address?.pincode].filter(Boolean).join(", ")}
+                            </div>
+                          )}
+                          {loc.contactPerson && (
+                            <div className="text-[10px] text-emerald-600 mt-1 font-medium">
+                              {loc.contactPerson}{loc.contactNumber ? ` · ${loc.contactNumber}` : ""}
+                            </div>
+                          )}
                         </div>
                       </div>
+                    ))}
+
+                    {/* Truck transition */}
+                    <div className="relative flex gap-4 pb-6">
+                      <div className="relative z-10 w-8 h-8 rounded-full bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-md shadow-slate-200 text-base">
+                        🚛
+                      </div>
+                      <div className="flex-1 min-w-0 pt-1.5">
+                        <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">In Transit</div>
+                        <div className="text-[11px] text-neutral-400 mt-0.5">Cargo loaded · Heading to destination</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-4 md:gap-5 items-start relative z-10">
-                    <div className="w-8 h-8 rounded-lg md:rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0"><MapPin className="w-4 h-4 md:w-4.5 md:h-4.5" /></div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[8px] md:text-[9px] font-medium text-neutral-400 uppercase tracking-widest mb-1 font-sans">DESTINATION / DROP-OFF</div>
-                      <h3 className="text-sm md:text-base font-semibold text-slate-900 leading-tight mb-1 md:mb-1.5 wrap-break-words">{job.dropoff}</h3>
-                      <div className="flex flex-wrap items-center gap-2 md:gap-3"><span className="text-[9px] md:text-[10px] font-normal text-neutral-500 bg-neutral-50 px-2 py-0.5 rounded-md">Dist: {calcData.dropoffKm} KM Away</span></div>
-                    </div>
+
+                    {/* Dropoff stops */}
+                    {job.dropoffLocations.map((loc: any, idx: number) => {
+                      const isLast = idx === job.dropoffLocations.length - 1;
+                      return (
+                        <div key={`d-${idx}`} className={`relative flex gap-4 ${isLast ? "pb-6" : "pb-6"}`}>
+                          <div className="relative z-10 w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center shrink-0 text-[10px] font-bold shadow-md shadow-rose-200">
+                            {String.fromCharCode(65 + job.pickupLocations.length + idx)}
+                          </div>
+                          <div className="flex-1 min-w-0 pt-1">
+                            <div className="text-[9px] font-bold text-rose-500 uppercase tracking-widest mb-0.5">
+                              {isLast ? "Final Destination" : "Drop-off Stop"}
+                            </div>
+                            <div className="text-sm font-semibold text-slate-900 leading-tight">{loc.address?.city || "—"}</div>
+                            {(loc.address?.plotNo || loc.address?.street) && (
+                              <div className="text-[11px] text-neutral-500 mt-0.5">
+                                {[loc.address?.plotNo, loc.address?.street, loc.address?.pincode].filter(Boolean).join(", ")}
+                              </div>
+                            )}
+                            {loc.contactPerson && (
+                              <div className="text-[10px] text-rose-500 mt-1 font-medium">
+                                {loc.contactPerson}{loc.contactNumber ? ` · ${loc.contactNumber}` : ""}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {/* Return journey indicator */}
+                    {allStops.length > 0 && (
+                      <div className="relative flex gap-4">
+                        <div className="relative z-10 w-8 h-8 rounded-full bg-violet-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-violet-200 text-sm">
+                          ↩
+                        </div>
+                        <div className="flex-1 min-w-0 pt-1.5">
+                          <div className="text-[9px] font-bold text-violet-600 uppercase tracking-widest">Return Journey</div>
+                          <div className="text-[11px] text-neutral-500 mt-0.5">
+                            {allStops[allStops.length - 1]?.address?.city || "Last Stop"} → {allStops[0]?.address?.city || "Origin"}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* Cash Allocation - Food & Other Expenses */}
+              {/* Cash Allocation */}
               <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1 px-1.5 rounded-lg bg-blue-50 text-blue-600"><DollarSign className="w-3.5 h-3.5" /></div>
-                    <div>
-                      <h2 className="text-xs md:text-sm font-semibold text-slate-950">Cash Allocation</h2>
-                      <p className="text-[8px] md:text-[9px] font-normal text-neutral-400 uppercase tracking-widest">Food & Other Expenses</p>
-                    </div>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1 px-1.5 rounded-lg bg-blue-50 text-blue-600"><DollarSign className="w-3.5 h-3.5" /></div>
+                  <div>
+                    <h2 className="text-xs md:text-sm font-semibold text-slate-950">Cash Allocation</h2>
+                    <p className="text-[8px] md:text-[9px] font-normal text-neutral-400 uppercase tracking-widest">Food & Other Expenses</p>
                   </div>
                 </div>
                 <div className="p-4 rounded-xl bg-blue-50/30 border border-blue-100/50 mb-4">
-                  <p className="text-[10px] font-medium text-blue-700 leading-relaxed">This amount is given to the driver for food, lodging, tolls and other miscellaneous expenses during the trip. This is <strong>not</strong> for fuel/petrol.</p>
+                  <p className="text-[10px] font-medium text-blue-700 leading-relaxed">
+                    This amount is given to the driver for food, lodging, tolls and other miscellaneous expenses during the trip. This is <strong>not</strong> for fuel/petrol.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <label className="text-[9px] font-bold text-slate-600 uppercase tracking-widest font-sans ml-1">Allocation Amount (₦)</label>
-                  <input type="number" value={calcData.allocationMoney} onChange={(e) => setCalcData({ ...calcData, allocationMoney: e.target.value })} placeholder="0.00" className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-400 focus:bg-white transition-all placeholder:text-neutral-300" />
+                  <input
+                    type="number"
+                    value={allocationMoney}
+                    onChange={(e) => setAllocationMoney(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-400 focus:bg-white transition-all placeholder:text-neutral-300"
+                  />
                 </div>
-
               </div>
             </div>
 
+            {/* Fuel Estimate — per leg */}
             <div className="space-y-4 md:space-y-6">
               <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100">
-                <div className="flex items-center justify-between mb-6 md:mb-8">
+                <div className="flex items-center justify-between mb-5">
                   <div className="flex items-center gap-2">
                     <div className="p-1 px-1.5 rounded-lg bg-orange-50 text-orange-600"><Fuel className="w-3.5 h-3.5" /></div>
                     <h2 className="text-xs md:text-sm font-semibold text-slate-950">Fuel Estimate</h2>
@@ -302,63 +413,124 @@ export default function AccountantJobDetail() {
                   <div className="px-2 py-0.5 rounded-full bg-amber-50 text-[8px] md:text-[9px] font-medium text-amber-600 uppercase tracking-widest">Auto Calc</div>
                 </div>
 
-                <div className="space-y-4 md:space-y-5">
-                  {/* Pickup Section */}
-                  <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-100 space-y-3">
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[9px] font-medium text-emerald-700 uppercase tracking-widest flex items-center gap-1.5 font-sans"><MapPin className="w-2.5 h-2.5" /> Pickup Path</span>
-                      <div className="flex flex-col items-end">
-                        <span className="text-[10px] md:text-[11px] font-bold text-slate-950">₦{calculations.pickupAmount.toLocaleString()}</span>
-                        <span className="text-[8px] font-bold text-emerald-600 uppercase">{calculations.pickupLiters}L used</span>
+                <div className="space-y-3">
+                  {/* Per-leg cards */}
+                  {legData.map((leg, i) => {
+                    const isReturn = i === allStops.length - 1;
+                    const fromStop = isReturn ? allStops[allStops.length - 1] : allStops[i];
+                    const toStop = isReturn ? allStops[0] : allStops[i + 1];
+                    const fromCity = fromStop?.address?.city || String.fromCharCode(65 + i);
+                    const toCity = isReturn
+                      ? (toStop?.address?.city || "Origin")
+                      : (toStop?.address?.city || String.fromCharCode(65 + i + 1));
+
+                    const pickupCount = job.pickupLocations.length;
+                    const getStopType = (stopIdx: number) =>
+                      stopIdx < pickupCount ? "Pickup Stop" : "Dropoff Stop";
+                    const fromType = isReturn ? "Dropoff Stop" : getStopType(i);
+                    const toType = isReturn ? "Return to Warehouse" : getStopType(i + 1);
+
+                    const color = getLegColor(i);
+                    const calc = calculations.legCalcs[i];
+
+                    const colorMap: Record<string, string> = {
+                      emerald: "bg-emerald-50 border-emerald-100",
+                      slate:   "bg-slate-50 border-slate-100",
+                      rose:    "bg-rose-50 border-rose-100",
+                      violet:  "bg-violet-50 border-violet-100",
+                    };
+                    const dotMap: Record<string, string> = {
+                      emerald: "bg-emerald-500",
+                      slate:   "bg-slate-600",
+                      rose:    "bg-rose-500",
+                      violet:  "bg-violet-500",
+                    };
+                    const textColor: Record<string, string> = {
+                      emerald: "text-emerald-700",
+                      slate:   "text-slate-700",
+                      rose:    "text-rose-700",
+                      violet:  "text-violet-700",
+                    };
+
+                    return (
+                      <div key={i} className={`p-4 rounded-xl border space-y-3 ${colorMap[color]}`}>
+                        {/* From stop */}
+                        <div className="flex items-start gap-2">
+                          <span className={`w-2 h-2 rounded-full mt-1 shrink-0 ${dotMap[color]}`} />
+                          <div>
+                            <div className={`text-[8px] font-bold uppercase tracking-widest ${textColor[color]}`}>{fromType}</div>
+                            <div className="text-[12px] font-semibold text-slate-900">{fromCity}</div>
+                          </div>
+                        </div>
+                        {/* Arrow */}
+                        <div className="flex items-center gap-2 pl-3">
+                          <div className="w-px h-4 bg-neutral-200" />
+                          <span className="text-[9px] text-neutral-400 font-medium">{isReturn ? "↩ Return Journey" : "↓"}</span>
+                        </div>
+                        {/* To stop */}
+                        <div className="flex items-start gap-2">
+                          <span className={`w-2 h-2 rounded-full mt-1 shrink-0 ${dotMap[color]}`} />
+                          <div className="flex-1">
+                            <div className={`text-[8px] font-bold uppercase tracking-widest ${textColor[color]}`}>{toType}</div>
+                            <div className="text-[12px] font-semibold text-slate-900">{toCity}</div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className={`text-[11px] font-bold ${textColor[color]}`}>₦{(calc?.amount || 0).toLocaleString()}</div>
+                            <div className="text-[8px] font-semibold text-neutral-400 uppercase">{(calc?.liters || 0).toFixed(1)}L</div>
+                          </div>
+                        </div>
+                        {/* Inputs */}
+                        <div className="grid grid-cols-2 gap-2 pt-1">
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest ml-1">Distance (KM)</label>
+                            <input
+                              type="number"
+                              value={leg.km}
+                              onChange={(e) => {
+                                const updated = [...legData];
+                                updated[i] = { ...updated[i], km: e.target.value };
+                                setLegData(updated);
+                              }}
+                              className="w-full bg-white border border-neutral-200 rounded-lg py-1.5 px-3 text-[11px] font-semibold text-slate-900 outline-none"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest ml-1">Mileage (KM/L)</label>
+                            <input
+                              type="number"
+                              value={leg.mileage}
+                              onChange={(e) => {
+                                const updated = [...legData];
+                                updated[i] = { ...updated[i], mileage: e.target.value };
+                                setLegData(updated);
+                              }}
+                              className="w-full bg-white border border-neutral-200 rounded-lg py-1.5 px-3 text-[11px] font-semibold text-slate-900 outline-none"
+                            />
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest ml-1 font-sans">Distance (KM)</label>
-                        <input type="number" value={calcData.pickupKm} onChange={(e) => setCalcData({ ...calcData, pickupKm: e.target.value })} className="w-full bg-white border border-neutral-100 rounded-lg py-1.5 px-3 text-[11px] font-semibold text-slate-900 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest ml-1 font-sans">Mileage (KM/L)</label>
-                        <input type="number" value={calcData.pickupMileage} onChange={(e) => setCalcData({ ...calcData, pickupMileage: e.target.value })} className="w-full bg-white border border-neutral-100 rounded-lg py-1.5 px-3 text-[11px] font-semibold text-slate-900 outline-none" />
-                      </div>
-                    </div>
+                    );
+                  })}
+
+                  {/* Fuel Rate */}
+                  <div className="flex items-center justify-between px-1 py-2 border-b border-neutral-100">
+                    <label className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <Fuel className="w-3 h-3" /> Fuel Rate (₦/L)
+                    </label>
+                    <input
+                      type="number"
+                      value={fuelRate}
+                      onChange={(e) => setFuelRate(e.target.value)}
+                      className="w-16 bg-neutral-50 border-b-2 border-emerald-500/30 text-[11px] font-bold text-emerald-700 text-right outline-none pr-1 focus:border-emerald-500 transition-all"
+                    />
                   </div>
 
-                  {/* Dropoff Section */}
-                  <div className="p-4 rounded-xl bg-neutral-50 border border-neutral-100 space-y-3">
-                    <div className="flex items-center justify-between px-1">
-                      <span className="text-[9px] font-medium text-rose-700 uppercase tracking-widest flex items-center gap-1.5 font-sans"><MapPin className="w-2.5 h-2.5" /> Drop Path</span>
-                      <div className="flex flex-col items-end">
-                        <span className="text-[10px] md:text-[11px] font-bold text-slate-950">₦{calculations.dropoffAmount.toLocaleString()}</span>
-                        <span className="text-[8px] font-bold text-rose-600 uppercase">{calculations.dropoffLiters}L used</span>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest ml-1 font-sans">Distance (KM)</label>
-                        <input type="number" value={calcData.dropoffKm} onChange={(e) => setCalcData({ ...calcData, dropoffKm: e.target.value })} className="w-full bg-white border border-neutral-100 rounded-lg py-1.5 px-3 text-[11px] font-semibold text-slate-900 outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest ml-1 font-sans">Mileage (KM/L)</label>
-                        <input type="number" value={calcData.dropoffMileage} onChange={(e) => setCalcData({ ...calcData, dropoffMileage: e.target.value })} className="w-full bg-white border border-neutral-100 rounded-lg py-1.5 px-3 text-[11px] font-semibold text-slate-900 outline-none" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Shared Settings */}
-                  <div className="px-1 py-1 flex items-center justify-between border-b border-neutral-50 pb-3">
-                    <label className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest font-sans flex items-center gap-1.5"><Fuel className="w-3 h-3" /> Fuel Rate (₦/L)</label>
-                    <div className="flex items-center gap-2">
-                      <input type="number" value={calcData.fuelRate} onChange={(e) => setCalcData({ ...calcData, fuelRate: e.target.value })} className="w-16 bg-neutral-50 border-b-2 border-emerald-500/30 text-[11px] font-bold text-emerald-700 text-right outline-none pr-1 focus:border-emerald-500 transition-all" />
-                    </div>
-                  </div>
-
-                  {/* Fuel Summary */}
-                  <div className="py-4 border-t border-neutral-100 bg-amber-50/30 rounded-xl px-4 mt-2">
+                  {/* Total */}
+                  <div className="py-4 bg-amber-50/30 rounded-xl px-4">
                     <div className="flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest font-sans">Est. Fuel Cost</span>
-                        <span className="text-[8px] font-bold text-amber-600 uppercase">{calculations.totalLiters}L total fuel</span>
+                      <div>
+                        <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Est. Fuel Cost</div>
+                        <div className="text-[8px] font-bold text-amber-600 uppercase">{calculations.totalLiters}L total · {legData.length} leg{legData.length > 1 ? "s" : ""}</div>
                       </div>
                       <span className="text-base md:text-xl font-bold text-amber-600">₦{calculations.fuelTotal.toLocaleString()}</span>
                     </div>
