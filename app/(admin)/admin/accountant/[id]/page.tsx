@@ -170,7 +170,7 @@ export default function AccountantJobDetail() {
   const jobIdStr = Array.isArray(id) ? id[0] : id;
   const job = jobData
     ? {
-        id: jobData.jobId || `#JOB-${jobData._id.substring(jobData._id.length - 6).toUpperCase()}`,
+        id: jobData.tripId || `#TRIP-${jobData._id.substring(jobData._id.length - 6).toUpperCase()}`,
         status: jobData.status,
         client: jobData.clientId?.name || "N/A",
         company: jobData.clientId?.company?.companyName || "Direct Booking",
@@ -184,7 +184,7 @@ export default function AccountantJobDetail() {
         schedule: jobData.cargoDetails?.loadingDate || "N/A",
       }
     : {
-        id: `#${jobIdStr?.toUpperCase() || "JOB-4005"}`,
+        id: `#${jobIdStr?.toUpperCase() || "TRIP-4005"}`,
         status: "Loading...",
         client: "Loading...",
         driver: "Loading...",

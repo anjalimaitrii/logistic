@@ -75,7 +75,7 @@ export default function EditJobDrawer({ isOpen, onClose, job, onUpdate }: EditJo
                </div>
                <h2 className="text-[16px] font-bold text-neutral-900 tracking-tight">Edit Job Details</h2>
             </div>
-            <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest ml-7.5">Job ID: {job?.jobId || job?._id}</p>
+            <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest ml-7.5">Job ID: {job?.tripId || job?._id}</p>
           </div>
           <button onClick={onClose} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-neutral-400 transition-all border border-transparent hover:border-neutral-100">
             <X className="w-5 h-5" />

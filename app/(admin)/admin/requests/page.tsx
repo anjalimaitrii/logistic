@@ -101,7 +101,7 @@ export default function BookingRequestsPage() {
     const dropoffCity = req.dropoffLocations?.[0]?.address?.city || req.dropoff?.address?.city || "";
     const matchesSearch =
       req._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      req.jobId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      req.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (req.clientId as any)?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       pickupCity?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       dropoffCity?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -111,7 +111,7 @@ export default function BookingRequestsPage() {
   });
 
   const tableData = filteredRequests.map(req => ({
-    id: req.jobId || `#BR-${req._id?.substring(req._id.length - 7).toUpperCase() || "NEW"}`,
+    id: req.tripId || `#BR-${req._id?.substring(req._id.length - 7).toUpperCase() || "NEW"}`,
     customer: (req.clientId as any)?.name || "Direct Client",
     companyName: (req.clientId as any)?.company?.companyName || "Direct Booking",
     route: getRequestRoute(req),
@@ -364,7 +364,7 @@ export default function BookingRequestsPage() {
           isOpen={isChatOpen}
           onClose={() => setIsChatOpen(false)}
           request={selectedRequest ? {
-            id: selectedRequest.jobId || `#BR-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
+            id: selectedRequest.tripId || `#BR-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
             customer: (selectedRequest.clientId as any)?.name || "Direct Client",
             route: getRequestRoute(selectedRequest),
             cargo: selectedRequest.cargoDetails.goodsType,
@@ -383,7 +383,7 @@ export default function BookingRequestsPage() {
           onClose={() => setIsFinalizeDrawerOpen(false)}
           request={selectedRequest ? {
             ...selectedRequest,
-            id: selectedRequest.jobId,
+            id: selectedRequest.tripId,
             customer: (selectedRequest.clientId as any)?.name || "Direct Client",
             route: getRequestRoute(selectedRequest),
             cargo: selectedRequest.cargoDetails.goodsType,

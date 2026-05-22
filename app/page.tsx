@@ -7,7 +7,7 @@ import { clientService } from "@/services/clientService";
 
 export default function Home() {
   const router = useRouter();
-  const [step, setStep] = useState<"ID" | "PASSWORD">("ID");
+  const [step, setStep] = useState<"ID" | "PASSWORD" | "FORGOT" | "OTP" | "RESET">("ID");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -16,6 +16,13 @@ export default function Home() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [tempUserId, setTempUserId] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Forgot password state
+  const [fpEmail, setFpEmail] = useState("");
+  const [fpOtp, setFpOtp] = useState(["", "", "", "", "", ""]);
+  const [fpNewPassword, setFpNewPassword] = useState("");
+  const [fpConfirmPassword, setFpConfirmPassword] = useState("");
 
   const handleNext = () => {
     if (!identifier) {
@@ -82,6 +89,59 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleForgotSend = async () => {
+    if (!fpEmail) { setError("Please enter your email."); return; }
+    setIsLoading(true); setError("");
+    try {
+      await clientService.forgotPassword(fpEmail);
+      setStep("OTP");
+    } catch (err: any) {
+      setError(err.message || "Failed to send OTP.");
+    } finally { setIsLoading(false); }
+  };
+
+  const handleOtpChange = (val: string, idx: number) => {
+    if (!/^[0-9]?$/.test(val)) return;
+    const next = [...fpOtp];
+    next[idx] = val;
+    setFpOtp(next);
+    if (val && idx < 5) {
+      (document.getElementById(`otp-${idx + 1}`) as HTMLInputElement)?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (e: React.KeyboardEvent, idx: number) => {
+    if (e.key === "Backspace" && !fpOtp[idx] && idx > 0) {
+      (document.getElementById(`otp-${idx - 1}`) as HTMLInputElement)?.focus();
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    const otp = fpOtp.join("");
+    if (otp.length < 6) { setError("Please enter all 6 digits."); return; }
+    setIsLoading(true); setError("");
+    try {
+      await clientService.verifyOTP(fpEmail, otp);
+      setStep("RESET");
+    } catch (err: any) {
+      setError(err.message || "Invalid OTP.");
+    } finally { setIsLoading(false); }
+  };
+
+  const handleResetPassword = async () => {
+    if (fpNewPassword !== fpConfirmPassword) { setError("Passwords do not match."); return; }
+    if (fpNewPassword.length < 8) { setError("Password must be at least 8 characters."); return; }
+    setIsLoading(true); setError("");
+    try {
+      await clientService.resetPassword(fpEmail, fpOtp.join(""), fpNewPassword);
+      setStep("ID");
+      setFpEmail(""); setFpOtp(["","","","","",""]); setFpNewPassword(""); setFpConfirmPassword("");
+      alert("Password reset successfully! Please login with your new password.");
+    } catch (err: any) {
+      setError(err.message || "Reset failed.");
+    } finally { setIsLoading(false); }
   };
 
   return (
@@ -366,10 +426,12 @@ export default function Home() {
 
         .ft-otp-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 26px; }
 
+        .ft-otp-row { display: grid; grid-template-columns: repeat(6,1fr); gap: 10px; margin-bottom: 26px; }
+
         .ft-otp-cell {
-          width: 100%; height: 62px; text-align: center;
+          width: 100%; height: 60px; text-align: center;
           font-family: 'Barlow Condensed', sans-serif;
-          font-size: 26px; font-weight: 700; color: #1B2340;
+          font-size: 28px; font-weight: 700; color: #1B2340;
           background: #F4F6FB; border: 1.5px solid #DDE1EB;
           border-radius: 12px; outline: none;
           transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
@@ -379,6 +441,16 @@ export default function Home() {
           border-color: #E85D20; background: #fff;
           box-shadow: 0 0 0 3px rgba(232,93,32,0.09);
         }
+
+        .ft-forgot-link {
+          text-align: right; margin-top: -14px; margin-bottom: 20px;
+          font-size: 13px;
+        }
+        .ft-forgot-link button {
+          background: none; border: none; cursor: pointer;
+          color: #E85D20; font-size: 13px; font-weight: 500; padding: 0;
+        }
+        .ft-forgot-link button:hover { text-decoration: underline; }
 
         .ft-resend { text-align: center; margin-top: 18px; font-size: 13px; color: #A8B0BF; font-weight: 400; }
         .ft-resend span { color: #1B2340; font-weight: 500; }
@@ -515,7 +587,7 @@ export default function Home() {
             </div>
 
             {/* Step 2 — Password */}
-            <div className={`ft-step ${step === "PASSWORD" ? "active" : "exit-right"}`}>
+            <div className={`ft-step ${step === "PASSWORD" ? "active" : (step === "ID" ? "exit-right" : "exit-left")}`}>
               <div className="ft-back-row">
                 <button className="ft-back" onClick={() => setStep("ID")}>
                   <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
@@ -538,15 +610,39 @@ export default function Home() {
               </div>
 
               <label className="ft-lbl">Secret Password</label>
-              <div className="ft-phone-box">
+              <div className="ft-phone-box" style={{ position: "relative" }}>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   onKeyDown={(e) => e.key === "Enter" && handleLogin()}
                   autoFocus
+                  style={{ paddingRight: "44px" }}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(p => !p)}
+                  style={{ position: "absolute", right: "14px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#9AA3B2", padding: "4px", display: "flex", alignItems: "center" }}
+                >
+                  {showPassword ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+                      <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                      <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
+              <div className="ft-forgot-link">
+                <button onClick={() => { setFpEmail(identifier.includes("@") ? identifier : ""); setError(""); setStep("FORGOT"); }}>
+                  Forgot Password?
+                </button>
               </div>
 
               <button
@@ -568,6 +664,115 @@ export default function Home() {
                   </button>
                 </Link>
               </div>
+            </div>
+
+            {/* Step 3 — Forgot: enter email */}
+            <div className={`ft-step ${step === "FORGOT" ? "active" : "exit-right"}`}>
+              <div className="ft-back-row">
+                <button className="ft-back" onClick={() => { setStep("PASSWORD"); setError(""); }}>
+                  <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
+                </button>
+                <h3>Reset Password</h3>
+              </div>
+              <p className="ft-subtitle">Enter your registered email. We'll send a 6-digit OTP.</p>
+
+              {error && <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-[12px] font-medium border border-red-100 italic">⚠️ {error}</div>}
+
+              <label className="ft-lbl">Registered Email</label>
+              <div className="ft-phone-box">
+                <input
+                  type="email"
+                  value={fpEmail}
+                  onChange={(e) => setFpEmail(e.target.value)}
+                  placeholder="e.g. john@example.com"
+                  onKeyDown={(e) => e.key === "Enter" && handleForgotSend()}
+                  autoFocus
+                />
+              </div>
+
+              <button className="ft-btn ft-btn-dark" onClick={handleForgotSend} disabled={isLoading}>
+                {isLoading ? "SENDING OTP..." : "SEND OTP"}
+                {!isLoading && <svg viewBox="0 0 24 24" fill="white"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>}
+              </button>
+            </div>
+
+            {/* Step 4 — OTP verify */}
+            <div className={`ft-step ${step === "OTP" ? "active" : "exit-right"}`}>
+              <div className="ft-back-row">
+                <button className="ft-back" onClick={() => { setStep("FORGOT"); setError(""); setFpOtp(["","","","","",""]); }}>
+                  <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
+                </button>
+                <h3>Enter OTP</h3>
+              </div>
+
+              <div className="ft-num-card">
+                <div>
+                  <div className="nl">OTP sent to</div>
+                  <div className="nv">{fpEmail}</div>
+                </div>
+                <button className="ft-change" onClick={() => { setStep("FORGOT"); setFpOtp(["","","","","",""]); }}>Change</button>
+              </div>
+
+              <p className="ft-hint">Enter the 6-digit code from your email. Valid for 10 minutes.</p>
+
+              {error && <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-[12px] font-medium border border-red-100 italic">⚠️ {error}</div>}
+
+              <div className="ft-otp-row">
+                {fpOtp.map((digit, i) => (
+                  <input
+                    key={i}
+                    id={`otp-${i}`}
+                    className="ft-otp-cell"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onChange={(e) => handleOtpChange(e.target.value, i)}
+                    onKeyDown={(e) => handleOtpKeyDown(e, i)}
+                    autoFocus={i === 0}
+                  />
+                ))}
+              </div>
+
+              <button className="ft-btn ft-btn-dark" onClick={handleVerifyOTP} disabled={isLoading}>
+                {isLoading ? "VERIFYING..." : "VERIFY OTP"}
+                {!isLoading && <svg viewBox="0 0 24 24" fill="white"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>}
+              </button>
+
+              <div className="ft-resend" style={{marginTop: "16px"}}>
+                Didn't receive it?{" "}
+                <button style={{background:"none",border:"none",cursor:"pointer",color:"#E85D20",fontWeight:600}} onClick={handleForgotSend}>
+                  Resend OTP
+                </button>
+              </div>
+            </div>
+
+            {/* Step 5 — Set new password */}
+            <div className={`ft-step ${step === "RESET" ? "active" : "exit-right"}`}>
+              <div className="ft-back-row">
+                <button className="ft-back" onClick={() => { setStep("OTP"); setError(""); }}>
+                  <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
+                </button>
+                <h3>New Password</h3>
+              </div>
+              <p className="ft-subtitle">OTP verified ✓ — set your new password below.</p>
+
+              {error && <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-[12px] font-medium border border-red-100 italic">⚠️ {error}</div>}
+
+              <label className="ft-lbl">New Password</label>
+              <div className="ft-phone-box" style={{marginBottom: "14px"}}>
+                <input type="password" value={fpNewPassword} onChange={(e) => setFpNewPassword(e.target.value)} placeholder="Min. 8 characters" />
+              </div>
+
+              <label className="ft-lbl">Confirm Password</label>
+              <div className="ft-phone-box">
+                <input type="password" value={fpConfirmPassword} onChange={(e) => setFpConfirmPassword(e.target.value)} placeholder="Repeat password" onKeyDown={(e) => e.key === "Enter" && handleResetPassword()} />
+              </div>
+
+              <button className="ft-btn ft-btn-dark" onClick={handleResetPassword} disabled={isLoading}>
+                {isLoading ? "RESETTING..." : "RESET & LOGIN"}
+                {!isLoading && <svg viewBox="0 0 24 24" fill="white"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>}
+              </button>
             </div>
 
           </div>

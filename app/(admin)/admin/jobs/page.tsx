@@ -96,7 +96,7 @@ export default function AdminJobsPage() {
     const dropoffCity = b.dropoffLocations?.[b.dropoffLocations?.length - 1]?.address?.city || b.dropoff?.address?.city || "";
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.jobId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.clientId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       pickupCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
       dropoffCity.toLowerCase().includes(searchQuery.toLowerCase());
@@ -114,7 +114,7 @@ export default function AdminJobsPage() {
     const route = allLocs.length > 2 ? `${firstCity} → ... → ${lastCity}` : `${firstCity} → ${lastCity}`;
     const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
     return {
-      id: b?.jobId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
+      id: b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
       client: (b?.clientId as any)?.name || "Direct Client",
       companyName: (b?.clientId as any)?.company?.companyName || "Direct Booking",
       status: getStatusType(b?.tripStatus || b?.status),

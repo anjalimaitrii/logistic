@@ -60,7 +60,7 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
           <div>
             <h2 className="text-[16px] font-semibold text-neutral-900 tracking-tight">Finalize Deal</h2>
             <p className="text-[11px] font-medium text-neutral-400 mt-0.5 uppercase tracking-widest">
-              Request {request?.id || request?.jobId}
+              Request {request?.id || request?.tripId}
             </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-neutral-50 rounded-xl text-neutral-400 transition-colors">

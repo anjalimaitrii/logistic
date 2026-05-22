@@ -41,7 +41,7 @@ const jobStats = [
 
 const jobsList = [
    {
-      id: "JOB-004",
+      id: "TRIP-004",
       origin: "Lagos",
       destination: "Abuja",
       cargo: "5 Ton Tiles",
@@ -51,7 +51,7 @@ const jobsList = [
       amount: "₹45,000"
    },
    {
-      id: "JOB-005",
+      id: "TRIP-005",
       origin: "Kano",
       destination: "Ibadan",
       cargo: "Textiles",
@@ -61,7 +61,7 @@ const jobsList = [
       amount: "₹38,000"
    },
    {
-      id: "JOB-003",
+      id: "TRIP-003",
       origin: "Nairobi",
       destination: "Mombasa",
       cargo: "Electronics",
@@ -71,7 +71,7 @@ const jobsList = [
       amount: "₹52,000"
    },
    {
-      id: "JOB-002",
+      id: "TRIP-002",
       origin: "Accra",
       destination: "Kumasi",
       cargo: "Furniture",
@@ -81,7 +81,7 @@ const jobsList = [
       amount: "₹29,500"
    },
    {
-      id: "JOB-001",
+      id: "TRIP-001",
       origin: "Cairo",
       destination: "Alexandria",
       cargo: "Cement",
@@ -176,7 +176,7 @@ export default function JobsPage() {
    // ── MAP BOOKINGS TO TABLE ──
    const displayJobs = currentViewBookings.map(b => ({
       _id: b._id,
-      id: b.jobId || b._id?.substring(b._id.length - 7).toUpperCase() || "NEW",
+      id: b.tripId || b._id?.substring(b._id.length - 7).toUpperCase() || "NEW",
       origin: b.pickup?.address?.city || "Unknown",
       destination: b.dropoff?.address?.city || "Unknown",
       cargo: b.cargoDetails?.goodsType || "Cargo",
@@ -494,7 +494,7 @@ export default function JobsPage() {
                            <div className="flex items-center gap-2 mb-0.5">
                               <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Job Details</span>
                               <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">#{selectedBooking.jobId || selectedBooking._id.substring(selectedBooking._id.length - 7).toUpperCase()}</span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">#{selectedBooking.tripId || selectedBooking._id.substring(selectedBooking._id.length - 7).toUpperCase()}</span>
                            </div>
                            <h2 className="text-lg font-bold text-slate-900">Shipment Specification</h2>
                         </div>

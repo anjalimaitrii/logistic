@@ -65,7 +65,7 @@ export default function ClientLedgerPage() {
 
   const filteredBookings = bookings.filter(b => {
     const matchesSearch = 
-      b.jobId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.pickup?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.dropoff?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === "all" || b.status?.toLowerCase() === statusFilter.toLowerCase();
@@ -234,7 +234,7 @@ export default function ClientLedgerPage() {
                       <tr key={b._id} className="hover:bg-neutral-50/50 transition-colors group border-b border-neutral-50 last:border-none">
                         <td className="px-5 py-5">
                           <div className="flex flex-col">
-                            <span className="text-[12px] font-bold text-slate-900 tracking-tight">{b.jobId || "N/A"}</span>
+                            <span className="text-[12px] font-bold text-slate-900 tracking-tight">{b.tripId || "N/A"}</span>
                             <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mt-0.5">
                               {new Date(b.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                             </span>

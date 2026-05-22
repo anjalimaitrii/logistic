@@ -52,5 +52,26 @@ export const clientService = {
       method: 'PATCH',
       body: JSON.stringify({ newPassword }),
     });
-  }
+  },
+
+  forgotPassword: async (email: string) => {
+    return await fetchApi('/api/clients/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  verifyOTP: async (email: string, otp: string) => {
+    return await fetchApi('/api/clients/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp }),
+    });
+  },
+
+  resetPassword: async (email: string, otp: string, newPassword: string) => {
+    return await fetchApi('/api/clients/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, otp, newPassword }),
+    });
+  },
 };

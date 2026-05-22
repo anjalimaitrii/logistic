@@ -112,7 +112,7 @@ export default function AdminAccountant() {
   const filteredBookings = bookings.filter(b => {
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.jobId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.clientId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.pickup?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.dropoff?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase());
@@ -131,7 +131,7 @@ export default function AdminAccountant() {
     const pickupCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "N/A";
     const dropoffCity = b.dropoffLocations?.[0]?.address?.city || b.dropoff?.address?.city || "N/A";
     return {
-      id: b.jobId || `#JOB-${b._id.substring(b._id.length - 4).toUpperCase()}`,
+      id: b.tripId || `#TRIP-${b._id.substring(b._id.length - 4).toUpperCase()}`,
       companyName: (b.clientId as any)?.company?.companyName || "Direct Booking",
       clientName: (b.clientId as any)?.name || "N/A",
       route: `${pickupCity} → ${dropoffCity}`,

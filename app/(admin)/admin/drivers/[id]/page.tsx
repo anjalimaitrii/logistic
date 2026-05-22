@@ -60,7 +60,7 @@ export default function DriverProfilePage() {
   ];
 
   const tripHistory = assignments.map(a => ({
-    id: a.bookingId?.jobId || "N/A",
+    id: a.bookingId?.tripId || "N/A",
     date: a.assignedAt ? format(new Date(a.assignedAt), "yyyy-MM-dd") : "N/A",
     route: `${a.bookingId?.pickup?.address?.city || 'N/A'} → ${a.bookingId?.dropoff?.address?.city || 'N/A'}`,
     truck: a.truckNumber,

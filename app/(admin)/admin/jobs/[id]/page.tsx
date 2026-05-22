@@ -106,7 +106,7 @@ export default function JobDetailReport() {
   const jobInfo = useMemo(() => {
     if (!booking) return null;
     return {
-      id: booking.jobId || `#FL-${booking._id.substring(booking._id.length - 4).toUpperCase()}`,
+      id: booking.tripId || `#FL-${booking._id.substring(booking._id.length - 4).toUpperCase()}`,
       driver: assignment?.driverName || "Not Assigned",
       truckNumber: assignment?.truckNumber || "N/A",
       status: (booking.tripStatus || booking.status || "PENDING").toUpperCase(),

@@ -96,7 +96,7 @@ export default function AdminOperations() {
     const dropoffCity = b.dropoffLocations?.[0]?.address?.city || b.dropoff?.address?.city || "";
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.jobId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.clientId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       pickupCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
       dropoffCity.toLowerCase().includes(searchQuery.toLowerCase());
@@ -112,7 +112,7 @@ export default function AdminOperations() {
     const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
     const settlement = settlements.find(s => (s.bookingId?._id || s.bookingId) === b._id);
     return {
-      id: b.jobId || b._id.substring(b._id.length - 6).toUpperCase(),
+      id: b.tripId || b._id.substring(b._id.length - 6).toUpperCase(),
       companyName: (b.clientId as any)?.company?.companyName || "Direct Booking",
       clientName: (b.clientId as any)?.name || "N/A",
       route: `${b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || 'N/A'} → ${b.dropoffLocations?.[0]?.address?.city || b.dropoff?.address?.city || 'N/A'}`,
