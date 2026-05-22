@@ -80,16 +80,19 @@ export default function JobDetailReport() {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      const [bookingData, assignmentData, settlementData] = await Promise.all([
-        bookingService.getById(id),
-        assignmentService.getByBookingId(id),
-        settlementService.getByBookingId(id)
-      ]);
+
+      // Fetch booking first — if this fails, show "not found"
+      const bookingData = await bookingService.getById(id);
       setBooking(bookingData);
+
+      // Fetch assignment & settlement independently so their failures don't hide the booking
+      const [assignmentData, settlementData] = await Promise.all([
+        assignmentService.getByBookingId(id).catch(() => null),
+        settlementService.getByBookingId(id).catch(() => null),
+      ]);
       setAssignment(assignmentData);
       setSettlement(settlementData);
-      
-      // Load existing expenses into local tracker
+
       if (settlementData?.expenses) {
         setTripExpenses(settlementData.expenses);
       }
@@ -108,31 +111,26 @@ export default function JobDetailReport() {
       truckNumber: assignment?.truckNumber || "N/A",
       status: (booking.tripStatus || booking.status || "PENDING").toUpperCase(),
       truckHealth: assignment?.truckHealth || "N/A",
-      pickup: `${booking.pickup?.address?.city || 'N/A'}`,
-      pickupFull: `${booking.pickup?.address?.plotNo || ''} ${booking.pickup?.address?.street || ''}, ${booking.pickup?.address?.city || ''}`,
-      dropoff: `${booking.dropoff?.address?.city || 'N/A'}`,
-      dropoffFull: `${booking.dropoff?.address?.plotNo || ''} ${booking.dropoff?.address?.street || ''}, ${booking.dropoff?.address?.city || ''}`,
+      pickupLocations: booking.pickupLocations?.length > 0 ? booking.pickupLocations : (booking.pickup ? [booking.pickup] : [{ address: {} }]),
+      dropoffLocations: booking.dropoffLocations?.length > 0 ? booking.dropoffLocations : (booking.dropoff ? [booking.dropoff] : [{ address: {} }]),
       cargo: booking.cargoDetails?.goodsType || "N/A",
       weight: booking.cargoDetails?.weight ? `${booking.cargoDetails.weight} Tons` : "N/A",
       loadingDate: booking.cargoDetails?.loadingDate || "N/A",
-      totalDistance: settlement?.fuelDetails?.totalDistance ? `${settlement.fuelDetails.totalDistance} km` : "N/A"
+      totalDistance: settlement?.totalDistance
+        ? `${settlement.totalDistance} km`
+        : settlement?.fuelDetails?.totalDistance
+          ? `${settlement.fuelDetails.totalDistance} km`
+          : "N/A"
     };
   }, [booking, assignment, settlement]);
 
   const financialSummary = useMemo(() => {
     if (!settlement) return { fuelTotal: 0, otherLogs: 0, totalCost: 0, allocationMoney: 0, remainingProfit: 0 };
     
-    // Calculate fuel total similar to Accountant page
-    const pKm = settlement.fuelDetails?.pickupKm || 0;
-    const pMil = settlement.fuelDetails?.pickupMileage || 1;
-    const dKm = settlement.fuelDetails?.dropoffKm || 0;
-    const dMil = settlement.fuelDetails?.dropoffMileage || 1;
-    const rate = settlement.fuelDetails?.fuelRate || 0;
-
-    const fuelTotal = Math.round(((pKm / pMil) + (dKm / dMil)) * rate);
+    const fuelTotal = settlement.financials?.fuelTotal || 0;
     const otherLogs = (settlement.expenses || []).reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
-    const totalCost = settlement.financials?.grandTotal || (fuelTotal + otherLogs);
-    const allocationMoney = settlement.financials?.advancePaid || 0;
+    const totalCost = fuelTotal + otherLogs;
+    const allocationMoney = settlement.financials?.cashAllocation || 0;
     
     return {
       fuelTotal,
@@ -209,19 +207,21 @@ export default function JobDetailReport() {
   };
 
   const openAddressModal = () => {
+    const firstPickup = booking.pickupLocations?.[0] || booking.pickup;
+    const lastDropoff = booking.dropoffLocations?.[booking.dropoffLocations?.length - 1] || booking.dropoff;
     setAddressChangeData({
-      pContactPerson: booking.pickup?.contactPerson || "",
-      pContactNumber: booking.pickup?.contactNumber || "",
-      pPlotNo: booking.pickup?.address?.plotNo || "",
-      pStreet: booking.pickup?.address?.street || "",
-      pCity: booking.pickup?.address?.city || "",
-      pPincode: booking.pickup?.address?.pincode || "",
-      dContactPerson: booking.dropoff?.contactPerson || "",
-      dContactNumber: booking.dropoff?.contactNumber || "",
-      dPlotNo: booking.dropoff?.address?.plotNo || "",
-      dStreet: booking.dropoff?.address?.street || "",
-      dCity: booking.dropoff?.address?.city || "",
-      dPincode: booking.dropoff?.address?.pincode || "",
+      pContactPerson: firstPickup?.contactPerson || "",
+      pContactNumber: firstPickup?.contactNumber || "",
+      pPlotNo: firstPickup?.address?.plotNo || "",
+      pStreet: firstPickup?.address?.street || "",
+      pCity: firstPickup?.address?.city || "",
+      pPincode: firstPickup?.address?.pincode || "",
+      dContactPerson: lastDropoff?.contactPerson || "",
+      dContactNumber: lastDropoff?.contactNumber || "",
+      dPlotNo: lastDropoff?.address?.plotNo || "",
+      dStreet: lastDropoff?.address?.street || "",
+      dCity: lastDropoff?.address?.city || "",
+      dPincode: lastDropoff?.address?.pincode || "",
       reason: "",
       newPickupKm: settlement?.fuelDetails?.pickupKm || "",
       newDropoffKm: settlement?.fuelDetails?.dropoffKm || "",
@@ -280,64 +280,157 @@ export default function JobDetailReport() {
 
   const timelineEvents = useMemo(() => {
     if (!booking) return [];
-    
-    const status = (booking.tripStatus || booking.status || "PENDING").toUpperCase();
+
+    const rawStatus = (booking.tripStatus || booking.status || "PENDING").toUpperCase();
     const backendTimeline = booking.timeline || [];
-    
-    // Map backend events to UI format
+    const pLocs = booking.pickupLocations?.length > 0 ? booking.pickupLocations : (booking.pickup ? [booking.pickup] : [{}]);
+    const dLocs = booking.dropoffLocations?.length > 0 ? booking.dropoffLocations : (booking.dropoff ? [booking.dropoff] : [{}]);
+    const pCount = pLocs.length;
+    const dCount = dLocs.length;
+    const multi = pCount > 1 || dCount > 1;
+    const getLabel = (idx: number) => String.fromCharCode(65 + idx); // A, B, C, D…
+
+    // STARTED → LOADING_1 → DEPARTED_1 → LOADING_2 → DEPARTED_2 → … → REACHED_1 → OFFLOADING_1 → … → RETURNING → COMPLETED
+    const statusOrder = [
+      "STARTED",
+      ...pLocs.flatMap((_: any, i: number) => [
+        multi ? `LOADING_${i + 1}` : "LOADING",
+        multi ? `DEPARTED_${i + 1}` : "DEPARTED"
+      ]),
+      ...dLocs.flatMap((_: any, i: number) => [
+        multi ? `REACHED_${i + 1}` : "REACHED",
+        multi ? `OFFLOADING_${i + 1}` : "OFFLOADING"
+      ]),
+      "RETURNING", "COMPLETED"
+    ];
+    const status = ["FINALIZED", "DELIVERED"].includes(rawStatus) ? "COMPLETED" : rawStatus;
+    const currentIdx = statusOrder.indexOf(status);
+    const isPast = (id: string) => { const i = statusOrder.indexOf(id); return i !== -1 && currentIdx > i; };
+
+    // Convert raw status IDs like "Loading_1", "Reached_2" → human labels "Loading A", "Reached C"
+    const fmtTitle = (raw: string) => {
+      const m = raw.match(/^(.+?)_(\d+)$/i);
+      if (!m) {
+        if (raw.toLowerCase() === "started") return "Trip Started";
+        return raw;
+      }
+      const [, action, numStr] = m;
+      const n = parseInt(numStr) - 1;
+      const a = action.toLowerCase();
+      if (a === "loading")   return `Loading ${getLabel(n)}`;
+      if (a === "departed")  return `Departed ${getLabel(n)}`;
+      if (a === "reached")   return `Reached ${getLabel(pCount + n)}`;
+      if (a === "offloading") return `Offloaded ${getLabel(pCount + n)}`;
+      return raw;
+    };
+    const fmtDesc = (raw: string, fallback: string) => {
+      const m = raw.match(/^(.+?)_(\d+)$/i);
+      if (!m) return fallback;
+      const [, action, numStr] = m;
+      const n = parseInt(numStr) - 1;
+      const a = action.toLowerCase();
+      const isPick = a === "loading" || a === "departed";
+      const loc = isPick ? pLocs[n] : dLocs[n];
+      const label = isPick ? getLabel(n) : getLabel(pCount + n);
+      const city = loc?.address?.city ? ` – ${loc.address.city}` : "";
+      if (a === "loading")    return `Cargo loaded at ${label}${city}`;
+      if (a === "departed")   return `Truck departed from ${label}${city}`;
+      if (a === "reached")    return `Vehicle arrived at ${label}${city}`;
+      if (a === "offloading") return `Unloading completed at ${label}${city}`;
+      return fallback;
+    };
+
     const historicalEvents = backendTimeline.map((item: any) => ({
-      title: item.title,
-      description: item.description,
+      title: fmtTitle(item.title),
+      description: fmtDesc(item.title, item.description),
       time: item.time ? format(new Date(item.time), "MMM d, h:mm a") : "---",
       status: "completed",
       icon: item.title === "Petrol Refilled" ? <Fuel className="w-3.5 h-3.5" /> :
+            item.title?.toLowerCase().includes("reached") ? <Flag className="w-3.5 h-3.5" /> :
+            item.title?.toLowerCase().includes("loading") ? <Box className="w-3.5 h-3.5" /> :
+            item.title?.toLowerCase().includes("departed") ? <Truck className="w-3.5 h-3.5" /> :
+            item.title?.toLowerCase().includes("offload") ? <ArrowDownCircle className="w-3.5 h-3.5" /> :
             item.title === "Driver Assigned" ? <Truck className="w-3.5 h-3.5" /> :
             item.title === "Booking Created" ? <Package className="w-3.5 h-3.5" /> :
             item.title === "Trip Approved" ? <CreditCard className="w-3.5 h-3.5" /> :
             <CheckCircle2 className="w-3.5 h-3.5" />
     }));
 
-    // Future/Pending Milestones (only if they haven't happened yet)
+    // Single Trip Start
+    const tripStartMilestone = {
+      title: "Trip Started",
+      description: "Driver has started the journey",
+      time: status === "STARTED" ? "Just now" : "---",
+      status: status === "STARTED" ? "active" : "pending",
+      icon: <Play className="w-3.5 h-3.5" />,
+      hide: isPast("STARTED") || backendTimeline.some((e: any) => e.title.toLowerCase().includes("started"))
+    };
+
+    // Per-pickup: Loaded at A, B… then Departed from A, B…
+    const pickupMilestones = pLocs.flatMap((loc: any, i: number) => {
+      const loadId = multi ? `LOADING_${i + 1}` : "LOADING";
+      const departId = multi ? `DEPARTED_${i + 1}` : "DEPARTED";
+      const label = getLabel(i);
+      const city = loc?.address?.city || `Stop ${i + 1}`;
+      return [
+        {
+          title: multi ? `Loading ${label}` : "Loaded",
+          description: `Cargo loaded at ${multi ? `${label} – ${city}` : "origin"}`,
+          time: status === loadId ? "Active" : "---",
+          status: status === loadId ? "active" : "pending",
+          icon: <Box className="w-3.5 h-3.5" />,
+          hide: isPast(loadId) || backendTimeline.some((e: any) => e.title.toLowerCase().includes("loaded"))
+        },
+        {
+          title: multi ? `Departed ${label}` : "Departed",
+          description: `Truck departed from ${multi ? `${label} – ${city}` : "origin"}`,
+          time: status === departId ? "Just now" : "---",
+          status: status === departId ? "active" : "pending",
+          icon: <Truck className="w-3.5 h-3.5" />,
+          hide: isPast(departId) || backendTimeline.some((e: any) => e.title.toLowerCase().includes("departed"))
+        }
+      ];
+    });
+
+    // Per-dropoff: Reached + Offloaded at C, D…
+    const dropoffMilestones = dLocs.flatMap((loc: any, i: number) => {
+      const reachedId = multi ? `REACHED_${i + 1}` : "REACHED";
+      const offloadId = multi ? `OFFLOADING_${i + 1}` : "OFFLOADING";
+      const label = getLabel(pCount + i);
+      const city = loc?.address?.city || `Stop ${i + 1}`;
+      return [
+        {
+          title: multi ? `Reached ${label}` : "Reached",
+          description: `Vehicle arrived at ${multi ? `${label} – ${city}` : "destination"}`,
+          time: status === reachedId ? "Just now" : "---",
+          status: status === reachedId ? "active" : "pending",
+          icon: <Flag className="w-3.5 h-3.5" />,
+          hide: isPast(reachedId) || status === offloadId ||
+                backendTimeline.some((e: any) => e.title.toLowerCase().includes("reached"))
+        },
+        {
+          title: multi ? `Offloaded ${label}` : "Offloaded",
+          description: `Unloading completed at ${multi ? `${label} – ${city}` : "destination"}`,
+          time: status === offloadId ? "Just now" : "---",
+          status: status === offloadId ? "active" : "pending",
+          icon: <ArrowDownCircle className="w-3.5 h-3.5" />,
+          hide: isPast(offloadId) ||
+                backendTimeline.some((e: any) => e.title.toLowerCase().includes("offload"))
+        }
+      ];
+    });
+
     const futureMilestones = [
-      {
-        title: "Loaded",
-        description: "Cargo loading completed at the origin point",
-        time: status === "LOADING" ? "Active" : "---",
-        status: status === "LOADING" ? "active" : "pending",
-        icon: <Box className="w-3.5 h-3.5" />,
-        hide: ["STARTED", "RESTING", "IN TRANSIT", "OFFLOADING", "REACHED", "RETURNING", "COMPLETED"].includes(status) || backendTimeline.some((e: any) => e.title.toUpperCase() === "LOADED")
-      },
-      {
-        title: "Started",
-        description: "Truck has officially departed from the origin",
-        time: status === "STARTED" ? "Just now" : "---",
-        status: status === "STARTED" ? "active" : "pending",
-        icon: <Play className="w-3.5 h-3.5" />,
-        hide: ["RESTING", "IN TRANSIT", "OFFLOADING", "REACHED", "RETURNING", "COMPLETED"].includes(status) || backendTimeline.some((e: any) => e.title.toUpperCase() === "STARTED")
-      },
-      {
-        title: "Reached",
-        description: "Vehicle has arrived at the destination point",
-        time: status === "REACHED" ? "Just now" : "---",
-        status: status === "REACHED" ? "active" : "pending",
-        icon: <Flag className="w-3.5 h-3.5" />,
-        hide: ["OFFLOADING", "RETURNING", "COMPLETED"].includes(status) || backendTimeline.some((e: any) => e.title.toUpperCase() === "REACHED")
-      },
-      {
-        title: "Offloaded",
-        description: "Unloading of cargo completed successfully",
-        time: status === "OFFLOADING" ? "Just now" : "---",
-        status: status === "OFFLOADING" ? "active" : "pending",
-        icon: <ArrowDownCircle className="w-3.5 h-3.5" />,
-        hide: ["RETURNING", "COMPLETED"].includes(status) || backendTimeline.some((e: any) => e.title.toUpperCase() === "OFFLOADED")
-      },
+      tripStartMilestone,
+      ...pickupMilestones,
+      ...dropoffMilestones,
       {
         title: "Return Journey",
         description: "Vehicle is heading back or assigned to next task",
         time: status === "RETURNING" ? "Active" : "---",
         status: status === "RETURNING" ? "active" : "pending",
         icon: <RotateCcw className="w-3.5 h-3.5" />,
-        hide: status === "COMPLETED" || backendTimeline.some((e: any) => e.title.toUpperCase() === "RETURNING")
+        hide: isPast("RETURNING") || backendTimeline.some((e: any) => e.title.toUpperCase() === "RETURNING")
       }
     ].filter(m => !m.hide);
 
@@ -403,11 +496,12 @@ export default function JobDetailReport() {
             </div>
 
             <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border ${
-              jobInfo?.status === "IN TRANSIT" || jobInfo?.status === "STARTED" ? "bg-blue-50 text-blue-600 border-blue-100" : 
+              jobInfo?.status?.startsWith("STARTED") || jobInfo?.status?.startsWith("REACHED") ? "bg-blue-50 text-blue-600 border-blue-100" :
               jobInfo?.status === "FINALIZED" || jobInfo?.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+              jobInfo?.status?.startsWith("LOADING") || jobInfo?.status?.startsWith("OFFLOADING") ? "bg-orange-50 text-orange-600 border-orange-100" :
               "bg-neutral-50 text-neutral-400 border-neutral-100"
             }`}>
-              {jobInfo?.status}
+              {jobInfo?.status?.replace(/_(\d+)$/, ' (Stop $1)')}
             </div>
           </div>
         </div>
@@ -438,50 +532,59 @@ export default function JobDetailReport() {
                 </div>
 
                 <div className="space-y-12">
-                  <div className="relative">
-                    <div className="absolute left-[15px] top-10 bottom-[-48px] w-px bg-slate-100 border-l border-dashed border-slate-300" />
-                    <div className="flex gap-6 items-start relative z-10">
-                      <div className="w-8 h-8 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100 shadow-sm shadow-emerald-100">
-                        <MapPin className="w-4 h-4" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">
-                           ORIGIN / PICKUP
+                  {[
+                    ...(jobInfo?.pickupLocations || []).map((loc: any, i: number) => ({ loc, type: 'pickup' as const, idx: i })),
+                    ...(jobInfo?.dropoffLocations || []).map((loc: any, i: number) => ({ loc, type: 'dropoff' as const, idx: i }))
+                  ].map(({ loc, type, idx }, totalIdx, arr) => {
+                    const isLastTotal = totalIdx === arr.length - 1;
+                    const isFirstPickup = type === 'pickup' && idx === 0;
+                    const pickupCount = jobInfo?.pickupLocations?.length ?? 1;
+                    const dropoffCount = jobInfo?.dropoffLocations?.length ?? 1;
+                    const isLastDropoff = type === 'dropoff' && idx === dropoffCount - 1;
+                    const label = type === 'pickup'
+                      ? (pickupCount === 1 ? 'ORIGIN / PICKUP' : idx === 0 ? 'ORIGIN' : `PICKUP STOP ${idx + 1}`)
+                      : (dropoffCount === 1 ? 'DESTINATION / DROP-OFF' : idx === dropoffCount - 1 ? 'FINAL DESTINATION' : `DROP-OFF ${idx + 1}`);
+                    return (
+                      <div key={`${type}-${idx}`} className={!isLastTotal ? "relative" : ""}>
+                        {!isLastTotal && (
+                          <div className="absolute left-[15px] top-10 bottom-[-48px] w-px bg-slate-100 border-l border-dashed border-slate-300" />
+                        )}
+                        <div className="flex gap-6 items-start relative z-10">
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
+                            type === 'pickup'
+                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-emerald-100'
+                              : 'bg-rose-50 text-rose-600 border border-rose-100 shadow-rose-100'
+                          }`}>
+                            <MapPin className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{label}</div>
+                            <h3 className="text-base font-bold text-slate-900 mb-1">
+                              {[loc?.address?.plotNo, loc?.address?.street, loc?.address?.city].filter(Boolean).join(', ') || 'N/A'}
+                            </h3>
+                            {loc?.contactPerson && (
+                              <div className="text-[10px] font-medium text-slate-400 mt-0.5">
+                                {loc.contactPerson}{loc.contactNumber ? ` · ${loc.contactNumber}` : ''}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-3 mt-2">
+                              <div className="text-[11px] font-medium text-slate-400 italic">
+                                {type === 'pickup' ? `Scheduled: ${jobInfo?.loadingDate}` : 'Expected Completion'}
+                              </div>
+                              {(isFirstPickup || isLastDropoff) && (
+                                <button
+                                  onClick={openAddressModal}
+                                  className="px-3 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-bold uppercase tracking-widest hover:bg-amber-100 transition-all"
+                                >
+                                  Change Address
+                                </button>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <h3 className="text-base font-bold text-slate-900 mb-1">{jobInfo?.pickupFull}</h3>
-                        <div className="flex items-center gap-3 mt-2">
-                          <div className="text-[11px] font-medium text-slate-400 italic">Scheduled: {jobInfo?.loadingDate}</div>
-                          <button 
-                            onClick={openAddressModal}
-                            className="px-3 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-bold uppercase tracking-widest hover:bg-amber-100 transition-all"
-                          >
-                            Change Address
-                          </button>
-                        </div>
                       </div>
-                    </div>
-                  </div>
-
-                  <div className="flex gap-6 items-start relative z-10">
-                    <div className="w-8 h-8 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100 shadow-sm shadow-rose-100">
-                      <MapPin className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">
-                         DESTINATION / DROP-OFF
-                      </div>
-                      <h3 className="text-base font-bold text-slate-900 mb-1">{jobInfo?.dropoffFull}</h3>
-                      <div className="flex items-center gap-3 mt-2">
-                        <div className="text-[11px] font-medium text-slate-400 italic">Expected Completion</div>
-                        <button 
-                          onClick={openAddressModal}
-                          className="px-3 py-1 rounded-lg bg-amber-50 text-amber-600 border border-amber-100 text-[9px] font-bold uppercase tracking-widest hover:bg-amber-100 transition-all"
-                        >
-                          Change Address
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })}
 
                   {/* Address History */}
                   {booking?.addressHistory && booking.addressHistory.length > 0 && (
@@ -739,31 +842,85 @@ export default function JobDetailReport() {
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { id: "LOADING", label: "Loading", icon: <Box className="w-4 h-4" /> },
-                    { id: "STARTED", label: "Trip Start", icon: <Play className="w-4 h-4" /> },
-                    { id: "RESTING", label: "Resting", icon: <Coffee className="w-4 h-4" /> },
-                    { id: "IN TRANSIT", label: "In Transit", icon: <Truck className="w-4 h-4" /> },
-                    { id: "OFFLOADING", label: "Offloading", icon: <ArrowDownCircle className="w-4 h-4" /> },
-                    { id: "REACHED", label: "Reached", icon: <Flag className="w-4 h-4" /> },
-                    { id: "RETURNING", label: "Returning", icon: <RotateCcw className="w-4 h-4" /> },
-                    { id: "COMPLETED", label: "Completed", icon: <CheckCircle2 className="w-4 h-4" /> },
-                  ].map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => handleStatusUpdate(s.id)}
-                      className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-2 group ${
-                        jobInfo?.status === s.id 
-                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 scale-[1.02]' 
-                          : 'bg-slate-50 border-slate-100 text-slate-400 hover:bg-white hover:border-indigo-200 hover:text-indigo-600'
-                      }`}
-                    >
-                      <div className={`${jobInfo?.status === s.id ? 'text-white' : 'text-slate-300 group-hover:text-indigo-500'} transition-colors`}>
-                        {s.icon}
-                      </div>
-                      <span className="text-[9px] font-bold uppercase tracking-widest">{s.label}</span>
-                    </button>
-                  ))}
+                  {(() => {
+                    const pLocs = booking.pickupLocations?.length > 0 ? booking.pickupLocations : (booking.pickup ? [booking.pickup] : [{}]);
+                    const dLocs = booking.dropoffLocations?.length > 0 ? booking.dropoffLocations : (booking.dropoff ? [booking.dropoff] : [{}]);
+                    const multi = pLocs.length > 1 || dLocs.length > 1;
+                    const lbl = (idx: number) => String.fromCharCode(65 + idx);
+
+                    const statusOrder = [
+                      "STARTED",
+                      ...pLocs.flatMap((_: any, i: number) => [
+                        multi ? `LOADING_${i + 1}` : "LOADING",
+                        multi ? `DEPARTED_${i + 1}` : "DEPARTED"
+                      ]),
+                      ...dLocs.flatMap((_: any, i: number) => [
+                        multi ? `REACHED_${i + 1}` : "REACHED",
+                        multi ? `OFFLOADING_${i + 1}` : "OFFLOADING"
+                      ]),
+                      "RETURNING", "COMPLETED"
+                    ];
+                    const rawStatus = (booking.tripStatus || booking.status || "PENDING").toUpperCase();
+                    const curStatus = ["FINALIZED", "DELIVERED"].includes(rawStatus) ? "COMPLETED" : rawStatus;
+                    const currentIdx = statusOrder.indexOf(curStatus);
+
+                    const buttons: { id: string; label: string; city?: string; icon: React.ReactNode }[] = [
+                      { id: "STARTED", label: "Trip Start", icon: <Play className="w-4 h-4" /> },
+                      ...pLocs.flatMap((loc: any, i: number) => {
+                        const l = lbl(i);
+                        const city = multi ? (loc?.address?.city || undefined) : undefined;
+                        return [
+                          { id: multi ? `LOADING_${i + 1}` : "LOADING", label: multi ? `${l} · Load` : "Loading", city, icon: <Box className="w-4 h-4" /> },
+                          { id: multi ? `DEPARTED_${i + 1}` : "DEPARTED", label: multi ? `${l} · Depart` : "Departed", city, icon: <Truck className="w-4 h-4" /> }
+                        ];
+                      }),
+                      ...dLocs.flatMap((loc: any, i: number) => {
+                        const l = lbl(pLocs.length + i);
+                        const city = multi ? (loc?.address?.city || undefined) : undefined;
+                        return [
+                          { id: multi ? `REACHED_${i + 1}` : "REACHED", label: multi ? `${l} · Reached` : "Reached", city, icon: <Flag className="w-4 h-4" /> },
+                          { id: multi ? `OFFLOADING_${i + 1}` : "OFFLOADING", label: multi ? `${l} · Offload` : "Offloading", city, icon: <ArrowDownCircle className="w-4 h-4" /> }
+                        ];
+                      }),
+                      { id: "RETURNING", label: "Returning", icon: <RotateCcw className="w-4 h-4" /> },
+                      { id: "COMPLETED", label: "Completed", icon: <CheckCircle2 className="w-4 h-4" /> },
+                    ];
+
+                    return buttons.map((s) => {
+                      const btnIdx = statusOrder.indexOf(s.id);
+                      const isDone    = btnIdx !== -1 && btnIdx < currentIdx;
+                      const isActive  = btnIdx === currentIdx;
+                      const isNext    = btnIdx === currentIdx + 1;
+                      // locked = future steps beyond the next one
+
+                      let cls = "";
+                      if (isDone)   cls = "bg-emerald-50 border-emerald-100 text-emerald-600 cursor-not-allowed opacity-80";
+                      else if (isActive) cls = "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 scale-[1.02] cursor-not-allowed";
+                      else if (isNext)  cls = "bg-orange-500 border-orange-400 text-white shadow-md shadow-orange-100 hover:bg-orange-600 active:scale-[0.98] cursor-pointer";
+                      else          cls = "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed opacity-60";
+
+                      return (
+                        <button
+                          key={s.id}
+                          disabled={!isNext}
+                          onClick={() => isNext && handleStatusUpdate(s.id)}
+                          className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1.5 ${cls}`}
+                        >
+                          <div className="transition-colors">
+                            {isDone ? <CheckCircle2 className="w-4 h-4" /> : s.icon}
+                          </div>
+                          <span className="text-[9px] font-bold uppercase tracking-widest leading-tight text-center">{s.label}</span>
+                          {s.city && (
+                            <span className={`text-[7px] font-medium normal-case truncate max-w-full text-center ${isActive ? 'text-white/70' : isDone ? 'text-emerald-400' : isNext ? 'text-white/80' : 'text-slate-200'}`}>
+                              {s.city}
+                            </span>
+                          )}
+                          {isDone && <span className="text-[7px] font-bold uppercase tracking-widest text-emerald-500">Done</span>}
+                          {isNext && <span className="text-[7px] font-bold uppercase tracking-widest text-white/80">Tap to Update</span>}
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
 
@@ -777,7 +934,7 @@ export default function JobDetailReport() {
                 <div className="space-y-6">
                   <div className="p-5 rounded-[20px] bg-slate-50/50 border border-slate-100">
                     <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Allocation Money</span>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Allocation Money To Driver</span>
                       <span className="text-[24px] font-bold text-slate-900 tracking-tight">₦{financialSummary.allocationMoney.toLocaleString()}</span>
                     </div>
                     <p className="text-[9px] font-medium text-slate-300 mt-2 italic uppercase tracking-wider">Approved cash for driver support</p>
@@ -790,9 +947,9 @@ export default function JobDetailReport() {
                       <span className="text-[10px] font-bold text-slate-900 uppercase tracking-widest">Workflow Stage</span>
                     </div>
                     <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                       {jobInfo?.status === "FINALIZED" || jobInfo?.status === "COMPLETED" ? 
+                       {["FINALIZED", "COMPLETED"].includes(jobInfo?.status || "") ?
                          "Trip has been successfully finalized and settled. All financial records are verified." :
-                         jobInfo?.status === "STARTED" || jobInfo?.status === "IN TRANSIT" ?
+                         (jobInfo?.status?.startsWith("STARTED") || jobInfo?.status?.startsWith("REACHED") || jobInfo?.status?.startsWith("LOADING") || jobInfo?.status?.startsWith("OFFLOADING") || jobInfo?.status === "RETURNING") ?
                          "Job is currently active. Real-time tracking is enabled. Settlement will follow upon completion." :
                          "Job is in pending state. Awaiting operation assignment and driver dispatch."}
                     </p>

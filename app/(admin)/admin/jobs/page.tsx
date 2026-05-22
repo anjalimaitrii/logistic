@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
 import {
@@ -18,6 +19,7 @@ import { assignmentService } from "@/services/assignmentService";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
 
 export default function AdminJobsPage() {
+  const router = useRouter();
   const [bookings, setBookings] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,18 +92,26 @@ export default function AdminJobsPage() {
   )) as string[];
 
   const filteredBookings = bookings.filter(b => {
+    const pickupCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "";
+    const dropoffCity = b.dropoffLocations?.[b.dropoffLocations?.length - 1]?.address?.city || b.dropoff?.address?.city || "";
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.jobId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.clientId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.pickup?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.dropoff?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase());
+      pickupCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      dropoffCity.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCompany = companyFilter === "all" || (b.clientId as any)?.company?.companyName === companyFilter;
     const matchesClient = clientFilter === "all" || (b.clientId as any)?.name === clientFilter;
     return matchesSearch && matchesCompany && matchesClient;
   });
 
   const jobsData = filteredBookings.map(b => {
+    const pickupLocs = b?.pickupLocations?.length > 0 ? b.pickupLocations : (b?.pickup ? [b.pickup] : []);
+    const dropoffLocs = b?.dropoffLocations?.length > 0 ? b.dropoffLocations : (b?.dropoff ? [b.dropoff] : []);
+    const allLocs = [...pickupLocs, ...dropoffLocs];
+    const firstCity = allLocs[0]?.address?.city || "Origin";
+    const lastCity = allLocs[allLocs.length - 1]?.address?.city || "Dest.";
+    const route = allLocs.length > 2 ? `${firstCity} → ... → ${lastCity}` : `${firstCity} → ${lastCity}`;
     const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
     return {
       id: b?.jobId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
@@ -109,14 +119,14 @@ export default function AdminJobsPage() {
       companyName: (b?.clientId as any)?.company?.companyName || "Direct Booking",
       status: getStatusType(b?.tripStatus || b?.status),
       driver: assignment?.driverName || "Assign Driver",
-      route: `${b?.pickup?.address?.city || "Origin"} → ${b?.dropoff?.address?.city || "Dest."}`,
+      route,
       raw: b
     };
   });
 
   const columns = [
     {
-      label: "JOB ID",
+      label: "TRIP ID",
       key: "id",
       render: (val: string) => <span className="text-[12px] font-bold text-orange-500 tracking-tight">{val}</span>
     },
@@ -164,7 +174,7 @@ export default function AdminJobsPage() {
           <button
             onClick={(e) => {
               e.stopPropagation();
-              window.location.href = `/admin/jobs/${row.raw._id}`;
+              router.push(`/admin/jobs/${row.raw._id || row.raw.id}`);
             }}
             className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-all border border-slate-100"
             title="View Details"
@@ -266,9 +276,7 @@ export default function AdminJobsPage() {
           icon={<Package className="w-4 h-4 text-orange-500" />}
           columns={columns}
           data={isLoading ? [] : jobsData}
-          onRowClick={() => {
-            // No action on row click as requested
-          }}
+          onRowClick={(row) => router.push(`/admin/jobs/${row.raw._id}`)}
           action={
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative group">

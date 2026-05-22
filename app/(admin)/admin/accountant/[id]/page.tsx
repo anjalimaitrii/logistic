@@ -65,7 +65,7 @@ export default function AccountantJobDetail() {
       const [data, assignment, settlement] = await Promise.all([
         bookingService.getById(bookingId),
         assignmentService.getByBookingId(bookingId),
-        settlementService.getByBookingId(bookingId),
+        settlementService.getByBookingId(bookingId).catch(() => null),
       ]);
 
       setJobData({ ...data, assignment });
@@ -158,10 +158,8 @@ export default function AccountantJobDetail() {
       await settlementService.process(settlementPayload);
 
       if (!silent) {
-        alert("Trip approved successfully!");
         setIsApproved(true);
-        router.refresh();
-        router.push("/admin/accountant");
+        alert("Trip approved successfully!");
       }
     } catch (error) {
       console.error("Failed to approve trip:", error);
@@ -380,7 +378,7 @@ export default function AccountantJobDetail() {
                 <div className="flex items-center gap-2 mb-3">
                   <div className="p-1 px-1.5 rounded-lg bg-blue-50 text-blue-600"><DollarSign className="w-3.5 h-3.5" /></div>
                   <div>
-                    <h2 className="text-xs md:text-sm font-semibold text-slate-950">Cash Allocation</h2>
+                    <h2 className="text-xs md:text-sm font-semibold text-slate-950">Driver's Allowance</h2>
                     <p className="text-[8px] md:text-[9px] font-normal text-neutral-400 uppercase tracking-widest">Food & Other Expenses</p>
                   </div>
                 </div>

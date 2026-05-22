@@ -15,11 +15,8 @@ export const settlementService = {
   getByBookingId: async (bookingId: string) => {
     try {
       return await fetchApi(`/api/settlements/booking/${bookingId}`);
-    } catch (error: any) {
-      if (error.status === 404 || error.message.includes('Settlement not found')) {
-        return null;
-      }
-      throw error;
+    } catch {
+      return null;
     }
   }
 };
