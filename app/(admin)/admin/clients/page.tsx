@@ -191,7 +191,25 @@ export default function AdminClients() {
             <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Manage Clients</h1>
             <p className="text-[11px] text-neutral-400 mt-0.5">Oversee registered clients and their booking activity.</p>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col items-end gap-2">
+            {/* View Type Toggle */}
+            <div className="bg-white p-1 rounded-2xl border border-neutral-100 flex items-center shadow-sm">
+              <button
+                onClick={() => setViewType('companies')}
+                className={`px-5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${viewType === 'companies' ? 'bg-slate-900 text-white shadow-lg' : 'text-neutral-400 hover:text-slate-600'}`}
+              >
+                <Building2 className="w-3 h-3" />
+                Businesses
+              </button>
+              <button
+                onClick={() => setViewType('individuals')}
+                className={`px-5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${viewType === 'individuals' ? 'bg-slate-900 text-white shadow-lg' : 'text-neutral-400 hover:text-slate-600'}`}
+              >
+                <Users className="w-3 h-3" />
+                Individuals
+              </button>
+            </div>
+
             {viewType === 'companies' ? (
               <button
                 onClick={() => setCompanyModalOpen(true)}
@@ -227,39 +245,13 @@ export default function AdminClients() {
           ))}
         </div>
 
-        {/* ── Directory Header & Toggle ── */}
+        {/* ── Directory Header ── */}
         <div className="space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-[13px] font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
-                <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                {viewType === 'companies' ? 'Company Directory' : 'Individual Clients'}
-              </h2>
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-center gap-3">
-              {/* View Type Toggle */}
-              <div className="bg-white p-1 rounded-2xl border border-neutral-100 flex items-center shadow-sm w-full sm:w-auto">
-                <button
-                  onClick={() => setViewType('companies')}
-                  className={`flex-1 sm:flex-none px-5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${viewType === 'companies' ? 'bg-slate-900 text-white shadow-lg' : 'text-neutral-400 hover:text-slate-600'
-                    }`}
-                >
-                  <Building2 className="w-3 h-3" />
-                  Businesses
-                </button>
-                <button
-                  onClick={() => setViewType('individuals')}
-                  className={`flex-1 sm:flex-none px-5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${viewType === 'individuals' ? 'bg-slate-900 text-white shadow-lg' : 'text-neutral-400 hover:text-slate-600'
-                    }`}
-                >
-                  <Users className="w-3 h-3" />
-                  Individuals
-                </button>
-              </div>
-
-
-            </div>
+          <div>
+            <h2 className="text-[13px] font-bold text-slate-800 uppercase tracking-widest flex items-center gap-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+              {viewType === 'companies' ? 'Company Directory' : 'Individual Clients'}
+            </h2>
           </div>
 
           {isLoading ? (

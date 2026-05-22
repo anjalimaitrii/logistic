@@ -1,113 +1,216 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
 import {
    Search,
    Bell,
    Filter,
-   MoreHorizontal,
    MessageSquare,
    Eye,
    TrendingUp,
    Package,
    CheckCircle2,
-   Clock,
-   XCircle,
    ChevronRight,
    X,
-   User,
-   Phone,
-   Building,
    MapPin,
-   Hash,
-   Calendar,
-   Truck as TruckIcon,
-   Link
+   Plus,
+   DollarSign
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import ClientChatPanel from "@/components/client/ClientChatPanel";
 import { bookingService } from "@/services/bookingService";
 
-
-// ── MOCK DATA ──
-const jobStats = [
-   { label: "Total Jobs", value: "12", icon: Package, color: "text-primary", bg: "bg-primary/10" },
-   { label: "In Transit", value: "3", icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50" },
-   { label: "Pending", value: "2", icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
-   { label: "Completed", value: "7", icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
-];
-
-const jobsList = [
-   {
-      id: "TRIP-004",
-      origin: "Lagos",
-      destination: "Abuja",
-      cargo: "5 Ton Tiles",
-      status: "In Transit",
-      statusType: "transit",
-      date: "07 Apr",
-      amount: "₹45,000"
-   },
-   {
-      id: "TRIP-005",
-      origin: "Kano",
-      destination: "Ibadan",
-      cargo: "Textiles",
-      status: "Accepted",
-      statusType: "accepted",
-      date: "08 Apr",
-      amount: "₹38,000"
-   },
-   {
-      id: "TRIP-003",
-      origin: "Nairobi",
-      destination: "Mombasa",
-      cargo: "Electronics",
-      status: "Pending",
-      statusType: "pending",
-      date: "06 Apr",
-      amount: "₹52,000"
-   },
-   {
-      id: "TRIP-002",
-      origin: "Accra",
-      destination: "Kumasi",
-      cargo: "Furniture",
-      status: "Delivered",
-      statusType: "delivered",
-      date: "05 Apr",
-      amount: "₹29,500"
-   },
-   {
-      id: "TRIP-001",
-      origin: "Cairo",
-      destination: "Alexandria",
-      cargo: "Cement",
-      status: "Rejected",
-      statusType: "rejected",
-      date: "04 Apr",
-      amount: "₹15,000"
-   },
-];
-
 const getStatusStyles = (type: string) => {
-   switch (type) {
-      case 'transit':
-         return 'bg-blue-50 text-blue-600 border-blue-100';
-      case 'accepted':
-         return 'bg-indigo-50 text-indigo-600 border-indigo-100';
-      case 'delivered':
-         return 'bg-emerald-50 text-emerald-600 border-emerald-100';
-      case 'pending':
-         return 'bg-amber-50 text-amber-600 border-amber-100';
-      case 'rejected':
-         return 'bg-rose-50 text-rose-600 border-rose-100';
-      default:
-         return 'bg-slate-50 text-slate-500 border-slate-100';
+   switch (type?.toLowerCase()) {
+      case "transit": return "bg-blue-50 text-blue-600 border-blue-100";
+      case "active": return "bg-indigo-50 text-indigo-600 border-indigo-100";
+      case "accepted": return "bg-indigo-50 text-indigo-600 border-indigo-100";
+      case "delivered": return "bg-emerald-50 text-emerald-600 border-emerald-100";
+      case "completed": return "bg-emerald-50 text-emerald-600 border-emerald-100";
+      case "pending": return "bg-amber-50 text-amber-600 border-amber-100";
+      case "rejected": return "bg-rose-50 text-rose-600 border-rose-100";
+      default: return "bg-slate-50 text-slate-500 border-slate-100";
    }
 };
+
+const getDotColor = (type: string) => {
+   switch (type?.toLowerCase()) {
+      case "transit": return "bg-blue-500 animate-pulse";
+      case "active":
+      case "accepted": return "bg-indigo-500";
+      case "delivered":
+      case "completed": return "bg-emerald-500";
+      case "pending": return "bg-amber-500";
+      default: return "bg-rose-500";
+   }
+};
+
+const getLabel = (idx: number, offset = 0) => String.fromCharCode(65 + offset + idx);
+
+// ── Booking detail modal — defined outside to prevent focus loss ──
+interface ModalProps { booking: any; onClose: () => void; }
+
+function BookingDetailModal({ booking, onClose }: ModalProps) {
+   const pickups: any[] = booking.pickupLocations || [];
+   const dropoffs: any[] = booking.dropoffLocations || [];
+
+   return (
+      <div className="fixed inset-0 z-600 flex items-center justify-center p-4">
+         {/* backdrop */}
+         <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
+
+         <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
+         >
+            {/* Header */}
+            <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
+               <div>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-1">Trip Details</p>
+                  <h2 className="text-[15px] font-semibold text-slate-900 tracking-tight">
+                     {booking.tripId || `#${booking._id?.slice(-7).toUpperCase()}`}
+                  </h2>
+               </div>
+               <button
+                  onClick={onClose}
+                  className="p-2 rounded-full bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+               >
+                  <X className="w-4 h-4" />
+               </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
+
+               {/* Status + Vehicle */}
+               <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-50 rounded-2xl p-4 space-y-1">
+                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Status</p>
+                     <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(booking.status)}`}>
+                        {booking.status || "—"}
+                     </span>
+                  </div>
+                  <div className="bg-slate-50 rounded-2xl p-4 space-y-1">
+                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Vehicle</p>
+                     <p className="text-[12px] font-semibold text-slate-800">{booking.requirement?.bodyType || "—"}</p>
+                  </div>
+               </div>
+
+               {/* Cargo Details */}
+               <div className="bg-slate-50 rounded-2xl p-4 space-y-3">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                     <Package className="w-3 h-3" /> Cargo Details
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                     <div>
+                        <p className="text-[9px] text-slate-400 mb-0.5">Type</p>
+                        <p className="text-[11px] font-semibold text-slate-800">{booking.cargoDetails?.goodsType || "—"}</p>
+                     </div>
+                     <div>
+                        <p className="text-[9px] text-slate-400 mb-0.5">Weight</p>
+                        <p className="text-[11px] font-semibold text-slate-800">{booking.cargoDetails?.weight ? `${booking.cargoDetails.weight} kg` : "—"}</p>
+                     </div>
+                     <div>
+                        <p className="text-[9px] text-slate-400 mb-0.5">Date</p>
+                        <p className="text-[11px] font-semibold text-slate-800">
+                           {booking.cargoDetails?.loadingDate ? new Date(booking.cargoDetails.loadingDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
+                        </p>
+                     </div>
+                  </div>
+               </div>
+
+               {/* Pickup Locations */}
+               {pickups.length > 0 && (
+                  <div className="space-y-2">
+                     <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3" /> Pickup Stops
+                     </p>
+                     {pickups.map((loc: any, idx: number) => (
+                        <div key={idx} className="bg-emerald-50/40 border border-emerald-100/50 rounded-2xl p-4">
+                           <div className="flex items-center gap-2 mb-2">
+                              <div className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold">
+                                 {getLabel(idx)}
+                              </div>
+                              <span className="text-[10px] font-semibold text-emerald-700">Pickup {getLabel(idx)}</span>
+                           </div>
+                           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                              {loc.contactPerson && (
+                                 <p className="text-slate-600"><span className="text-slate-400">Person:</span> {loc.contactPerson}</p>
+                              )}
+                              {loc.contactNumber && (
+                                 <p className="text-slate-600"><span className="text-slate-400">Phone:</span> {loc.contactNumber}</p>
+                              )}
+                              {loc.address?.city && (
+                                 <p className="text-slate-600 col-span-2">
+                                    <span className="text-slate-400">Address:</span>{" "}
+                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.pincode].filter(Boolean).join(", ")}
+                                 </p>
+                              )}
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+               )}
+
+               {/* Arrow */}
+               {pickups.length > 0 && dropoffs.length > 0 && (
+                  <div className="flex justify-center">
+                     <div className="text-xl text-slate-200">↓</div>
+                  </div>
+               )}
+
+               {/* Dropoff Locations */}
+               {dropoffs.length > 0 && (
+                  <div className="space-y-2">
+                     <p className="text-[9px] font-bold text-rose-600 uppercase tracking-widest flex items-center gap-1.5">
+                        <MapPin className="w-3 h-3" /> Dropoff Stops
+                     </p>
+                     {dropoffs.map((loc: any, idx: number) => (
+                        <div key={idx} className="bg-rose-50/40 border border-rose-100/50 rounded-2xl p-4">
+                           <div className="flex items-center gap-2 mb-2">
+                              <div className="w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center text-[10px] font-bold">
+                                 {getLabel(idx, pickups.length)}
+                              </div>
+                              <span className="text-[10px] font-semibold text-rose-700">Dropoff {getLabel(idx, pickups.length)}</span>
+                           </div>
+                           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                              {loc.contactPerson && (
+                                 <p className="text-slate-600"><span className="text-slate-400">Person:</span> {loc.contactPerson}</p>
+                              )}
+                              {loc.contactNumber && (
+                                 <p className="text-slate-600"><span className="text-slate-400">Phone:</span> {loc.contactNumber}</p>
+                              )}
+                              {loc.address?.city && (
+                                 <p className="text-slate-600 col-span-2">
+                                    <span className="text-slate-400">Address:</span>{" "}
+                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.pincode].filter(Boolean).join(", ")}
+                                 </p>
+                              )}
+                           </div>
+                        </div>
+                     ))}
+                  </div>
+               )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100">
+               <button
+                  onClick={onClose}
+                  className="w-full py-3 bg-slate-900 text-white rounded-xl text-[11px] font-bold uppercase tracking-widest hover:brightness-110 transition-all"
+               >
+                  Close
+               </button>
+            </div>
+         </motion.div>
+      </div>
+   );
+}
 
 export default function JobsPage() {
    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -142,51 +245,47 @@ export default function JobsPage() {
       }
    };
 
-   const handleOpenChat = (jobId: string) => {
-      setChatJobId(jobId);
-   };
-
-   // ── DYNAMIC STATS ──
+   // ── Filter by personal / company ──
    const currentViewBookings = bookings.filter(b => {
       const currentUserId = user?._id || user?.id;
       if (viewMode === "personal") {
          return String(b.clientId?._id || b.clientId) === String(currentUserId);
-      } else {
-         // Company view: Match by company ID
-         const userCompanyId = String(user?.company?._id || user?.company || user?.companyId || "");
-         const bookingCompanyId = String(b.clientId?.company?._id || b.clientId?.company || "");
-
-         // If we have both IDs, compare them
-         if (userCompanyId && bookingCompanyId && userCompanyId !== "undefined") {
-            return userCompanyId === bookingCompanyId;
-         }
-
-         // Fallback: If it's the user's own booking, always show it in company view too
-         return String(b.clientId?._id || b.clientId) === String(currentUserId);
       }
+      const userCompanyId = String(user?.company?._id || user?.company || user?.companyId || "");
+      const bookingCompanyId = String(b.clientId?.company?._id || b.clientId?.company || "");
+      if (userCompanyId && bookingCompanyId && userCompanyId !== "undefined") {
+         return userCompanyId === bookingCompanyId;
+      }
+      return String(b.clientId?._id || b.clientId) === String(currentUserId);
    });
 
    const dynamicStats = [
-      { label: "Total Jobs", value: currentViewBookings.length.toString(), icon: Package, color: "text-primary", bg: "bg-primary/10" },
-      { label: "In Transit", value: currentViewBookings.filter(b => b.status === "transit").length.toString(), icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50" },
-      { label: "Pending", value: currentViewBookings.filter(b => b.status === "pending").length.toString(), icon: Clock, color: "text-amber-600", bg: "bg-amber-50" },
-      { label: "Completed", value: currentViewBookings.filter(b => b.status === "completed" || b.status === "delivered").length.toString(), icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
+      { label: "Total Jobs", value: currentViewBookings.filter(b => b.status !== "pending").length, icon: Package, color: "text-primary", bg: "bg-primary/10" },
+      { label: "In Transit", value: currentViewBookings.filter(b => b.status === "transit").length, icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50" },
+      { label: "Completed", value: currentViewBookings.filter(b => b.status === "completed" || b.status === "delivered").length, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
    ];
 
-   // ── MAP BOOKINGS TO TABLE ──
-   const displayJobs = currentViewBookings.map(b => ({
-      _id: b._id,
-      id: b.tripId || b._id?.substring(b._id.length - 7).toUpperCase() || "NEW",
-      origin: b.pickup?.address?.city || "Unknown",
-      destination: b.dropoff?.address?.city || "Unknown",
-      cargo: b.cargoDetails?.goodsType || "Cargo",
-      weight: b.cargoDetails?.weight || 0,
-      status: b.status.charAt(0).toUpperCase() + b.status.slice(1),
-      statusType: b.status, // transit, accepted, delivered, pending, rejected
-      date: b.cargoDetails?.loadingDate ? new Date(b.cargoDetails.loadingDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : "N/A",
-      finalAmount: b.finalAmount ? `₹${b.finalAmount}` : "---",
-      raw: b
-   }));
+   // ── Map bookings to display rows (new multi-location structure) ──
+   const displayJobs = currentViewBookings.filter(b => b.status !== "pending").map(b => {
+      const firstPickup = (b.pickupLocations || [])[0];
+      const lastDropoff = (b.dropoffLocations || [])[(b.dropoffLocations?.length || 1) - 1];
+      const pickupCount = b.pickupLocations?.length || 0;
+      const dropoffCount = b.dropoffLocations?.length || 0;
+      return {
+         raw: b,
+         tripId: b.tripId || `#${b._id?.slice(-7).toUpperCase()}`,
+         origin: firstPickup?.address?.city || "—",
+         destination: lastDropoff?.address?.city || "—",
+         extraStops: pickupCount + dropoffCount - 2,
+         cargo: b.cargoDetails?.goodsType || "Cargo",
+         weight: b.cargoDetails?.weight || 0,
+         status: b.status || "pending",
+         date: b.cargoDetails?.loadingDate
+            ? new Date(b.cargoDetails.loadingDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
+            : "N/A",
+         finalAmount: b.financials?.finalAmount || b.finalAmount,
+      };
+   });
 
    return (
       <div className="flex bg-white min-h-screen relative overflow-x-hidden">
@@ -214,12 +313,11 @@ export default function JobsPage() {
                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 group-focus-within:text-primary transition-colors" />
                      <input
                         type="text"
-                        placeholder="Search jobs, IDs, destinations..."
+                        placeholder="Search jobs, trip IDs..."
                         className="w-full bg-slate-50 border border-transparent rounded-lg py-1.5 pl-9 pr-4 text-[12px] font-medium placeholder:text-slate-400 focus:bg-white focus:border-slate-200 outline-none transition-all"
                      />
                   </div>
                </div>
-
                <div className="flex items-center gap-2">
                   <button className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-50 relative">
                      <Bell className="w-4 h-4" />
@@ -235,7 +333,7 @@ export default function JobsPage() {
             </header>
 
             <div className="max-w-6xl mx-auto">
-               {/* ── HEADER ── */}
+               {/* ── PAGE HEADER ── */}
                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                   <div>
                      <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
@@ -246,7 +344,6 @@ export default function JobsPage() {
                      <h1 className="text-xl font-bold text-slate-900 tracking-tight">Job Management</h1>
                      <p className="text-[12px] font-medium text-slate-500">Track and manage your active and past shipments.</p>
                   </div>
-
                   <div className="flex gap-2">
                      <div className="flex bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
                         <button
@@ -269,14 +366,12 @@ export default function JobsPage() {
                   </div>
                </div>
 
-               {/* ── STATS GRID ── */}
-               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
+               {/* ── STATS ── */}
+               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4 mb-8">
                   {dynamicStats.map((stat, i) => (
-                     <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all group">
-                        <div className="flex items-center justify-between mb-3">
-                           <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${stat.bg} ${stat.color}`}>
-                              <stat.icon className="w-4.5 h-4.5" />
-                           </div>
+                     <div key={i} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${stat.bg} ${stat.color}`}>
+                           <stat.icon className="w-4 h-4" />
                         </div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">{stat.label}</p>
                         <h3 className="text-xl font-bold text-slate-900 tracking-tight mt-1.5">{stat.value}</h3>
@@ -289,85 +384,73 @@ export default function JobsPage() {
                   <div className="px-5 py-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
                      <h3 className="text-[11px] font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
                         <div className="w-1.5 h-4 bg-primary rounded-full" />
-                        {viewMode === "personal" ? "My Bookings" : `Company Bookings (${user?.company?.companyName || 'All'})`}
+                        {viewMode === "personal" ? "My Bookings" : `Company Bookings (${user?.company?.companyName || "All"})`}
                      </h3>
                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        {isLoading ? "Fetching data..." : `Showing ${displayJobs.length} items`}
+                        {isLoading ? "Fetching…" : `${displayJobs.length} items`}
                      </span>
                   </div>
 
-                  {/* Desktop Table (Visible on MD+) */}
+                  {/* Desktop Table */}
                   <div className="hidden md:block overflow-x-auto">
-                     <table className="w-full text-left border-collapse min-w-[800px]">
+                     <table className="w-full text-left border-collapse min-w-200">
                         <thead>
                            <tr className="bg-slate-50/50 border-b border-slate-50">
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Job Details</th>
+                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Trip ID</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Route</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cargo</th>
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Final Amount</th>
+                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Amount</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
                            </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                            {isLoading ? (
-                              <tr>
-                                 <td colSpan={6} className="px-6 py-12 text-center text-[12px] font-medium text-slate-400 italic">
-                                    Loading your shipments...
-                                 </td>
-                              </tr>
+                              <tr><td colSpan={6} className="px-6 py-12 text-center text-[12px] text-slate-400 italic">Loading your shipments...</td></tr>
                            ) : displayJobs.length === 0 ? (
                               <tr>
                                  <td colSpan={6} className="px-6 py-12 text-center">
-                                    <div className="flex flex-col items-center gap-2">
-                                       <Package className="w-8 h-8 text-slate-100" />
-                                       <p className="text-[12px] font-medium text-slate-400">No bookings found yet.</p>
-                                    </div>
+                                    <Package className="w-8 h-8 text-slate-100 mx-auto mb-2" />
+                                    <p className="text-[12px] font-medium text-slate-400">No bookings found yet.</p>
                                  </td>
                               </tr>
                            ) : (
-                              displayJobs.map((job) => (
-                                 <tr key={job.id} className="hover:bg-slate-50/80 transition-colors group">
+                              displayJobs.map((job, i) => (
+                                 <tr key={i} className="hover:bg-slate-50/80 transition-colors group">
                                     <td className="px-6 py-4">
-                                       <div className="flex flex-col">
-                                          <span className="text-[13px] font-bold text-slate-900">{job.id}</span>
-                                          <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">{job.date}</span>
+                                       <span className="text-[13px] font-bold text-slate-900 font-mono">{job.tripId}</span>
+                                       <p className="text-[10px] text-slate-400 mt-0.5">{job.date}</p>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                       <div className="flex items-center gap-2">
+                                          <span className="text-[12px] font-bold text-emerald-700">{job.origin}</span>
+                                          {job.extraStops > 0 && (
+                                             <span className="text-[8px] text-slate-400 font-medium">+{job.extraStops} stops</span>
+                                          )}
+                                          <div className="flex items-center gap-0.5">
+                                             <div className="w-1.5 h-1.5 rounded-full border-2 border-primary" />
+                                             <div className="w-6 h-px bg-slate-200" />
+                                             <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                          </div>
+                                          <span className="text-[12px] font-bold text-rose-700">{job.destination}</span>
                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
-                                       <div className="flex items-center gap-3">
-                                          <div className="flex flex-col">
-                                             <span className="text-[12px] font-bold text-slate-700">{job.origin}</span>
-                                          </div>
-                                          <div className="flex items-center">
-                                             <div className="w-2 h-2 rounded-full border-2 border-primary" />
-                                             <div className="w-8 h-px bg-slate-200" />
-                                             <div className="w-2 h-2 rounded-full bg-slate-300" />
-                                          </div>
-                                          <div className="flex flex-col">
-                                             <span className="text-[12px] font-bold text-slate-700">{job.destination}</span>
-                                          </div>
-                                       </div>
+                                       <span className="text-[12px] font-bold text-slate-800">{job.cargo}</span>
+                                       <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">
+                                          {job.weight > 0 ? `${job.weight} KG` : "—"}
+                                       </p>
                                     </td>
                                     <td className="px-6 py-4">
-                                       <div className="flex flex-col">
-                                          <span className="text-[12px] font-bold text-slate-800">{job.cargo}</span>
-                                          <span className="text-[10px] font-bold text-primary tracking-tighter uppercase">{job.weight > 0 ? `${job.weight} KG` : "Weight (N/A)"}</span>
-                                       </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                       {(job.statusType === 'accepted' || job.statusType === 'finalized' || job.statusType === 'delivered') ? (
-                                          <span className="text-[12px] font-bold text-slate-900">{job.finalAmount}</span>
+                                       {job.finalAmount ? (
+                                          <span className="text-[12px] font-bold text-slate-900">₹{job.finalAmount}</span>
                                        ) : (
-                                          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">---</span>
+                                          <span className="text-[10px] font-bold text-slate-300 uppercase">---</span>
                                        )}
                                     </td>
                                     <td className="px-6 py-4">
-                                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(job.statusType)}`}>
-                                          <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${job.statusType === 'transit' ? 'bg-blue-500 animate-pulse' :
-                                             job.statusType === 'delivered' ? 'bg-emerald-500' :
-                                                job.statusType === 'accepted' ? 'bg-indigo-500' :
-                                                   job.statusType === 'pending' ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(job.status)}`}>
+                                          <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${getDotColor(job.status)}`} />
                                           {job.status}
                                        </span>
                                     </td>
@@ -376,13 +459,13 @@ export default function JobsPage() {
                                           <button
                                              onClick={() => setSelectedBooking(job.raw)}
                                              className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-all border border-transparent hover:border-slate-100"
-                                             title="View Full Details"
+                                             title="View Details"
                                           >
                                              <Eye className="w-4 h-4" />
                                           </button>
-                                          {(job.statusType === 'accepted' || job.statusType === 'transit' || job.statusType === 'delivered') && (
+                                          {(job.status === "accepted" || job.status === "transit" || job.status === "active") && (
                                              <button
-                                                onClick={() => handleOpenChat(job.id)}
+                                                onClick={() => setChatJobId(job.tripId)}
                                                 className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-all border border-transparent hover:border-slate-100"
                                                 title="Chat with Support"
                                              >
@@ -392,70 +475,62 @@ export default function JobsPage() {
                                        </div>
                                     </td>
                                  </tr>
-                              )))}
+                              ))
+                           )}
                         </tbody>
                      </table>
                   </div>
 
-                  {/* Mobile Card List (Visible on Mobile only) */}
+                  {/* Mobile Card List */}
                   <div className="md:hidden divide-y divide-slate-50">
                      {isLoading ? (
-                        <div className="px-5 py-12 text-center text-[12px] font-medium text-slate-400 italic">
-                           Syncing shipments...
-                        </div>
+                        <div className="px-5 py-12 text-center text-[12px] text-slate-400 italic">Syncing shipments...</div>
                      ) : displayJobs.length === 0 ? (
                         <div className="px-5 py-12 text-center flex flex-col items-center gap-2">
                            <Package className="w-8 h-8 text-slate-100" />
                            <p className="text-[12px] font-medium text-slate-400">No bookings found yet.</p>
                         </div>
                      ) : (
-                        displayJobs.map((job) => (
-                           <div key={job.id} className="p-5 space-y-4 hover:bg-slate-50/50 transition-colors">
+                        displayJobs.map((job, i) => (
+                           <div key={i} className="p-5 space-y-4 hover:bg-slate-50/50 transition-colors">
                               <div className="flex items-center justify-between">
-                                 <div className="flex flex-col">
-                                    <span className="text-[12px] font-bold text-slate-900">{job.id}</span>
-                                    <span className="text-[10px] font-medium text-slate-400 uppercase tracking-tighter">{job.date}</span>
+                                 <div>
+                                    <span className="text-[12px] font-bold text-slate-900 font-mono">{job.tripId}</span>
+                                    <p className="text-[10px] text-slate-400">{job.date}</p>
                                  </div>
-                                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(job.statusType)}`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${job.statusType === 'transit' ? 'bg-blue-500 animate-pulse' :
-                                       job.statusType === 'delivered' ? 'bg-emerald-500' :
-                                          job.statusType === 'accepted' ? 'bg-indigo-500' :
-                                             job.statusType === 'pending' ? 'bg-amber-500' : 'bg-rose-500'}`} />
+                                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(job.status)}`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${getDotColor(job.status)}`} />
                                     {job.status}
                                  </span>
                               </div>
-
                               <div className="flex items-center gap-4 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
                                  <div className="flex-1">
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Origin</p>
-                                    <p className="text-[12px] font-bold text-slate-700 truncate">{job.origin}</p>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">From</p>
+                                    <p className="text-[12px] font-bold text-emerald-700 truncate">{job.origin}</p>
                                  </div>
-                                 <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+                                 <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
                                  <div className="flex-1 text-right">
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter mb-0.5">Destination</p>
-                                    <p className="text-[12px] font-bold text-slate-700 truncate">{job.destination}</p>
+                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">To</p>
+                                    <p className="text-[12px] font-bold text-rose-700 truncate">{job.destination}</p>
                                  </div>
                               </div>
-
                               <div className="flex items-center justify-between pt-1">
-                                 <div className="flex flex-col">
+                                 <div>
                                     <span className="text-[11px] font-bold text-slate-800">{job.cargo}</span>
-                                    <div className="flex items-center gap-2">
-                                       <span className="text-[9px] font-bold text-primary uppercase tracking-tighter">{job.weight > 0 ? `${job.weight} KG` : "Weight (N/A)"}</span>
-                                       <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">•</span>
-                                       <span className="text-[10px] font-bold text-slate-900">{job.statusType !== 'pending' ? `₹---` : 'Pricing Pending'}</span>
-                                    </div>
+                                    <p className="text-[9px] font-bold text-primary uppercase tracking-tighter">
+                                       {job.weight > 0 ? `${job.weight} KG` : "—"}
+                                    </p>
                                  </div>
                                  <div className="flex gap-2">
                                     <button
                                        onClick={() => setSelectedBooking(job.raw)}
-                                       className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-[10px] font-bold text-slate-600 uppercase tracking-widest transition-all"
+                                       className="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-[10px] font-bold text-slate-600 uppercase tracking-widest transition-all flex items-center gap-1.5"
                                     >
-                                       View
+                                       <Eye className="w-3.5 h-3.5" /> View
                                     </button>
-                                    {(job.statusType === 'accepted' || job.statusType === 'transit' || job.statusType === 'delivered') && (
+                                    {(job.status === "accepted" || job.status === "transit" || job.status === "active") && (
                                        <button
-                                          onClick={() => handleOpenChat(job.id)}
+                                          onClick={() => setChatJobId(job.tripId)}
                                           className="p-2.5 bg-primary/10 hover:bg-primary/20 rounded-lg text-primary transition-all"
                                        >
                                           <MessageSquare className="w-4 h-4" />
@@ -471,190 +546,10 @@ export default function JobsPage() {
             </div>
          </motion.main>
 
-         {/* ── BOOKING DETAILS MODAL ── */}
+         {/* ── BOOKING DETAIL MODAL ── */}
          <AnimatePresence>
             {selectedBooking && (
-               <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
-                  <motion.div
-                     initial={{ opacity: 0 }}
-                     animate={{ opacity: 1 }}
-                     exit={{ opacity: 0 }}
-                     onClick={() => setSelectedBooking(null)}
-                     className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
-                  />
-                  <motion.div
-                     initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                     exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                     className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
-                  >
-                     {/* Modal Header */}
-                     <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-white sticky top-0 z-10">
-                        <div>
-                           <div className="flex items-center gap-2 mb-0.5">
-                              <span className="text-[10px] font-bold text-primary uppercase tracking-widest">Job Details</span>
-                              <span className="w-1 h-1 bg-slate-300 rounded-full" />
-                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">#{selectedBooking.tripId || selectedBooking._id.substring(selectedBooking._id.length - 7).toUpperCase()}</span>
-                           </div>
-                           <h2 className="text-lg font-bold text-slate-900">Shipment Specification</h2>
-                        </div>
-                        <button
-                           onClick={() => setSelectedBooking(null)}
-                           className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-50 transition-colors"
-                        >
-                           <X className="w-5 h-5" />
-                        </button>
-                     </div>
-
-                     {/* Modal Content */}
-                     <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-                        {/* Status Strip */}
-                        <div className="bg-slate-50 rounded-2xl p-4 flex items-center justify-between border border-slate-100">
-                           <div className="flex items-center gap-3">
-                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${getStatusStyles(selectedBooking.status)}`}>
-                                 {selectedBooking.status === 'pending' ? <Clock className="w-5 h-5" /> :
-                                    selectedBooking.status === 'transit' ? <TruckIcon className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
-                              </div>
-                              <div>
-                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Current Status</p>
-                                 <p className="text-[13px] font-bold text-slate-900 uppercase tracking-wide">{selectedBooking.status}</p>
-                              </div>
-                           </div>
-                           <div className="text-right">
-                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-tight">Created On</p>
-                              <p className="text-[13px] font-bold text-slate-900">{new Date(selectedBooking.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-                           </div>
-                        </div>
-
-                        {/* Nodes Layout */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
-                           {/* Connecting Line (Desktop) */}
-                           <div className="hidden md:block absolute top-[100px] left-1/2 -translate-x-1/2 w-px h-[calc(100%-120px)] bg-slate-100 dashed-border" />
-
-                           {/* Pickup Section */}
-                           <div className="space-y-4">
-                              <div className="flex items-center gap-2 mb-2">
-                                 <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600">
-                                    <MapPin className="w-4 h-4" />
-                                 </div>
-                                 <h3 className="text-[11px] font-bold text-slate-900 uppercase tracking-widest">Pickup Information</h3>
-                              </div>
-                              <div className="bg-slate-50/50 rounded-xl p-4 border border-slate-100 space-y-3">
-                                 <div className="flex items-start gap-3">
-                                    <User className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
-                                    <div>
-                                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Contact Person</p>
-                                       <p className="text-[12px] font-bold text-slate-800">{selectedBooking.pickup.contactPerson || "N/A"}</p>
-                                    </div>
-                                 </div>
-                                 <div className="flex items-start gap-3">
-                                    <Phone className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
-                                    <div>
-                                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Phone</p>
-                                       <p className="text-[12px] font-bold text-slate-800">{selectedBooking.pickup.contactNumber}</p>
-                                    </div>
-                                 </div>
-                                 <div className="flex items-start gap-3 border-t border-slate-200/50 pt-2">
-                                    <Building className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
-                                    <div>
-                                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Address</p>
-                                       <p className="text-[12px] font-bold text-slate-800 leading-snug">
-                                          {selectedBooking.pickup.address.plotNo && `Plot ${selectedBooking.pickup.address.plotNo}, `}
-                                          {selectedBooking.pickup.address.street}, {selectedBooking.pickup.address.city}, {selectedBooking.pickup.address.pincode}
-                                       </p>
-                                    </div>
-                                 </div>
-                              </div>
-                           </div>
-
-                           {/* Dropoff Section */}
-                           <div className="space-y-4">
-                              <div className="flex items-center gap-2 mb-2">
-                                 <div className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">
-                                    <MapPin className="w-4 h-4" />
-                                 </div>
-                                 <h3 className="text-[11px] font-bold text-slate-900 uppercase tracking-widest">Drop-off Information</h3>
-                              </div>
-                              <div className="bg-slate-50/50 rounded-xl p-4 border border-slate-100 space-y-3">
-                                 <div className="flex items-start gap-3">
-                                    <User className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
-                                    <div>
-                                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Contact Person</p>
-                                       <p className="text-[12px] font-bold text-slate-800">{selectedBooking.dropoff.contactPerson || "N/A"}</p>
-                                    </div>
-                                 </div>
-                                 <div className="flex items-start gap-3">
-                                    <Phone className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
-                                    <div>
-                                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Phone</p>
-                                       <p className="text-[12px] font-bold text-slate-800">{selectedBooking.dropoff.contactNumber}</p>
-                                    </div>
-                                 </div>
-                                 <div className="flex items-start gap-3 border-t border-slate-200/50 pt-2">
-                                    <Building className="w-3.5 h-3.5 text-slate-400 mt-0.5" />
-                                    <div>
-                                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Address</p>
-                                       <p className="text-[12px] font-bold text-slate-800 leading-snug">
-                                          {selectedBooking.dropoff.address.plotNo && `Plot ${selectedBooking.dropoff.address.plotNo}, `}
-                                          {selectedBooking.dropoff.address.street}, {selectedBooking.dropoff.address.city}, {selectedBooking.dropoff.address.pincode}
-                                       </p>
-                                    </div>
-                                 </div>
-                              </div>
-                           </div>
-                        </div>
-
-                        {/* Cargo Particulars */}
-                        <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-xl shadow-slate-900/10">
-                           <h3 className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">Cargo Particulars</h3>
-                           <div className="grid grid-cols-2 gap-8">
-                              <div className="space-y-1">
-                                 <div className="flex items-center gap-2 text-slate-400 mb-1">
-                                    <Package className="w-3.5 h-3.5" />
-                                    <span className="text-[9px] font-bold uppercase tracking-widest">Type of Goods</span>
-                                 </div>
-                                 <p className="text-[15px] font-bold tracking-wide">{selectedBooking.cargoDetails.goodsType}</p>
-                              </div>
-                              <div className="space-y-1">
-                                 <div className="flex items-center gap-2 text-slate-400 mb-1">
-                                    <TruckIcon className="w-3.5 h-3.5" />
-                                    <span className="text-[9px] font-bold uppercase tracking-widest">Requirement</span>
-                                 </div>
-                                 <p className="text-[15px] font-bold tracking-wide">{selectedBooking.requirement.bodyType}</p>
-                              </div>
-                              <div className="space-y-1">
-                                 <div className="flex items-center gap-2 text-slate-400 mb-1">
-                                    <Hash className="w-3.5 h-3.5" />
-                                    <span className="text-[9px] font-bold uppercase tracking-widest">Approx Weight</span>
-                                 </div>
-                                 <p className="text-[15px] font-bold tracking-wide uppercase">{selectedBooking.cargoDetails.weight} KG</p>
-                              </div>
-                              <div className="space-y-1">
-                                 <div className="flex items-center gap-2 text-slate-400 mb-1">
-                                    <Calendar className="w-3.5 h-3.5" />
-                                    <span className="text-[9px] font-bold uppercase tracking-widest">Loading Date</span>
-                                 </div>
-                                 <p className="text-[15px] font-bold tracking-wide">{new Date(selectedBooking.cargoDetails.loadingDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-                              </div>
-                           </div>
-                        </div>
-                     </div>
-
-                     {/* Footer Actions */}
-                     <div className="p-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                           <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Trackable with FleetLink</span>
-                        </div>
-                        <button
-                           onClick={() => setSelectedBooking(null)}
-                           className="px-6 py-2.5 bg-slate-200/50 hover:bg-slate-200 rounded-xl text-[11px] font-bold text-slate-600 uppercase tracking-widest transition-all"
-                        >
-                           Close Window
-                        </button>
-                     </div>
-                  </motion.div>
-               </div>
+               <BookingDetailModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
             )}
          </AnimatePresence>
 
@@ -667,7 +562,28 @@ export default function JobsPage() {
 
          {/* ── MOBILE NAV ── */}
          <nav className="md:hidden fixed bottom-6 left-6 right-6 bg-white/90 backdrop-blur-xl border border-neutral-100 flex justify-around py-3 rounded-2xl shadow-xl z-50">
-            {/* Same as dashboard mobile nav */}
+            <Link href="/dashboard" className="flex flex-col items-center gap-1 text-slate-300">
+               <TrendingUp className="w-5 h-5" />
+               <span className="text-[8px] font-semibold uppercase tracking-tighter">Dash</span>
+            </Link>
+            <div className="flex flex-col items-center gap-1 text-primary">
+               <Package className="w-5 h-5" />
+               <span className="text-[8px] font-semibold uppercase tracking-tighter">Jobs</span>
+            </div>
+            <Link href="/bookings/new" className="flex flex-col items-center gap-1 text-slate-300">
+               <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white shadow-lg border-4 border-white -mt-6">
+                  <Plus className="w-6 h-6" />
+               </div>
+               <span className="text-[8px] font-semibold uppercase tracking-tighter">New</span>
+            </Link>
+            <div className="flex flex-col items-center gap-1 text-slate-300">
+               <DollarSign className="w-5 h-5" />
+               <span className="text-[8px] font-semibold uppercase tracking-tighter">Ledger</span>
+            </div>
+            <div className="flex flex-col items-center gap-1 text-slate-300">
+               <div className="w-5 h-5 rounded-md bg-slate-100" />
+               <span className="text-[8px] font-semibold uppercase tracking-tighter">Acc</span>
+            </div>
          </nav>
       </div>
    );
