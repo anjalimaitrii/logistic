@@ -11,9 +11,11 @@ import {
   Calendar,
   Clock,
   CheckCircle2,
-  ChevronDown
+  ChevronDown,
+  ListOrdered
 } from "lucide-react";
 import { driverService } from "@/services/driverService";
+import { assignmentService } from "@/services/assignmentService";
 import { collectionService } from "@/services/collectionService";
 
 interface OperationAssignmentDrawerProps {
@@ -29,10 +31,12 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
   const [collections, setCollections] = useState<any[]>([]);
   const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
   const [isLoadingCollections, setIsLoadingCollections] = useState(false);
+  const [driverQueueInfo, setDriverQueueInfo] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     driver: "",
-    driverId: "", // New field
+    driverId: "",
+    driverStatus: "",
     truckId: "",
     truckNumber: "",
     truckHealth: "Excellent",
@@ -50,8 +54,10 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
     try {
       setIsLoadingDrivers(true);
       const data = await driverService.getAll();
-      // Only show drivers who are Active
-      setDrivers((data || []).filter((d: any) => d.status === "Active"));
+      // Only Active employees; exclude those under inspection
+      setDrivers((data || []).filter((d: any) =>
+        d.status === "Active" && d.driverStatus !== "under_inspection"
+      ));
     } catch (error) {
       console.error("Failed to load drivers:", error);
     } finally {
@@ -74,26 +80,44 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
     }
   };
 
-  const handleFleetSelect = (driverId: string) => {
+  const handleFleetSelect = async (driverId: string) => {
     const driver = drivers.find(d => d._id === driverId);
     if (driver) {
+      const ds = driver.driverStatus || "available";
       setFormData({
         ...formData,
         driver: driver.name,
-        driverId: driver._id, // Capture driverId
+        driverId: driver._id,
+        driverStatus: ds,
         truckId: driver.assignedTruck?._id || "",
         truckNumber: driver.assignedTruck?.truckId || "N/A",
         truckHealth: driver.assignedTruck?.health || "Good"
       });
+
+      // Fetch current queue for on_trip or returning drivers
+      if (ds === "on_trip" || ds === "returning") {
+        try {
+          const assignments = await assignmentService.getByDriverId(driver._id);
+          setDriverQueueInfo((assignments || []).filter((a: any) =>
+            a.queueStatus === "active" || a.queueStatus === "queued"
+          ));
+        } catch {
+          setDriverQueueInfo([]);
+        }
+      } else {
+        setDriverQueueInfo([]);
+      }
     } else {
       setFormData({
         ...formData,
         driver: "",
         driverId: "",
+        driverStatus: "",
         truckId: "",
         truckNumber: "",
         truckHealth: "Excellent"
       });
+      setDriverQueueInfo([]);
     }
   };
 
@@ -103,6 +127,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
         setFormData({
           driver: job.assignment.driverName || "",
           driverId: job.assignment.driverId || "",
+          driverStatus: "",
           truckId: job.assignment.truckId || "",
           truckNumber: job.assignment.truckNumber || "",
           truckHealth: job.assignment.truckHealth || "Excellent",
@@ -112,12 +137,14 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
         setFormData({
           driver: "",
           driverId: "",
+          driverStatus: "",
           truckId: "",
           truckNumber: "",
           truckHealth: "Excellent",
           collection: "Collection 1"
         });
       }
+      setDriverQueueInfo([]);
       setStep(1);
     }
   }, [job, isOpen]);
@@ -134,6 +161,13 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
     onSubmit(formData);
     onClose();
   };
+
+  // Group drivers for optgroups
+  // returning = trip done, coming back — available for new assignment (starts after inspection)
+  const availableDrivers = drivers.filter(d => !d.driverStatus || d.driverStatus === "available" || d.driverStatus === "returning");
+  const onTripDrivers = drivers.filter(d => d.driverStatus === "on_trip");
+
+  const queuePosition = driverQueueInfo.length + 1;
 
   if (!isOpen) return null;
 
@@ -296,15 +330,31 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                               disabled={job?.isApproved}
                               className={`bg-white border border-neutral-100 rounded-xl px-4 py-3 text-[13px] font-semibold text-slate-900 outline-none w-full focus:border-primary/30 transition-all shadow-sm appearance-none ${job?.isApproved ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}
                             >
-                              <option value="" disabled>{isLoadingDrivers ? "Loading units..." : "Select Integrated Fleet Unit"}</option>
-                              {drivers.map((d) => (
-                                <option key={d._id} value={d._id}>
-                                  {d.name} • {d.assignedTruck?.truckId || "No Truck"} ({d.assignedTruck?.health || "N/A"})
-                                </option>
-                              ))}
+                              <option value="" disabled>{isLoadingDrivers ? "Loading units..." : "Select Fleet Unit"}</option>
+
+                              {availableDrivers.length > 0 && (
+                                <optgroup label="── Available ──">
+                                  {availableDrivers.map((d) => (
+                                    <option key={d._id} value={d._id}>
+                                      {d.name} · {d.assignedTruck?.truckId || "No Truck"} ({d.assignedTruck?.health || "N/A"}){d.driverStatus === "returning" ? " — RETURNING" : ""}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
+
+                              {onTripDrivers.length > 0 && (
+                                <optgroup label="── On Trip — Will Queue ──">
+                                  {onTripDrivers.map((d) => (
+                                    <option key={d._id} value={d._id}>
+                                      {d.name} · {d.assignedTruck?.truckId || "No Truck"} — ON TRIP
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )}
                             </select>
                             {!job?.isApproved && <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-300 pointer-events-none" />}
                           </div>
+
                           {formData.driver && (
                             <div className="mt-3 p-3 bg-white rounded-xl border border-neutral-100 space-y-2">
                               <div className="flex justify-between">
@@ -321,6 +371,52 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                                   {formData.truckHealth}
                                 </span>
                               </div>
+
+                              {/* Queue info for on_trip drivers; returning drivers get a simple note */}
+                              {formData.driverStatus === "returning" && (
+                                <div className="mt-1 pt-2 border-t border-blue-100">
+                                  <div className="flex items-center gap-1.5 px-2 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                                    <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wide">
+                                      Driver returning — trip starts after truck inspection
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {formData.driverStatus === "on_trip" && (
+                                <div className="mt-1 pt-2 border-t border-amber-100 space-y-1.5">
+                                  <div className="flex items-center gap-1.5 px-2 py-1.5 bg-amber-50 rounded-lg border border-amber-100">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                                    <span className="text-[10px] font-bold text-amber-700 uppercase tracking-wide">
+                                      {`Driver on trip — this job will be queued at position ${queuePosition}`}
+                                    </span>
+                                  </div>
+                                  {driverQueueInfo.length > 0 && (
+                                    <div className="px-2 py-1.5 bg-neutral-50 rounded-lg border border-neutral-100">
+                                      <div className="flex items-center gap-1.5 mb-1.5">
+                                        <ListOrdered className="w-3 h-3 text-neutral-400" />
+                                        <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">
+                                          Current Queue ({driverQueueInfo.length} trip{driverQueueInfo.length > 1 ? "s" : ""})
+                                        </span>
+                                      </div>
+                                      {driverQueueInfo.map((a: any, idx: number) => (
+                                        <div key={a._id} className="flex items-center gap-2 py-1 border-b border-neutral-50 last:border-0">
+                                          <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold shrink-0 ${a.queueStatus === "active" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                                            {idx + 1}
+                                          </span>
+                                          <span className="text-[10px] text-neutral-600 font-medium truncate">
+                                            {a.bookingId?.tripId || `#${(a.bookingId?._id || a.bookingId)?.toString().slice(-6).toUpperCase()}`}
+                                          </span>
+                                          <span className={`ml-auto text-[8px] font-bold uppercase px-1.5 py-0.5 rounded-full ${a.queueStatus === "active" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
+                                            {a.queueStatus}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>

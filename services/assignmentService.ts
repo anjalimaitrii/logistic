@@ -36,5 +36,25 @@ export const assignmentService = {
 
   getByDriverId: async (driverId: string) => {
     return await fetchApi(`/api/assignments/driver/${driverId}`);
+  },
+
+  // Promote the next queued trip for a driver (marks current active as completed)
+  promoteNextTrip: async (driverId: string) => {
+    return await fetchApi(`/api/assignments/driver/${driverId}/promote-next`, {
+      method: 'POST',
+    });
+  },
+
+  // Mark truck as inspected — driver becomes available again
+  markTruckInspected: async (driverId: string, inspectionData?: { vehicleCondition: string; tyreCondition: string; notes?: string }) => {
+    return await fetchApi(`/api/assignments/driver/${driverId}/mark-inspected`, {
+      method: 'PATCH',
+      body: JSON.stringify(inspectionData || {}),
+    });
+  },
+
+  // Get drivers currently returning or under inspection
+  getReturningDrivers: async () => {
+    return await fetchApi('/api/assignments/returning-drivers');
   }
 };

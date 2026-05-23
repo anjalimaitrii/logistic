@@ -5,10 +5,11 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import OperationAssignmentDrawer from "@/components/admin/OperationAssignmentDrawer";
-import { Truck, Users, Clock, AlertTriangle, Eye, Edit2, ChevronRight, Search } from "lucide-react";
+import { Truck, Users, Clock, AlertTriangle, Eye, Edit2, ChevronRight, Search, CheckCircle2, RotateCcw } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
+import { driverService } from "@/services/driverService";
 
 export default function AdminOperations() {
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
@@ -20,7 +21,11 @@ export default function AdminOperations() {
   const [clientFilter, setClientFilter] = useState("all");
   const [assignments, setAssignments] = useState<any[]>([]);
   const [settlements, setSettlements] = useState<any[]>([]);
+  const [returningDrivers, setReturningDrivers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [inspectionModal, setInspectionModal] = useState<{ open: boolean; driver: any | null }>({ open: false, driver: null });
+  const [inspectionForm, setInspectionForm] = useState({ vehicleCondition: "Good", tyreCondition: "Good", notes: "" });
+  const [isSubmittingInspection, setIsSubmittingInspection] = useState(false);
 
   useEffect(() => {
     loadBookings();
@@ -39,6 +44,11 @@ export default function AdminOperations() {
       setBookings(finalized);
       setAssignments(assignmentsData || []);
       setSettlements(settlementsData || []);
+
+      const driversData = await driverService.getAll().catch(() => []);
+      setReturningDrivers((driversData || []).filter((d: any) =>
+        d.driverStatus === "returning" || d.driverStatus === "under_inspection"
+      ));
     } catch (error) {
       console.error("Failed to load operations data:", error);
     } finally {
@@ -72,6 +82,26 @@ export default function AdminOperations() {
     } catch (error) {
       console.error("Failed to assign job:", error);
       alert("Failed to assign fleet unit");
+    }
+  };
+
+  const openInspectionModal = (driver: any) => {
+    setInspectionForm({ vehicleCondition: "Good", tyreCondition: "Good", notes: "" });
+    setInspectionModal({ open: true, driver });
+  };
+
+  const handleSubmitInspection = async () => {
+    if (!inspectionModal.driver) return;
+    try {
+      setIsSubmittingInspection(true);
+      await assignmentService.markTruckInspected(inspectionModal.driver._id, inspectionForm);
+      setInspectionModal({ open: false, driver: null });
+      loadBookings();
+    } catch (error) {
+      console.error("Failed to submit inspection:", error);
+      alert("Failed to complete inspection");
+    } finally {
+      setIsSubmittingInspection(false);
     }
   };
 
@@ -245,7 +275,7 @@ export default function AdminOperations() {
               <select
                 value={companyFilter}
                 onChange={(e) => setCompanyFilter(e.target.value)}
-                className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer max-w-[160px]"
+                className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer max-w-40"
               >
                 <option value="all">All Companies</option>
                 {uniqueCompanies.map(c => <option key={c} value={c}>{c}</option>)}
@@ -253,7 +283,7 @@ export default function AdminOperations() {
               <select
                 value={clientFilter}
                 onChange={(e) => setClientFilter(e.target.value)}
-                className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer max-w-[160px]"
+                className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer max-w-40"
               >
                 <option value="all">All Clients</option>
                 {uniqueClients.map(c => <option key={c} value={c}>{c}</option>)}
@@ -266,6 +296,62 @@ export default function AdminOperations() {
           }
         />
 
+        {/* Returning Drivers — Pending Truck Inspection */}
+        {returningDrivers.length > 0 && (
+          <div className="bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden">
+            <div className="px-6 py-4 border-b border-amber-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-amber-50 text-amber-600">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-[13px] font-bold text-slate-900">Returning Drivers</h2>
+                  <p className="text-[10px] text-neutral-400 font-medium mt-0.5">Truck inspection required before next assignment</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-full border border-amber-100 uppercase tracking-widest">
+                {returningDrivers.length} Pending
+              </span>
+            </div>
+            <div className="divide-y divide-neutral-50">
+              {returningDrivers.map((driver: any) => (
+                <div key={driver._id} className="px-6 py-4 flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center shrink-0">
+                      <Users className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <div>
+                      <div className="text-[13px] font-bold text-slate-900">{driver.name}</div>
+                      <div className="text-[10px] text-neutral-400 mt-0.5 flex items-center gap-2">
+                        <span>{driver.assignedTruck?.truckId || "No Truck"}</span>
+                        {driver.assignedTruck?.health && (
+                          <>
+                            <span className="w-0.5 h-0.5 rounded-full bg-neutral-300" />
+                            <span>{driver.assignedTruck.health}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="px-2 py-1 bg-amber-50 text-amber-600 text-[9px] font-bold rounded-full border border-amber-100 uppercase tracking-widest flex items-center gap-1">
+                      <div className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" />
+                      {driver.driverStatus === "under_inspection" ? "Under Inspection" : "Returning"}
+                    </span>
+                    <button
+                      onClick={() => openInspectionModal(driver)}
+                      className="px-4 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-600 active:scale-[0.98] transition-all flex items-center gap-1.5 shadow-sm shadow-emerald-200"
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      Check & Release
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Assignment Drawer */}
         {isDrawerOpen && (
           <OperationAssignmentDrawer
@@ -277,6 +363,93 @@ export default function AdminOperations() {
             job={selectedJob}
             onSubmit={handleAssignJob}
           />
+        )}
+
+        {/* Truck Inspection Modal */}
+        {inspectionModal.open && inspectionModal.driver && (
+          <div className="fixed inset-0 z-700 flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={() => setInspectionModal({ open: false, driver: null })} />
+            <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+              {/* Modal Header */}
+              <div className="px-6 pt-6 pb-4 border-b border-neutral-100">
+                <div className="flex items-center gap-3 mb-1">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center">
+                    <Truck className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-[15px] font-bold text-slate-900">Truck Inspection</h2>
+                    <p className="text-[11px] text-neutral-400 font-medium">{inspectionModal.driver.name} · {inspectionModal.driver.assignedTruck?.truckId || "N/A"}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className="px-6 py-5 space-y-4">
+                <p className="text-[11px] text-neutral-500 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                  Complete the inspection before releasing driver for new assignments.
+                </p>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Vehicle Condition</label>
+                    <select
+                      value={inspectionForm.vehicleCondition}
+                      onChange={e => setInspectionForm(f => ({ ...f, vehicleCondition: e.target.value }))}
+                      className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="Excellent">Excellent</option>
+                      <option value="Good">Good</option>
+                      <option value="Fair">Fair</option>
+                      <option value="Poor">Poor — Needs Repair</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Tyre Condition</label>
+                    <select
+                      value={inspectionForm.tyreCondition}
+                      onChange={e => setInspectionForm(f => ({ ...f, tyreCondition: e.target.value }))}
+                      className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer"
+                    >
+                      <option value="Excellent">Excellent</option>
+                      <option value="Good">Good</option>
+                      <option value="Fair">Fair</option>
+                      <option value="Poor">Poor — Replace</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Notes (optional)</label>
+                  <textarea
+                    rows={2}
+                    value={inspectionForm.notes}
+                    onChange={e => setInspectionForm(f => ({ ...f, notes: e.target.value }))}
+                    placeholder="Any observations or issues found..."
+                    className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] text-slate-700 outline-none focus:border-primary/30 transition-all resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 pb-6 flex gap-3">
+                <button
+                  onClick={() => setInspectionModal({ open: false, driver: null })}
+                  className="flex-1 py-3 border border-neutral-100 rounded-2xl text-[11px] font-bold text-neutral-400 uppercase tracking-widest hover:bg-neutral-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSubmitInspection}
+                  disabled={isSubmittingInspection}
+                  className="flex-1 py-3 bg-emerald-500 text-white rounded-2xl text-[11px] font-bold uppercase tracking-widest hover:bg-emerald-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-emerald-200"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  {isSubmittingInspection ? "Releasing..." : "Confirm & Release Driver"}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </AdminLayout>

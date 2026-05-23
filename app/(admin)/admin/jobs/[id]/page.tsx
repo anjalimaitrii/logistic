@@ -281,7 +281,8 @@ export default function JobDetailReport() {
   const timelineEvents = useMemo(() => {
     if (!booking) return [];
 
-    const rawStatus = (booking.tripStatus || booking.status || "PENDING").toUpperCase();
+    // Use tripStatus if set; otherwise trip hasn't started yet
+    const rawStatus = booking.tripStatus ? booking.tripStatus.toUpperCase() : "PENDING";
     const backendTimeline = booking.timeline || [];
     const pLocs = booking.pickupLocations?.length > 0 ? booking.pickupLocations : (booking.pickup ? [booking.pickup] : [{}]);
     const dLocs = booking.dropoffLocations?.length > 0 ? booking.dropoffLocations : (booking.dropoff ? [booking.dropoff] : [{}]);
@@ -303,8 +304,7 @@ export default function JobDetailReport() {
       ]),
       "RETURNING", "COMPLETED"
     ];
-    const status = ["FINALIZED", "DELIVERED"].includes(rawStatus) ? "COMPLETED" : rawStatus;
-    const currentIdx = statusOrder.indexOf(status);
+    const currentIdx = statusOrder.indexOf(rawStatus);
     const isPast = (id: string) => { const i = statusOrder.indexOf(id); return i !== -1 && currentIdx > i; };
 
     // Convert raw status IDs like "Loading_1", "Reached_2" → human labels "Loading A", "Reached C"
@@ -860,9 +860,9 @@ export default function JobDetailReport() {
                       ]),
                       "RETURNING", "COMPLETED"
                     ];
-                    const rawStatus = (booking.tripStatus || booking.status || "PENDING").toUpperCase();
-                    const curStatus = ["FINALIZED", "DELIVERED"].includes(rawStatus) ? "COMPLETED" : rawStatus;
-                    const currentIdx = statusOrder.indexOf(curStatus);
+                    // Use tripStatus only — trip hasn't started if it's not set
+                    const rawStatus = booking.tripStatus ? booking.tripStatus.toUpperCase() : "PENDING";
+                    const currentIdx = statusOrder.indexOf(rawStatus);
 
                     const buttons: { id: string; label: string; city?: string; icon: React.ReactNode }[] = [
                       { id: "STARTED", label: "Trip Start", icon: <Play className="w-4 h-4" /> },
