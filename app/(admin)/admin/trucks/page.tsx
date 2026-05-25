@@ -9,6 +9,13 @@ import CreateTruckModal from "@/components/admin/CreateTruckModal";
 import TruckComplianceDrawer from "@/components/admin/TruckComplianceDrawer";
 import { ChevronRight, Eye, Settings, Plus, Package } from "lucide-react";
 import { truckService } from "@/services/truckService";
+import { fetchLiveVehicles } from "@/services/liveTrackingService";
+
+function gpsStatusToTruck(s: string) {
+  if (s === "RUNNING") return "Active";
+  if (s === "IDLE") return "Idle";
+  return "Maint.";
+}
 
 export default function AdminTrucks() {
   const [isModalOpen, setModalOpen] = useState(false);
@@ -23,14 +30,48 @@ export default function AdminTrucks() {
   }, []);
 
   const loadTrucks = async () => {
+    setIsLoading(true);
+
+    // Step 1: show DB trucks immediately
+    let db: any[] = [];
     try {
-      setIsLoading(true);
-      const data = await truckService.getAll();
-      setTrucks(data || []);
-    } catch (error) {
-      console.error("Failed to fetch trucks:", error);
+      db = await truckService.getAll() || [];
+      setTrucks(db);
+    } catch {
+      // DB unavailable — still proceed to GPS
     } finally {
       setIsLoading(false);
+    }
+
+    // Step 2: fetch GPS vehicles, save new ones to DB
+    try {
+      const dbIds = new Set(db.map((t: any) => t.truckId));
+      const gpsData = await fetchLiveVehicles();
+
+      const newVehicles = gpsData.filter((v) => {
+        const id = v.Vehicle_No || v.Vehicle_Name;
+        return id && !dbIds.has(id);
+      });
+
+      if (newVehicles.length > 0) {
+        await Promise.allSettled(
+          newVehicles.map((v) => {
+            const truckId = v.Vehicle_No || v.Vehicle_Name;
+            return truckService.create({
+              truckId,
+              vehicleModel: v.Vehicletype || v.DeviceModel || "--",
+              truckType: v.Vehicletype || "--",
+              status: gpsStatusToTruck(v.Status),
+              odometer: v.Odometer || "0",
+            });
+          })
+        );
+        // Reload from DB to get proper MongoDB _id
+        const fresh = await truckService.getAll();
+        setTrucks(fresh || []);
+      }
+    } catch {
+      // GPS unavailable — DB trucks already shown, silently skip
     }
   };
 

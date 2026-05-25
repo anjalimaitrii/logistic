@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(npx tsx *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npm install *)",
+      "Bash(Get-Content \"C:\\\\Users\\\\pc\\\\AppData\\\\Local\\\\npm-cache\\\\_logs\\\\2026-05-23T07_08_57_806Z-debug-0.log\" -Tail 30)",
+      "Read(//c/Users/pc/AppData/Local/npm-cache/_logs/**)",
+      "Bash(Get-ChildItem \"c:\\\\Users\\\\pc\\\\Desktop\\\\Maitrii-Infotech\\\\logistic and fleet management\\\\frontend-logistic\" -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -First 20)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\pc\\\\Desktop\\\\Maitrii-Infotech\\\\logistic and fleet management\\\\frontend-logistic\" -Force)"
     ]
   }
 }

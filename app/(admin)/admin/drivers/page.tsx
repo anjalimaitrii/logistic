@@ -8,6 +8,8 @@ import CommonTable from "@/components/admin/CommonTable";
 import CreateDriverModal from "@/components/admin/CreateDriverModal";
 import { ChevronRight, Eye, Phone, Plus, Edit2, Trash2 } from "lucide-react";
 import { driverService } from "@/services/driverService";
+import { truckService } from "@/services/truckService";
+import { fetchLiveVehicles, getDriverName } from "@/services/liveTrackingService";
 
 export default function AdminDrivers() {
   const [isModalOpen, setModalOpen] = useState(false);
@@ -21,14 +23,86 @@ export default function AdminDrivers() {
   }, []);
 
   const loadDrivers = async () => {
+    setIsLoading(true);
+
+    // Step 1: show DB drivers immediately
+    let db: any[] = [];
     try {
-      setIsLoading(true);
-      const data = await driverService.getAll();
-      setDrivers(data || []);
-    } catch (error) {
-      console.error("Failed to load drivers:", error);
+      db = await driverService.getAll() || [];
+      setDrivers(db);
+    } catch {
+      // DB unavailable — still proceed to GPS
     } finally {
       setIsLoading(false);
+    }
+
+    // Step 2: fetch GPS data, ensure trucks exist in DB, then save drivers with assignment
+    try {
+      const dbNames = new Set(db.map((d: any) => d.name?.toLowerCase()));
+      const gpsData = await fetchLiveVehicles();
+
+      // Ensure trucks are saved first so we can look up their _id
+      let allTrucks = await truckService.getAll() || [];
+      const truckDbIds = new Set(allTrucks.map((t: any) => t.truckId));
+      const newTrucks = gpsData.filter((v) => {
+        const id = v.Vehicle_No || v.Vehicle_Name;
+        return id && !truckDbIds.has(id);
+      });
+      if (newTrucks.length > 0) {
+        await Promise.allSettled(
+          newTrucks.map((v) => {
+            const truckId = v.Vehicle_No || v.Vehicle_Name;
+            return truckService.create({
+              truckId,
+              vehicleModel: v.Vehicletype || v.DeviceModel || "--",
+              truckType: v.Vehicletype || "--",
+              status: v.Status === "RUNNING" ? "Active" : v.Status === "IDLE" ? "Idle" : "Maint.",
+              odometer: v.Odometer || "0",
+            });
+          })
+        );
+        allTrucks = await truckService.getAll() || [];
+      }
+
+      // Build truckId → MongoDB _id map
+      const truckMap = new Map<string, string>(
+        allTrucks.map((t: any) => [t.truckId, t._id])
+      );
+
+      // Find new drivers
+      const seen = new Set<string>();
+      const newDrivers = gpsData
+        .map((v) => ({
+          name: getDriverName(v),
+          imei: v.Imeino,
+          vehicleNo: v.Vehicle_No || v.Vehicle_Name,
+        }))
+        .filter(({ name, imei }) => {
+          if (name === "No Driver" || seen.has(imei)) return false;
+          seen.add(imei);
+          return !dbNames.has(name.toLowerCase());
+        });
+
+      if (newDrivers.length > 0) {
+        await Promise.allSettled(
+          newDrivers.map(({ name, imei, vehicleNo }) => {
+            const assignedTruck = truckMap.get(vehicleNo);
+            return driverService.create({
+              name,
+              phone: "--",
+              licenseType: "NA",
+              licenseNo: imei,
+              experience: 0,
+              status: "Active",
+              ...(assignedTruck ? { assignedTruck } : {}),
+            });
+          })
+        );
+        const fresh = await driverService.getAll();
+        setDrivers(fresh || []);
+      }
+    } catch {
+      // GPS unavailable — DB drivers already shown, silently skip
     }
   };
 
@@ -79,7 +153,7 @@ export default function AdminDrivers() {
   ];
 
   const tableData = drivers.map(d => ({
-    id: d.licenseNo.substring(0, 7).toUpperCase(),
+    id: (d.licenseNo || "").substring(0, 7).toUpperCase(),
     name: d.name,
     status: d.status || "Active",
     truck: d.assignedTruck ? d.assignedTruck.truckId : "Not Assigned",
