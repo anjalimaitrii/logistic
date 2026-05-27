@@ -22,6 +22,7 @@ export default function AdminTrucks() {
   const [isComplianceOpen, setIsComplianceOpen] = useState(false);
   const [selectedTruck, setSelectedTruck] = useState<string | null>(null);
   const [trucks, setTrucks] = useState<any[]>([]);
+  const [gpsStatusMap, setGpsStatusMap] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
@@ -47,6 +48,14 @@ export default function AdminTrucks() {
     try {
       const dbIds = new Set(db.map((t: any) => t.truckId));
       const gpsData = await fetchLiveVehicles();
+
+      // Build live status map (truckId → Active/Idle)
+      const statusMap: Record<string, string> = {};
+      gpsData.forEach(v => {
+        const id = v.Vehicle_No || v.Vehicle_Name;
+        if (id) statusMap[id] = gpsStatusToTruck(v.Status);
+      });
+      setGpsStatusMap(statusMap);
 
       const newVehicles = gpsData.filter((v) => {
         const id = v.Vehicle_No || v.Vehicle_Name;
@@ -96,11 +105,18 @@ export default function AdminTrucks() {
     }
   };
 
+  // GPS status takes priority; DB status only used for Maint. override
+  const getDisplayStatus = (t: any): string => {
+    if (t.status === "Maint.") return "Maint.";
+    return gpsStatusMap[t.truckId] || t.status || "Idle";
+  };
+
+
   const kpis = [
     { label: "Total Fleet", value: trucks.length.toString(), icon: "🚛", subText: "Registered units", trend: "Live", variant: "primary" as const },
-    { label: "Active", value: trucks.filter(t => t.status === "Active").length.toString(), icon: "🛣️", subText: "Currently on road", trend: "Sync", variant: "success" as const },
-    { label: "Maintenance", value: trucks.filter(t => t.status === "Maint.").length.toString(), icon: "🔧", subText: "Units in workshop", trend: "Review", variant: "danger" as const },
-    { label: "Idle", value: trucks.filter(t => t.status === "Idle").length.toString(), icon: "🅿️", subText: "Available for dispatch", trend: "Ready", variant: "warning" as const },
+    { label: "Active", value: trucks.filter(t => getDisplayStatus(t) === "Active").length.toString(), icon: "🛣️", subText: "Currently on road", trend: "Sync", variant: "success" as const },
+    { label: "Maintenance", value: trucks.filter(t => getDisplayStatus(t) === "Maint.").length.toString(), icon: "🔧", subText: "Units in workshop", trend: "Review", variant: "danger" as const },
+    { label: "Idle", value: trucks.filter(t => getDisplayStatus(t) === "Idle").length.toString(), icon: "🅿️", subText: "Available for dispatch", trend: "Ready", variant: "warning" as const },
   ];
 
   const tableData = trucks.map(t => ({
@@ -121,22 +137,18 @@ export default function AdminTrucks() {
     {
       label: "Status",
       key: "status",
-      render: (val: string, row: any) => (
-        <select
-          value={val}
-          onClick={(e) => e.stopPropagation()}
-          onChange={(e) => handleStatusUpdate(row.raw._id, e.target.value)}
-          className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider outline-none border transition-all cursor-pointer ${
-            val === "Active" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-            val === "Idle" ? "bg-amber-50 text-amber-500 border-amber-100" :
-            "bg-rose-50 text-rose-500 border-rose-100"
-          }`}
-        >
-          <option value="Active">Active</option>
-          <option value="Idle">Idle</option>
-          <option value="Maint.">Maint.</option>
-        </select>
-      )
+      render: (_val: string, row: any) => {
+        const ds = getDisplayStatus(row.raw);
+        return (
+          <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${
+            ds === "Active" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+            ds === "Idle"   ? "bg-amber-50 text-amber-500 border-amber-100" :
+                              "bg-rose-50 text-rose-500 border-rose-100"
+          }`}>
+            {ds}
+          </span>
+        );
+      }
     },
     {
       label: "Actions",
@@ -216,20 +228,6 @@ export default function AdminTrucks() {
                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">No trucks found in inventory</p>
               </div>
             )
-          }
-          action={
-            <div className="flex gap-2">
-              <div className="relative group">
-                <input
-                  type="text"
-                  placeholder="Search trucks..."
-                  className="bg-white border border-neutral-100 rounded-xl px-4 py-2 text-[11px] font-medium outline-none focus:border-primary/20 transition-all w-56 shadow-sm"
-                />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">
-                  🔍
-                </div>
-              </div>
-            </div>
           }
         />
       </div>

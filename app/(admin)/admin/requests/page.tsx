@@ -36,7 +36,11 @@ export default function BookingRequestsPage() {
     try {
       setIsLoading(true);
       const data = await bookingService.getAll();
-      setRequests(Array.isArray(data) ? data : []);
+      // Hide secret without-tax jobs — they only appear on the secret page
+      const visible = (Array.isArray(data) ? data : []).filter(
+        (b: any) => !(b.isSecret === true && b.withTax === false)
+      );
+      setRequests(visible);
     } catch (error) {
       console.error("Fetch requests error:", error);
     } finally {
@@ -75,7 +79,7 @@ export default function BookingRequestsPage() {
     if (!status) return 'Pending';
     const s = status.toLowerCase();
     if (s === 'pending') return 'Pending';
-    if (s === 'accepted') return 'Accepted';
+    if (s === 'active' || s === 'accepted') return 'Accepted';
     if (s === 'rejected') return 'Rejected';
     if (s === 'finalized' || s === 'delivered') return 'Finalized';
     return 'Pending';

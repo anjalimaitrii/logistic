@@ -41,9 +41,9 @@ export default function AdminJobsPage() {
         assignmentService.getAll()
       ]);
 
-      // ONLY SHOW FINALIZED JOBS
+      // ONLY SHOW FINALIZED JOBS — exclude without-tax secret jobs (they belong in Secret Jobs page)
       const finalizedOnly = (bookingsData || []).filter((b: any) =>
-        b.status === 'finalized'
+        b.status === 'finalized' && !(b.isSecret === true && b.withTax === false)
       );
       setBookings(finalizedOnly);
       setAssignments(assignmentsData || []);

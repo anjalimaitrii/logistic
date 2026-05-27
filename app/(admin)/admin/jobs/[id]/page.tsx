@@ -38,6 +38,11 @@ export default function JobDetailReport() {
   const [assignment, setAssignment] = useState<any>(null);
   const [settlement, setSettlement] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [finalizeData, setFinalizeData] = useState({ finalAmount: "", advancePaid: "" });
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [tollAmount, setTollAmount] = useState("");
+  const [isSavingToll, setIsSavingToll] = useState(false);
+  const [editingToll, setEditingToll] = useState(false);
 
   // Trip Expense Tracker State
   const [tripExpenses, setTripExpenses] = useState<any[]>([]);
@@ -95,6 +100,9 @@ export default function JobDetailReport() {
 
       if (settlementData?.expenses) {
         setTripExpenses(settlementData.expenses);
+      }
+      if (settlementData?.tollAmount) {
+        setTollAmount(String(settlementData.tollAmount));
       }
     } catch (error) {
       console.error("Failed to fetch job details:", error);
@@ -199,10 +207,40 @@ export default function JobDetailReport() {
   const handleStatusUpdate = async (newStatus: string) => {
     try {
       await bookingService.updateTripStatus(id, newStatus.toLowerCase());
-      // Refresh data to reflect status change in UI and Timeline
       await loadData();
     } catch (error) {
       console.error("Status update failed:", error);
+    }
+  };
+
+  const handleFinalize = async () => {
+    if (!finalizeData.finalAmount) { alert("Please enter the final amount."); return; }
+    setIsFinalizing(true);
+    try {
+      await bookingService.updateStatus(id, "finalized", {
+        finalAmount: parseFloat(finalizeData.finalAmount),
+        advancePaid: parseFloat(finalizeData.advancePaid) || 0,
+      });
+      await loadData();
+    } catch (error) {
+      console.error("Finalize failed:", error);
+      alert("Failed to finalize trip.");
+    } finally {
+      setIsFinalizing(false);
+    }
+  };
+
+  const handleSaveToll = async () => {
+    const amt = parseFloat(tollAmount);
+    if (!amt || amt < 0) { alert("Please enter a valid toll amount."); return; }
+    setIsSavingToll(true);
+    try {
+      await settlementService.process({ bookingId: id, tollAmount: amt });
+      await loadData();
+    } catch {
+      alert("Failed to save toll amount.");
+    } finally {
+      setIsSavingToll(false);
     }
   };
 
@@ -780,7 +818,7 @@ export default function JobDetailReport() {
                     <Clock className="w-5 h-5" />
                   </div>
                   <div>
-                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Journey Timeline</h2>
+                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-widest">Job Timeline</h2>
                     <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-0.5 font-sans">System logs & operational milestones</p>
                   </div>
                 </div>
@@ -841,8 +879,7 @@ export default function JobDetailReport() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  {(() => {
+                {(() => {
                     const pLocs = booking.pickupLocations?.length > 0 ? booking.pickupLocations : (booking.pickup ? [booking.pickup] : [{}]);
                     const dLocs = booking.dropoffLocations?.length > 0 ? booking.dropoffLocations : (booking.dropoff ? [booking.dropoff] : [{}]);
                     const multi = pLocs.length > 1 || dLocs.length > 1;
@@ -860,68 +897,108 @@ export default function JobDetailReport() {
                       ]),
                       "RETURNING", "COMPLETED"
                     ];
-                    // Use tripStatus only — trip hasn't started if it's not set
+
                     const rawStatus = booking.tripStatus ? booking.tripStatus.toUpperCase() : "PENDING";
                     const currentIdx = statusOrder.indexOf(rawStatus);
 
-                    const buttons: { id: string; label: string; city?: string; icon: React.ReactNode }[] = [
-                      { id: "STARTED", label: "Trip Start", icon: <Play className="w-4 h-4" /> },
-                      ...pLocs.flatMap((loc: any, i: number) => {
-                        const l = lbl(i);
-                        const city = multi ? (loc?.address?.city || undefined) : undefined;
-                        return [
-                          { id: multi ? `LOADING_${i + 1}` : "LOADING", label: multi ? `${l} · Load` : "Loading", city, icon: <Box className="w-4 h-4" /> },
-                          { id: multi ? `DEPARTED_${i + 1}` : "DEPARTED", label: multi ? `${l} · Depart` : "Departed", city, icon: <Truck className="w-4 h-4" /> }
-                        ];
-                      }),
-                      ...dLocs.flatMap((loc: any, i: number) => {
-                        const l = lbl(pLocs.length + i);
-                        const city = multi ? (loc?.address?.city || undefined) : undefined;
-                        return [
-                          { id: multi ? `REACHED_${i + 1}` : "REACHED", label: multi ? `${l} · Reached` : "Reached", city, icon: <Flag className="w-4 h-4" /> },
-                          { id: multi ? `OFFLOADING_${i + 1}` : "OFFLOADING", label: multi ? `${l} · Offload` : "Offloading", city, icon: <ArrowDownCircle className="w-4 h-4" /> }
-                        ];
-                      }),
-                      { id: "RETURNING", label: "Returning", icon: <RotateCcw className="w-4 h-4" /> },
-                      { id: "COMPLETED", label: "Completed", icon: <CheckCircle2 className="w-4 h-4" /> },
-                    ];
+                    const btnCls = (id: string) => {
+                      const idx = statusOrder.indexOf(id);
+                      const isDone   = idx !== -1 && idx < currentIdx;
+                      const isActive = idx === currentIdx;
+                      const isNext   = idx === currentIdx + 1;
+                      if (isDone)    return { cls: "bg-emerald-50 border-emerald-100 text-emerald-600 cursor-not-allowed opacity-80", isDone, isActive, isNext };
+                      if (isActive)  return { cls: "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 cursor-not-allowed", isDone, isActive, isNext };
+                      if (isNext)    return { cls: "bg-orange-500 border-orange-400 text-white shadow-md shadow-orange-100 hover:bg-orange-600 active:scale-[0.98] cursor-pointer", isDone, isActive, isNext };
+                      return { cls: "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed opacity-50", isDone, isActive, isNext };
+                    };
 
-                    return buttons.map((s) => {
-                      const btnIdx = statusOrder.indexOf(s.id);
-                      const isDone    = btnIdx !== -1 && btnIdx < currentIdx;
-                      const isActive  = btnIdx === currentIdx;
-                      const isNext    = btnIdx === currentIdx + 1;
-                      // locked = future steps beyond the next one
-
-                      let cls = "";
-                      if (isDone)   cls = "bg-emerald-50 border-emerald-100 text-emerald-600 cursor-not-allowed opacity-80";
-                      else if (isActive) cls = "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 scale-[1.02] cursor-not-allowed";
-                      else if (isNext)  cls = "bg-orange-500 border-orange-400 text-white shadow-md shadow-orange-100 hover:bg-orange-600 active:scale-[0.98] cursor-pointer";
-                      else          cls = "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed opacity-60";
-
+                    const Btn = ({ id, label, icon, city, full }: { id: string; label: string; icon: React.ReactNode; city?: string; full?: boolean }) => {
+                      const { cls, isDone, isActive, isNext } = btnCls(id);
                       return (
                         <button
-                          key={s.id}
                           disabled={!isNext}
-                          onClick={() => isNext && handleStatusUpdate(s.id)}
-                          className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1.5 ${cls}`}
+                          onClick={() => isNext && handleStatusUpdate(id)}
+                          className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1 ${full ? "w-full" : "flex-1"} ${cls}`}
                         >
-                          <div className="transition-colors">
-                            {isDone ? <CheckCircle2 className="w-4 h-4" /> : s.icon}
-                          </div>
-                          <span className="text-[9px] font-bold uppercase tracking-widest leading-tight text-center">{s.label}</span>
-                          {s.city && (
-                            <span className={`text-[7px] font-medium normal-case truncate max-w-full text-center ${isActive ? 'text-white/70' : isDone ? 'text-emerald-400' : isNext ? 'text-white/80' : 'text-slate-200'}`}>
-                              {s.city}
+                          <div>{isDone ? <CheckCircle2 className="w-4 h-4" /> : icon}</div>
+                          <span className="text-[9px] font-bold uppercase tracking-widest leading-tight text-center">{label}</span>
+                          {city && (
+                            <span className={`text-[7px] font-medium normal-case truncate max-w-full text-center ${isActive ? "text-white/70" : isDone ? "text-emerald-400" : isNext ? "text-white/80" : "text-slate-200"}`}>
+                              {city}
                             </span>
                           )}
-                          {isDone && <span className="text-[7px] font-bold uppercase tracking-widest text-emerald-500">Done</span>}
-                          {isNext && <span className="text-[7px] font-bold uppercase tracking-widest text-white/80">Tap to Update</span>}
+                          {isDone  && <span className="text-[7px] font-bold uppercase tracking-widest text-emerald-500">Done</span>}
+                          {isNext  && <span className="text-[7px] font-bold uppercase tracking-widest text-white/80">Tap to Update</span>}
+                          {isActive && <span className="text-[7px] font-bold uppercase tracking-widest text-white/70">Current</span>}
                         </button>
                       );
-                    });
+                    };
+
+                    return (
+                      <div className="space-y-3">
+                        {/* Step 1: Trip Start — full width */}
+                        <Btn id="STARTED" label="Trip Start" icon={<Play className="w-4 h-4" />} full />
+
+                        {/* Pickup steps — Load + Depart per location in one row */}
+                        {pLocs.map((loc: any, i: number) => {
+                          const l = lbl(i);
+                          const city = multi ? (loc?.address?.city || undefined) : undefined;
+                          return (
+                            <div key={`p-${i}`} className="space-y-1.5">
+                              {multi && (
+                                <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 px-1">
+                                  Pickup {l} {city ? `· ${city}` : ""}
+                                </p>
+                              )}
+                              <div className="flex gap-3">
+                                <Btn
+                                  id={multi ? `LOADING_${i + 1}` : "LOADING"}
+                                  label={multi ? `${l} · Load` : "Loading"}
+                                  icon={<Box className="w-4 h-4" />}
+                                />
+                                <Btn
+                                  id={multi ? `DEPARTED_${i + 1}` : "DEPARTED"}
+                                  label={multi ? `${l} · Depart` : "Departed"}
+                                  icon={<Truck className="w-4 h-4" />}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Dropoff steps — Reached + Offload per location in one row */}
+                        {dLocs.map((loc: any, i: number) => {
+                          const l = lbl(pLocs.length + i);
+                          const city = multi ? (loc?.address?.city || undefined) : undefined;
+                          return (
+                            <div key={`d-${i}`} className="space-y-1.5">
+                              {multi && (
+                                <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 px-1">
+                                  Dropoff {l} {city ? `· ${city}` : ""}
+                                </p>
+                              )}
+                              <div className="flex gap-3">
+                                <Btn
+                                  id={multi ? `REACHED_${i + 1}` : "REACHED"}
+                                  label={multi ? `${l} · Reached` : "Reached"}
+                                  icon={<Flag className="w-4 h-4" />}
+                                />
+                                <Btn
+                                  id={multi ? `OFFLOADING_${i + 1}` : "OFFLOADING"}
+                                  label={multi ? `${l} · Offload` : "Offloading"}
+                                  icon={<ArrowDownCircle className="w-4 h-4" />}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Final steps — full width */}
+                        <Btn id="RETURNING" label="Returning" icon={<RotateCcw className="w-4 h-4" />} full />
+                        <Btn id="COMPLETED" label="Completed" icon={<CheckCircle2 className="w-4 h-4" />} full />
+                      </div>
+                    );
                   })()}
-                </div>
               </div>
 
               {/* Job Settlement Summary */}
@@ -940,20 +1017,114 @@ export default function JobDetailReport() {
                     <p className="text-[9px] font-medium text-slate-300 mt-2 italic uppercase tracking-wider">Approved cash for driver support</p>
                   </div>
 
-                  {/* Workflow Stage */}
-                  <div className="p-5 rounded-[20px] bg-slate-50 border border-slate-100">
-                    <div className="flex items-center gap-3 mb-2.5">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-                      <span className="text-[10px] font-bold text-slate-900 uppercase tracking-widest">Workflow Stage</span>
+                  {/* Toll Amount */}
+                  <div className="p-5 rounded-[20px] bg-amber-50/50 border border-amber-100 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+                        <circle cx="12" cy="9" r="2.5" />
+                      </svg>
+                      <span className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Toll Amount</span>
                     </div>
-                    <p className="text-[11px] text-slate-500 leading-relaxed font-medium">
-                       {["FINALIZED", "COMPLETED"].includes(jobInfo?.status || "") ?
-                         "Trip has been successfully finalized and settled. All financial records are verified." :
-                         (jobInfo?.status?.startsWith("STARTED") || jobInfo?.status?.startsWith("REACHED") || jobInfo?.status?.startsWith("LOADING") || jobInfo?.status?.startsWith("OFFLOADING") || jobInfo?.status === "RETURNING") ?
-                         "Job is currently active. Real-time tracking is enabled. Settlement will follow upon completion." :
-                         "Job is in pending state. Awaiting operation assignment and driver dispatch."}
-                    </p>
+                    {settlement?.tollAmount > 0 && !editingToll ? (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className="text-[20px] font-bold text-slate-900">₹{Number(settlement.tollAmount).toLocaleString()}</span>
+                          <p className="text-[9px] text-slate-400 mt-0.5 uppercase tracking-wider">Deducted from toll account</p>
+                        </div>
+                        <button
+                          onClick={() => { setTollAmount(String(settlement.tollAmount)); setEditingToll(true); }}
+                          className="text-[9px] font-bold text-amber-600 uppercase tracking-widest hover:underline"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block">Enter Toll Amount (₹)</label>
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            value={tollAmount}
+                            onChange={(e) => setTollAmount(e.target.value)}
+                            placeholder="0"
+                            className="flex-1 border border-amber-200 rounded-xl px-3 py-2 text-[12px] font-bold text-slate-900 outline-none focus:border-amber-400 transition-colors bg-white"
+                          />
+                          <button
+                            onClick={async () => { await handleSaveToll(); setEditingToll(false); }}
+                            disabled={isSavingToll || !tollAmount}
+                            className="px-4 py-2 bg-amber-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-amber-600 disabled:opacity-50 transition-all flex items-center gap-1.5 shadow-md shadow-amber-100"
+                          >
+                            {isSavingToll ? (
+                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : "Save"}
+                          </button>
+                        </div>
+                        <p className="text-[9px] text-slate-400 italic">Will be deducted from the toll wallet balance</p>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Finalize Trip */}
+                  {jobInfo?.status === "FINALIZED" ? (
+                    <div className="p-5 rounded-[20px] bg-emerald-50 border border-emerald-100">
+                      <div className="flex items-center gap-2 mb-3">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                        <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">Trip Finalized</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Final Amount</div>
+                          <div className="text-[15px] font-bold text-slate-900">₦{(booking?.finalAmount || 0).toLocaleString()}</div>
+                        </div>
+                        <div>
+                          <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Advance Paid</div>
+                          <div className="text-[15px] font-bold text-slate-900">₦{(booking?.advancePaid || 0).toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-5 rounded-[20px] bg-slate-50 border border-slate-100 space-y-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <CreditCard className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="text-[10px] font-bold text-slate-900 uppercase tracking-widest">Finalize Trip</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div>
+                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Final Amount (₦) *</label>
+                          <input
+                            type="number"
+                            value={finalizeData.finalAmount}
+                            onChange={(e) => setFinalizeData(p => ({ ...p, finalAmount: e.target.value }))}
+                            placeholder="0"
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] font-bold text-slate-900 outline-none focus:border-primary/30 transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Advance Paid (₦)</label>
+                          <input
+                            type="number"
+                            value={finalizeData.advancePaid}
+                            onChange={(e) => setFinalizeData(p => ({ ...p, advancePaid: e.target.value }))}
+                            placeholder="0"
+                            className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] font-bold text-slate-900 outline-none focus:border-primary/30 transition-colors"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={handleFinalize}
+                        disabled={isFinalizing}
+                        className="w-full py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-md shadow-emerald-100 disabled:opacity-60 flex items-center justify-center gap-2"
+                      >
+                        {isFinalizing ? (
+                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                        )}
+                        {isFinalizing ? "Finalizing..." : "Finalize Trip"}
+                      </button>
+                    </div>
+                  )}
 
                   {/* Route Map Preview */}
                   <div className="rounded-2xl border border-slate-100 shadow-sm relative group overflow-hidden bg-slate-50 p-1">

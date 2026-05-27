@@ -24,7 +24,7 @@ export default function AdminOperations() {
   const [returningDrivers, setReturningDrivers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [inspectionModal, setInspectionModal] = useState<{ open: boolean; driver: any | null }>({ open: false, driver: null });
-  const [inspectionForm, setInspectionForm] = useState({ vehicleCondition: "Good", tyreCondition: "Good", notes: "" });
+  const [inspectionForm, setInspectionForm] = useState({ vehicleCondition: "Good", tyreCondition: "Good", notes: "", tollAmount: "" });
   const [isSubmittingInspection, setIsSubmittingInspection] = useState(false);
 
   useEffect(() => {
@@ -86,7 +86,7 @@ export default function AdminOperations() {
   };
 
   const openInspectionModal = (driver: any) => {
-    setInspectionForm({ vehicleCondition: "Good", tyreCondition: "Good", notes: "" });
+    setInspectionForm({ vehicleCondition: "Good", tyreCondition: "Good", notes: "", tollAmount: "" });
     setInspectionModal({ open: true, driver });
   };
 
@@ -94,7 +94,21 @@ export default function AdminOperations() {
     if (!inspectionModal.driver) return;
     try {
       setIsSubmittingInspection(true);
-      await assignmentService.markTruckInspected(inspectionModal.driver._id, inspectionForm);
+      const { tollAmount, ...inspectionData } = inspectionForm;
+      await assignmentService.markTruckInspected(inspectionModal.driver._id, inspectionData);
+
+      // Save toll amount to settlement if provided
+      const tollAmt = parseFloat(tollAmount);
+      if (tollAmt > 0) {
+        const driverAssignment = assignments.find(
+          a => (a.driverId?._id || a.driverId) === inspectionModal.driver._id
+        );
+        if (driverAssignment) {
+          const bookingId = driverAssignment.bookingId?._id || driverAssignment.bookingId;
+          await settlementService.process({ bookingId, tollAmount: tollAmt });
+        }
+      }
+
       setInspectionModal({ open: false, driver: null });
       loadBookings();
     } catch (error) {
@@ -428,6 +442,24 @@ export default function AdminOperations() {
                     placeholder="Any observations or issues found..."
                     className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] text-slate-700 outline-none focus:border-primary/30 transition-all resize-none"
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-amber-500 uppercase tracking-widest flex items-center gap-1.5">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+                      <circle cx="12" cy="9" r="2.5" />
+                    </svg>
+                    Toll Amount (₹)
+                  </label>
+                  <input
+                    type="number"
+                    value={inspectionForm.tollAmount}
+                    onChange={e => setInspectionForm(f => ({ ...f, tollAmount: e.target.value }))}
+                    placeholder="0 — leave blank if no toll"
+                    className="w-full bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-amber-300 transition-all"
+                  />
+                  <p className="text-[9px] text-neutral-400 italic">Amount will be deducted from toll wallet</p>
                 </div>
               </div>
 

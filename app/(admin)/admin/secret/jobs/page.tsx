@@ -1,92 +1,163 @@
 "use client";
 
-import React from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
+import { bookingService } from "@/services/bookingService";
+import { Eye, Package, ChevronRight } from "lucide-react";
+import { format } from "date-fns";
 
 export default function SecretJobsPage() {
-   const secretJobs = [
-      { id: "#SL-9921", client: "Apex Logistics", route: "Abuja → Lagos", cargo: "Electronics", weight: "2.4 Tons", date: "06 Apr 2026", tax: "Exempt" },
-      { id: "#SL-9918", client: "Global Freight", route: "Accra → Kumasi", cargo: "Industrial Parts", weight: "5.8 Tons", date: "05 Apr 2026", tax: "With Tax" },
-      { id: "#SL-9915", client: "Skyway Express", route: "Nairobi → Mom.", cargo: "Pharma Supplies", weight: "1.2 Tons", date: "05 Apr 2026", tax: "Exempt" },
-      { id: "#SL-9912", client: "Bridge-Link", route: "Lagos → Port Har.", cargo: "Construction", weight: "12 Tons", date: "04 Apr 2026", tax: "With Tax" },
-      { id: "#SL-9909", client: "Apex Logistics", route: "Kano → Abuja", cargo: "Beverages", weight: "8.5 Tons", date: "03 Apr 2026", tax: "Exempt" },
-   ];
+  const router = useRouter();
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-   const columns = [
-      { label: "Job ID", key: "id", render: (val: string) => <span className="font-bold text-indigo-600">{val}</span> },
-      { label: "Client", key: "client", render: (val: string) => <span className="font-bold text-neutral-900">{val}</span> },
-      { label: "Route", key: "route" },
-      { label: "Cargo", key: "cargo" },
-      { label: "Weight", key: "weight" },
-      { label: "Date", key: "date", render: (val: string) => <span className="text-neutral-400 font-medium">{val}</span> },
-      { 
-         label: "Tax Status", 
-         key: "tax",
-         render: (val: string) => (
-            <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
-               val === 'Exempt' ? 'bg-amber-50 text-amber-600 border-amber-200' : 'bg-indigo-50 text-indigo-600 border-indigo-200'
-            }`}>
-               {val}
-            </span>
-         )
-      },
-      {
-         label: "Actions",
-         key: "actions",
-         align: "center" as const,
-         render: () => (
-            <div className="flex gap-2 justify-center">
-               <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-neutral-100 text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all shadow-sm">
-                  👁
-               </button>
-               <button className="w-8 h-8 flex items-center justify-center rounded-lg bg-neutral-100 text-neutral-400 hover:text-rose-500 hover:bg-rose-50 transition-all shadow-sm">
-                  🗑️
-               </button>
-            </div>
-         )
-      }
-   ];
+  useEffect(() => {
+    loadJobs();
+  }, []);
 
-   return (
-      <div className="p-6 pb-20 space-y-6 bg-[#F8FAFC] min-h-screen">
-         {/* Breadcrumbs */}
-         <div className="flex items-center gap-2 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-            <Link href="/admin/secret" className="hover:text-indigo-600 transition-colors">Secret Dashboard</Link>
-            <span>/</span>
-            <span className="text-indigo-600 font-black">Job Ledger</span>
-         </div>
+  const loadJobs = async () => {
+    try {
+      setIsLoading(true);
+      const all = await bookingService.getAll();
+      // Finalized without-tax secret jobs only
+      const completed = (all || []).filter(
+        (b: any) =>
+          (b.isSecret === true || b.metadata?.isSecret === true) &&
+          b.withTax === false &&
+          (b.status || "").toLowerCase() === "finalized"
+      );
+      setJobs(completed);
+    } catch (err) {
+      console.error("Failed to load secret jobs:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-         <div className="flex items-center justify-between bg-white p-6 rounded-2xl border border-neutral-100 shadow-sm relative overflow-hidden">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600" />
-            <div>
-               <h1 className="text-2xl font-bold tracking-tight text-neutral-900">Master Job Ledger</h1>
-               <p className="text-[12px] font-medium text-neutral-400 mt-0.5">Comprehensive history of all specialized secret operations</p>
-            </div>
-            <div className="flex gap-3">
-               <button className="px-4 py-2 bg-neutral-50 text-neutral-500 border border-neutral-100 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-neutral-100 transition-all flex items-center gap-2">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                  Export CSV
-               </button>
-            </div>
-         </div>
+  const tableData = jobs.map((b) => ({
+    id: b.tripId || `#SL-${b._id?.slice(-4).toUpperCase()}`,
+    client: (b.clientId as any)?.name || b.metadata?.client || "—",
+    route: `${b.pickupLocations?.[0]?.address?.city || "Origin"} → ${b.dropoffLocations?.[0]?.address?.city || "Dest."}`,
+    cargo: b.cargoDetails?.goodsType || "—",
+    weight: b.cargoDetails?.weight ? `${b.cargoDetails.weight} KG` : "—",
+    finalAmount: b.finalAmount ? `₹${b.finalAmount.toLocaleString()}` : "—",
+    advancePaid: b.advancePaid ? `₹${b.advancePaid.toLocaleString()}` : "—",
+    date: b.createdAt
+      ? format(new Date(b.createdAt), "dd MMM yyyy")
+      : "—",
+    raw: b,
+  }));
 
-         <CommonTable 
-            title="All Secret Assignments"
-            icon="📚"
-            columns={columns}
-            data={secretJobs}
-            action={
-               <div className="flex gap-2">
-                  <select className="bg-white border border-neutral-100 text-[10px] font-bold text-neutral-400 rounded-lg px-2.5 py-1.5 outline-none focus:border-indigo-600 transition-all uppercase tracking-widest cursor-pointer">
-                     <option>All Status</option>
-                     <option>Tax Exempt</option>
-                     <option>With Tax</option>
-                  </select>
-               </div>
-            }
-         />
+  const columns = [
+    {
+      label: "Job ID",
+      key: "id",
+      render: (val: string) => <span className="font-bold text-indigo-600 text-[12px]">{val}</span>,
+    },
+    {
+      label: "Client",
+      key: "client",
+      render: (val: string) => <span className="font-bold text-neutral-900 text-[12px]">{val}</span>,
+    },
+    {
+      label: "Route",
+      key: "route",
+      render: (val: string) => <span className="text-[12px] font-medium text-neutral-500 italic">{val}</span>,
+    },
+    {
+      label: "Cargo",
+      key: "cargo",
+      render: (val: string, row: any) => (
+        <div>
+          <div className="text-[12px] font-medium text-neutral-900">{val}</div>
+          <div className="text-[10px] text-neutral-400">{row.weight}</div>
+        </div>
+      ),
+    },
+    {
+      label: "Final Amount",
+      key: "finalAmount",
+      render: (val: string) => <span className="text-[12px] font-bold text-slate-900">{val}</span>,
+    },
+    {
+      label: "Advance Paid",
+      key: "advancePaid",
+      render: (val: string) => <span className="text-[12px] font-medium text-slate-500">{val}</span>,
+    },
+    {
+      label: "Date",
+      key: "date",
+      render: (val: string) => <span className="text-[11px] text-neutral-400 font-medium">{val}</span>,
+    },
+    {
+      label: "Tax",
+      key: "tax",
+      render: () => (
+        <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-amber-50 text-amber-600 border-amber-200">
+          Without Tax
+        </span>
+      ),
+    },
+    {
+      label: "Actions",
+      key: "actions",
+      align: "center" as const,
+      render: (_: any, row: any) => (
+        <button
+          onClick={(e) => { e.stopPropagation(); router.push(`/admin/jobs/${row.raw._id}`); }}
+          className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all shadow-sm"
+        >
+          <Eye className="w-3.5 h-3.5" />
+        </button>
+      ),
+    },
+  ];
+
+  return (
+    <div className="p-6 pb-20 space-y-6 bg-neutral-50 min-h-screen">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-[9px] font-medium text-neutral-400 uppercase tracking-widest">
+        <Link href="/admin/secret" className="hover:text-indigo-600 transition-colors">Secret Dashboard</Link>
+        <ChevronRight className="w-2.5 h-2.5" />
+        <span className="text-indigo-600 font-bold">Secret Jobs</span>
       </div>
-   );
+
+      {/* Header */}
+      <div className="flex items-center justify-between bg-white p-6 rounded-2xl border border-neutral-100 shadow-sm relative overflow-hidden">
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600 rounded-l-2xl" />
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-neutral-900">Secret Jobs</h1>
+          <p className="text-[11px] font-medium text-neutral-400 mt-0.5">Completed without-tax secret assignments</p>
+        </div>
+        <div className="px-3 py-1.5 bg-amber-50 text-amber-600 border border-amber-100 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+          {jobs.length} Completed
+        </div>
+      </div>
+
+      {/* Table */}
+      <CommonTable
+        title="Completed Without Tax Jobs"
+        icon="🔒"
+        columns={columns}
+        data={isLoading ? [] : tableData}
+        onRowClick={(row) => router.push(`/admin/jobs/${row.raw._id}`)}
+        emptyState={
+          isLoading ? (
+            <div className="py-12 flex flex-col items-center justify-center gap-2">
+              <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">Loading...</p>
+            </div>
+          ) : (
+            <div className="py-12 flex flex-col items-center justify-center gap-2">
+              <Package className="w-8 h-8 text-neutral-200" />
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">No completed jobs yet</p>
+            </div>
+          )
+        }
+      />
+    </div>
+  );
 }

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import PinModal from "./PinModal";
+import { useNotifications } from "@/context/NotificationContext";
 
 interface AdminTopbarProps {
   onToggleSidebar: () => void;
@@ -12,6 +13,7 @@ interface AdminTopbarProps {
 export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTopbarProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [adminClicks, setAdminClicks] = useState(0);
+  const { unreadCount } = useNotifications();
   const [showPinModal, setShowPinModal] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
@@ -91,7 +93,13 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
-          <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-white ring-2 ring-primary/20 animate-pulse" />
+          {unreadCount > 0 ? (
+            <span className="absolute -top-1 -right-1 min-w-4.5 h-4.5 bg-primary text-white text-[9px] font-bold rounded-full flex items-center justify-center px-1 border-2 border-white shadow-lg shadow-primary/30 animate-bounce">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          ) : (
+            <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-primary rounded-full border-2 border-white ring-2 ring-primary/20 animate-pulse" />
+          )}
         </div>
 
         <div className="h-6 w-px bg-neutral-100" />

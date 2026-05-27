@@ -62,22 +62,19 @@ export async function GET(req: Request) {
     try {
       const authToken = await getToken();
       const candidates = [
-        'viewTravelSummary',
-        'viewTravelSummaryReport',
-        'viewDaySummaryReport',
-        'viewDaySummary',
-        'viewJourneySummary',
-        'viewRunningReport',
-        'viewVehicleSummary',
-        'viewHistoryReport',
-        'getTripSummary',
-        'viewTripSummary',
-        'getTripReport',
-        'viewTripReport',
-        'getVehicleHistory',
-        'viewVehicleHistory',
-        'getDayReport',
-        'viewDayReport',
+        // From Reports > Activity menu
+        'viewTravel', 'getTravelReport', 'viewTravelReport',
+        'viewTrip', 'getTripReport', 'viewTripReport',
+        'viewStoppage', 'getStoppageReport', 'viewStoppageReport',
+        'viewIdle', 'getIdleReport', 'viewIdleReport',
+        'viewDaywiseDistance', 'getDaywiseDistance', 'getDaywiseDistanceReport',
+        'viewOverspeedSummary', 'getOverspeedSummary',
+        'viewObjectStatus', 'getObjectStatus',
+        'viewTodayActivity', 'getTodayActivity',
+        'viewLiveMatrix', 'getLiveMatrix',
+        // Previous attempts
+        'viewTravelSummary', 'viewTravelSummaryReport',
+        'viewDaySummaryReport', 'getDaySummaryReport',
       ];
       const results: Record<string, unknown> = {};
       for (const name of candidates) {
