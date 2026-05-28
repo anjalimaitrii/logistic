@@ -50,15 +50,21 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
   const lbl = (pCount: number, dCount: number, isPick: boolean, idx: number) =>
     String.fromCharCode(65 + (isPick ? idx : pCount + idx));
 
+  const sanitize = (key: string, val: string) => {
+    if (key === "contactPerson") return val.replace(/[0-9]/g, "");
+    if (key === "contact") return val.replace(/\D/g, "").slice(0, 10);
+    return val;
+  };
+
   const updatePickup = (idx: number, key: string, val: string) => {
     const locs = [...formData.pickupLocations];
-    (locs[idx] as any)[key] = val;
+    (locs[idx] as any)[key] = sanitize(key, val);
     setFormData({ ...formData, pickupLocations: locs });
   };
 
   const updateDropoff = (idx: number, key: string, val: string) => {
     const locs = [...formData.dropoffLocations];
-    (locs[idx] as any)[key] = val;
+    (locs[idx] as any)[key] = sanitize(key, val);
     setFormData({ ...formData, dropoffLocations: locs });
   };
 
@@ -264,7 +270,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <input placeholder="Contact Person" value={loc.contactPerson} onChange={(e) => updatePickup(idx, "contactPerson", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
-                        <input placeholder="Contact Number" value={loc.contact} onChange={(e) => updatePickup(idx, "contact", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <input placeholder="Contact Number" value={loc.contact} inputMode="numeric" maxLength={10} onChange={(e) => updatePickup(idx, "contact", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <input placeholder="Plot/Shop No" value={loc.plotNo} onChange={(e) => updatePickup(idx, "plotNo", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
@@ -302,7 +308,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <input placeholder="Contact Person" value={loc.contactPerson} onChange={(e) => updateDropoff(idx, "contactPerson", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
-                        <input placeholder="Contact Number" value={loc.contact} onChange={(e) => updateDropoff(idx, "contact", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <input placeholder="Contact Number" value={loc.contact} inputMode="numeric" maxLength={10} onChange={(e) => updateDropoff(idx, "contact", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <input placeholder="Plot/Shop No" value={loc.plotNo} onChange={(e) => updateDropoff(idx, "plotNo", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />

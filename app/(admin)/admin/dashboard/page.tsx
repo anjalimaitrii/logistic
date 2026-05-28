@@ -1,22 +1,47 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateJobModal from "@/components/admin/CreateJobModal";
 import { ChevronRight, Eye, Check, X, MessageSquare, Package } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
+import { settlementService } from "@/services/settlementService";
+import { fetchLiveVehicles, getVehicleStatus } from "@/services/liveTrackingService";
 import { useRouter } from "next/navigation";
+
+const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniMap"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-[280px] flex items-center justify-center bg-neutral-50">
+      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  ),
+});
 
 export default function AdminDashboard() {
    const router = useRouter();
    const [isCreateJobOpen, setCreateJobOpen] = useState(false);
    const [bookings, setBookings] = useState<any[]>([]);
    const [isLoading, setIsLoading] = useState(true);
+   const [settlements, setSettlements] = useState<any[]>([]);
+   const [fleetCounts, setFleetCounts] = useState({ total: 0, moving: 0, stopped: 0, parked: 0, inactive: 0 });
 
    useEffect(() => {
       loadData();
+      settlementService.getAll().then((d) => setSettlements(d || [])).catch(() => {});
+      fetchLiveVehicles()
+         .then((vehicles) => {
+            const total    = vehicles.length;
+            const moving   = vehicles.filter((v) => getVehicleStatus(v) === "moving").length;
+            const stopped  = vehicles.filter((v) => getVehicleStatus(v) === "stopped").length;
+            const parked   = vehicles.filter((v) => getVehicleStatus(v) === "parked").length;
+            const inactive = vehicles.filter((v) => getVehicleStatus(v) === "inactive").length;
+            setFleetCounts({ total, moving, stopped, parked, inactive });
+         })
+         .catch(() => {});
    }, []);
 
    const loadData = async () => {
@@ -55,11 +80,50 @@ export default function AdminDashboard() {
 
    const activeJobsCount = bookings.filter(b => b?.status === "transit" || b?.status === "accepted").length;
 
+   const totalFuelCost   = settlements.reduce((sum, s) => sum + (s.financials?.fuelTotal || 0), 0);
+   const totalFuelLiters = settlements.reduce((sum, s) => sum + (s.fuelDetails?.totalLiters || 0), 0);
+   const totalRevenue    = bookings.reduce((sum, b) => sum + (b.finalAmount || 0), 0);
+   const pendingPayments = bookings.filter(b => !b.finalAmount && b.status !== "rejected" && b.status !== "pending").length;
+
+   const fmt = (n: number) =>
+      n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M`
+      : n >= 1_000   ? `$${Math.round(n / 1_000)}K`
+      : n > 0        ? `$${n}`
+      : "--";
+
    const kpis = [
-      { label: "Total Trucks", value: "40", icon: "🚛", subText: "32 active · 6 idle", trend: "↑ 100%", variant: "primary" as const },
-      { label: "Active Jobs", value: activeJobsCount.toString(), icon: "📦", subText: `${bookings.filter(b => b?.status === "transit").length} transit · ${bookings.filter(b => b?.status === "accepted").length} accepted`, trend: "Live", variant: "success" as const },
-      { label: "Fuel Used", value: "2,840L", icon: "⛽", subText: "₹ 3.2M total cost", trend: "↑ 12% vs yest", variant: "warning" as const },
-      { label: "Payments", value: "₹4.8M", icon: "💳", subText: "7 invoices pending", trend: "↓ 2 cleared", variant: "danger" as const },
+      {
+         label: "Total Trucks",
+         value: fleetCounts.total > 0 ? fleetCounts.total.toString() : "--",
+         icon: "🚛",
+         subText: fleetCounts.total > 0 ? `${fleetCounts.moving} running · ${fleetCounts.stopped + fleetCounts.parked} idle` : "Loading...",
+         trend: "Live",
+         variant: "primary" as const,
+      },
+      {
+         label: "Active Jobs",
+         value: activeJobsCount.toString(),
+         icon: "📦",
+         subText: `${bookings.filter(b => b?.status === "transit").length} transit · ${bookings.filter(b => b?.status === "accepted").length} accepted`,
+         trend: "Live",
+         variant: "success" as const,
+      },
+      {
+         label: "Fuel Cost",
+         value: totalFuelLiters > 0 ? `${Math.round(totalFuelLiters)}L` : "--",
+         icon: "⛽",
+         subText: totalFuelCost > 0 ? `${fmt(totalFuelCost)} total cost` : "No settlement data yet",
+         trend: settlements.length > 0 ? `${settlements.length} jobs` : "Pending",
+         variant: "warning" as const,
+      },
+      {
+         label: "Revenue",
+         value: fmt(totalRevenue),
+         icon: "💳",
+         subText: pendingPayments > 0 ? `${pendingPayments} jobs pending amount` : "All amounts set",
+         trend: `${bookings.filter(b => b.finalAmount).length} finalised`,
+         variant: "danger" as const,
+      },
    ];
 
    const recentJobsData = bookings.slice(0, 5).map(b => ({
@@ -176,31 +240,14 @@ export default function AdminDashboard() {
                            Live
                         </span>
                      </div>
-                     <button className="bg-white p-2 rounded-xl border border-neutral-100 text-neutral-400 hover:text-emerald-600 transition-all shadow-sm">
+                     <a href="/admin/livetrack" className="bg-white p-2 rounded-xl border border-neutral-100 text-neutral-400 hover:text-emerald-600 transition-all shadow-sm">
                         <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                            <polyline points="23 4 23 10 17 10" />
                            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
                         </svg>
-                     </button>
+                     </a>
                   </div>
-                  <div className="h-[280px] bg-neutral-50 relative overflow-hidden">
-                     <img 
-                        src="/images/fleet-map.png" 
-                        alt="Fleet Map" 
-                        className="absolute inset-0 w-full h-full object-cover opacity-80"
-                     />
-                     <div className="absolute inset-0 bg-linear-to-t from-white/20 to-transparent"></div>
-                     <div className="absolute top-[40%] left-[30%] w-5 h-5 bg-emerald-500 rounded-lg rotate-45 border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-125 transition-transform z-10"></div>
-                     <div className="absolute top-[25%] left-[60%] w-5 h-5 bg-emerald-500 rounded-lg rotate-45 border-2 border-white shadow-lg flex items-center justify-center cursor-pointer hover:scale-125 transition-transform z-10"></div>
-                     <div className="absolute top-4 left-4 bg-white/90 border border-neutral-100 rounded-xl p-3 backdrop-blur-md shadow-lg space-y-1.5 z-20">
-                        <div className="text-[9px] text-emerald-600 font-medium uppercase tracking-widest flex items-center gap-2 text-nowrap">
-                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> 28 In Transit
-                        </div>
-                        <div className="text-[9px] text-amber-500 font-medium uppercase tracking-widest flex items-center gap-2 text-nowrap">
-                           <span className="w-1.5 h-1.5 rounded-full bg-amber-500" /> 8 Idle
-                        </div>
-                     </div>
-                  </div>
+                  <DashboardMiniMap />
                </div>
 
                {/* Status Breakdown */}
@@ -212,57 +259,47 @@ export default function AdminDashboard() {
                      </div>
                   </div>
                   <div className="p-5 flex items-center gap-5 flex-1">
-                     <div className="w-16 h-16 rounded-full border-[6px] border-neutral-50 border-t-primary border-r-amber-400 flex flex-col items-center justify-center shrink-0">
-                        <span className="text-lg font-semibold text-slate-900">40</span>
+                     <div className="w-16 h-16 rounded-full border-[6px] border-neutral-50 border-t-emerald-500 border-r-amber-400 flex flex-col items-center justify-center shrink-0">
+                        <span className="text-lg font-semibold text-slate-900">{fleetCounts.total}</span>
                         <span className="text-[7px] font-medium text-neutral-400 uppercase">Total</span>
                      </div>
-                     <div className="flex-1 space-y-3">
-                        <div className="space-y-1">
-                           <div className="flex justify-between text-[9px] font-medium uppercase text-neutral-400">
-                              <span>Active</span>
-                              <span className="text-slate-900 font-semibold">32</span>
-                           </div>
-                           <div className="h-1 bg-neutral-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-emerald-500 w-[80%] rounded-full" />
-                           </div>
-                        </div>
-                        <div className="space-y-1">
-                           <div className="flex justify-between text-[9px] font-medium uppercase text-neutral-400">
-                              <span>Maint.</span>
-                              <span className="text-slate-900 font-semibold">2</span>
-                           </div>
-                           <div className="h-1 bg-neutral-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-rose-500 w-[5%] rounded-full" />
-                           </div>
-                        </div>
+                     <div className="flex-1 space-y-2.5">
+                        {[
+                           { label: "Running",   count: fleetCounts.moving,   color: "bg-emerald-500" },
+                           { label: "Idle",      count: fleetCounts.stopped,  color: "bg-amber-400" },
+                           { label: "Stopped",   count: fleetCounts.parked,   color: "bg-gray-400" },
+                           { label: "No Signal", count: fleetCounts.inactive, color: "bg-red-400" },
+                        ].map(({ label, count, color }) => {
+                           const pct = fleetCounts.total > 0 ? Math.round((count / fleetCounts.total) * 100) : 0;
+                           return (
+                              <div key={label} className="space-y-0.5">
+                                 <div className="flex justify-between text-[9px] font-medium uppercase text-neutral-400">
+                                    <span>{label}</span>
+                                    <span className="text-slate-900 font-semibold">{count}</span>
+                                 </div>
+                                 <div className="h-1 bg-neutral-100 rounded-full overflow-hidden">
+                                    <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                                 </div>
+                              </div>
+                           );
+                        })}
                      </div>
                   </div>
                   <div className="p-2 border-t border-neutral-50 space-y-0.5">
-                     <div className="flex items-center gap-3 p-2 hover:bg-neutral-50 rounded-xl transition-all cursor-pointer group">
+                     <a href="/admin/livetrack" className="flex items-center gap-3 p-2 hover:bg-neutral-50 rounded-xl transition-all cursor-pointer group">
                         <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-xs text-emerald-600">🏃</div>
                         <div className="flex-1 min-w-0">
-                           <div className="text-[12px] font-semibold text-slate-900">In Transit</div>
-                           <div className="text-[10px] font-medium text-neutral-400">12 routes active</div>
+                           <div className="text-[12px] font-semibold text-slate-900">Running Now</div>
+                           <div className="text-[10px] font-medium text-neutral-400">Tap to open live map</div>
                         </div>
-                        <div className="text-sm font-semibold text-emerald-600">28</div>
-                     </div>
+                        <div className="text-sm font-semibold text-emerald-600">{fleetCounts.moving}</div>
+                     </a>
                   </div>
                </div>
             </div>
 
 
-
-
-            <div className="flex flex-wrap gap-2.5">
-
-               <button className="bg-white border border-neutral-100 text-neutral-500 px-5 py-2 rounded-lg font-semibold text-[10px] uppercase tracking-widest hover:bg-neutral-50 transition-all shadow-sm">
-                  🚛 Dispatch Truck
-               </button>
-               <button className="bg-white border border-neutral-100 text-neutral-500 px-5 py-2 rounded-lg font-semibold text-[10px] uppercase tracking-widest hover:bg-neutral-50 transition-all shadow-sm">
-                  ⛽ Log Fuel
-               </button>
-            </div>
-
+   
             {/* Table */}
             <CommonTable
                title="Recent Operations"

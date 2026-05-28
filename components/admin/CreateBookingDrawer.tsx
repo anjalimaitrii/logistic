@@ -339,7 +339,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                             value={location.contactPerson}
                             onChange={(e) => {
                               const newLocations = [...formData.pickupLocations];
-                              newLocations[idx].contactPerson = e.target.value;
+                              newLocations[idx].contactPerson = e.target.value.replace(/[0-9]/g, "");
                               setFormData({ ...formData, pickupLocations: newLocations });
                             }}
                             className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none"
@@ -347,9 +347,11 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                           <input
                             placeholder="Contact Number"
                             value={location.contact}
+                            inputMode="numeric"
+                            maxLength={10}
                             onChange={(e) => {
                               const newLocations = [...formData.pickupLocations];
-                              newLocations[idx].contact = e.target.value;
+                              newLocations[idx].contact = e.target.value.replace(/\D/g, "").slice(0, 10);
                               setFormData({ ...formData, pickupLocations: newLocations });
                             }}
                             className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none"
@@ -450,7 +452,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                             value={location.contactPerson}
                             onChange={(e) => {
                               const newLocations = [...formData.dropoffLocations];
-                              newLocations[idx].contactPerson = e.target.value;
+                              newLocations[idx].contactPerson = e.target.value.replace(/[0-9]/g, "");
                               setFormData({ ...formData, dropoffLocations: newLocations });
                             }}
                             className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none"
@@ -458,9 +460,11 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                           <input
                             placeholder="Contact Number"
                             value={location.contact}
+                            inputMode="numeric"
+                            maxLength={10}
                             onChange={(e) => {
                               const newLocations = [...formData.dropoffLocations];
-                              newLocations[idx].contact = e.target.value;
+                              newLocations[idx].contact = e.target.value.replace(/\D/g, "").slice(0, 10);
                               setFormData({ ...formData, dropoffLocations: newLocations });
                             }}
                             className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none"
