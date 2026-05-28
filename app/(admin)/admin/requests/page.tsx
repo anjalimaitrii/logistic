@@ -5,7 +5,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
 import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
-import { MessageSquare, CheckCircle, XCircle, Clock, ChevronRight, Package, Search, Edit2 } from "lucide-react";
+import { MessageSquare, CheckCircle, XCircle, Clock, ChevronRight, Package, Search } from "lucide-react";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
 import StatCard from "@/components/admin/StatCard";
 import { bookingService } from "@/services/bookingService";
@@ -244,17 +244,10 @@ export default function BookingRequestsPage() {
           )}
 
           {row.status === "Finalized" && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedJob(row.raw);
-                setIsEditJobDrawerOpen(true);
-              }}
-              className="p-2 bg-slate-50 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all border border-transparent hover:border-slate-200 group"
-              title="Edit Finalized Job"
-            >
-              <Edit2 className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-            </button>
+            <div className="flex items-center gap-1 text-[9px] font-semibold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full">
+              <CheckCircle className="w-3 h-3" />
+              Approved
+            </div>
           )}
 
           {row.status === "Rejected" && (
