@@ -46,7 +46,15 @@ export const assignmentService = {
   },
 
   // Mark truck as inspected — driver becomes available again
-  markTruckInspected: async (driverId: string, inspectionData?: { vehicleCondition: string; tyreCondition: string; notes?: string }) => {
+  markTruckInspected: async (driverId: string, inspectionData?: {
+    vehicleCondition: string;
+    tyreCondition: string;
+    tyreNumber?: string;
+    challans?: string;
+    deliveryOrders?: string[];
+    damages?: { description: string; amount: string }[];
+    notes?: string;
+  }) => {
     return await fetchApi(`/api/assignments/driver/${driverId}/mark-inspected`, {
       method: 'PATCH',
       body: JSON.stringify(inspectionData || {}),
