@@ -189,8 +189,8 @@ export default function AdminOperations() {
     const settlement = settlements.find(s => (s.bookingId?._id || s.bookingId) === b._id);
     return {
       id: b.tripId || b._id.substring(b._id.length - 6).toUpperCase(),
-      companyName: (b.clientId as any)?.company?.companyName || "Direct Booking",
-      clientName: (b.clientId as any)?.name || "N/A",
+      companyName: (b.clientId as any)?.company?.companyName || (b.metadata?.client ? "Admin Booking" : "Direct Booking"),
+      clientName: (b.clientId as any)?.name || b.metadata?.client || "N/A",
       route: `${b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || 'N/A'} → ${b.dropoffLocations?.[0]?.address?.city || b.dropoff?.address?.city || 'N/A'}`,
       status: assignment ? "Assigned" : "Unassigned",
       weight: b.cargoDetails?.weight,

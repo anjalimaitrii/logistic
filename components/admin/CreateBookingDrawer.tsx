@@ -124,6 +124,8 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
     }
 
     try {
+      const selectedClient = clients.find(c => c._id === formData.clientId);
+
       // Transform form data to API payload
       const payload = {
         clientId: formData.clientId,
@@ -163,6 +165,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
         metadata: {
           source: "admin_manual_entry",
           createdAt: new Date().toISOString(),
+          client: selectedClient?.name || "",
         },
       };
 
