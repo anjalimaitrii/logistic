@@ -50,6 +50,18 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
   const lbl = (pCount: number, dCount: number, isPick: boolean, idx: number) =>
     String.fromCharCode(65 + (isPick ? idx : pCount + idx));
 
+  const isStep1Valid =
+    !!formData.clientId &&
+    !!formData.goodsType.trim() &&
+    !!formData.weight &&
+    !!formData.scheduleDate;
+
+  const isStep2Valid =
+    formData.pickupLocations.some(l => l.contactPerson.trim() && l.contact.trim() && l.city.trim()) &&
+    formData.dropoffLocations.some(l => l.contactPerson.trim() && l.contact.trim() && l.city.trim());
+
+  const isNextDisabled = step === 1 ? !isStep1Valid : step === 2 ? !isStep2Valid : false;
+
   const sanitize = (key: string, val: string) => {
     if (key === "contactPerson") return val.replace(/[0-9]/g, "");
     if (key === "contact") return val.replace(/\D/g, "").slice(0, 10);
@@ -188,7 +200,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                 <div className="space-y-4">
                   <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-[0.15em] border-b border-neutral-50 pb-2">Client & Cargo</h3>
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Select Client</label>
+                    <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Select Client <span className="text-red-500">*</span></label>
                     <div className="relative group">
                       <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-primary transition-colors" />
                       <select
@@ -205,20 +217,20 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Type of Goods</label>
+                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Type of Goods <span className="text-red-500">*</span></label>
                       <div className="relative group">
                         <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-primary transition-colors" />
                         <input type="text" value={formData.goodsType} onChange={(e) => setFormData({ ...formData, goodsType: e.target.value })} placeholder="e.g. Textiles" className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm" />
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Weight (kg)</label>
+                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Weight (kg) <span className="text-red-500">*</span></label>
                       <input type="number" value={formData.weight} onChange={(e) => setFormData({ ...formData, weight: e.target.value })} placeholder="0" className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 px-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm" />
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Schedule Date</label>
+                    <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Schedule Date <span className="text-red-500">*</span></label>
                     <div className="relative">
                       <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
                       <input type="date" value={formData.scheduleDate} onChange={(e) => setFormData({ ...formData, scheduleDate: e.target.value })} className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm" />
@@ -269,15 +281,15 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <input placeholder="Contact Person" value={loc.contactPerson} onChange={(e) => updatePickup(idx, "contactPerson", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
-                        <input placeholder="Contact Number" value={loc.contact} inputMode="numeric" maxLength={10} onChange={(e) => updatePickup(idx, "contact", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <input placeholder="Contact Person *" value={loc.contactPerson} onChange={(e) => updatePickup(idx, "contactPerson", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <input placeholder="Contact Number *" value={loc.contact} inputMode="numeric" maxLength={10} onChange={(e) => updatePickup(idx, "contact", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <input placeholder="Plot/Shop No" value={loc.plotNo} onChange={(e) => updatePickup(idx, "plotNo", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                         <input placeholder="Street/Building" value={loc.street} onChange={(e) => updatePickup(idx, "street", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <input placeholder="City" value={loc.city} onChange={(e) => updatePickup(idx, "city", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <input placeholder="City *" value={loc.city} onChange={(e) => updatePickup(idx, "city", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                         <input placeholder="Pincode" value={loc.pincode} onChange={(e) => updatePickup(idx, "pincode", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
                     </div>
@@ -307,15 +319,15 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <input placeholder="Contact Person" value={loc.contactPerson} onChange={(e) => updateDropoff(idx, "contactPerson", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
-                        <input placeholder="Contact Number" value={loc.contact} inputMode="numeric" maxLength={10} onChange={(e) => updateDropoff(idx, "contact", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <input placeholder="Contact Person *" value={loc.contactPerson} onChange={(e) => updateDropoff(idx, "contactPerson", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <input placeholder="Contact Number *" value={loc.contact} inputMode="numeric" maxLength={10} onChange={(e) => updateDropoff(idx, "contact", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <input placeholder="Plot/Shop No" value={loc.plotNo} onChange={(e) => updateDropoff(idx, "plotNo", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                         <input placeholder="Street/Building" value={loc.street} onChange={(e) => updateDropoff(idx, "street", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <input placeholder="City" value={loc.city} onChange={(e) => updateDropoff(idx, "city", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <input placeholder="City *" value={loc.city} onChange={(e) => updateDropoff(idx, "city", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                         <input placeholder="Pincode" value={loc.pincode} onChange={(e) => updateDropoff(idx, "pincode", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
                     </div>
@@ -412,7 +424,8 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
           )}
           <button
             onClick={step === 3 ? handleSubmit : () => setStep(step + 1)}
-            className="flex-1 px-8 py-3 bg-primary text-white rounded-xl text-[11px] font-bold uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            disabled={isNextDisabled}
+            className={`flex-1 px-8 py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${isNextDisabled ? "bg-neutral-200 text-neutral-400 cursor-not-allowed" : "bg-primary text-white shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"}`}
           >
             {step === 3 ? "Create Special Job" : "Next Details"}
             {step < 3 && <ChevronRight className="w-4 h-4" />}

@@ -191,7 +191,7 @@ export default function SecretDashboard() {
           <div className="flex gap-2 justify-center items-center">
             {/* View detail */}
             <button
-              onClick={(e) => { e.stopPropagation(); router.push(`/admin/jobs/${row.raw._id}`); }}
+              onClick={(e) => { e.stopPropagation(); router.push(`/admin/secret/jobs/${row.raw._id}`); }}
               className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-primary hover:bg-primary/5 transition-all shadow-sm"
               title="View Details"
             >
@@ -297,7 +297,7 @@ export default function SecretDashboard() {
           icon="🔐"
           columns={columns}
           data={isLoading ? [] : tableData}
-          onRowClick={(row) => router.push(`/admin/jobs/${row.raw._id}`)}
+          onRowClick={(row) => router.push(`/admin/secret/jobs/${row.raw._id}`)}
           emptyState={
             isLoading ? (
               <div className="py-12 flex flex-col items-center justify-center gap-2">

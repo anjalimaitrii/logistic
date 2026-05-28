@@ -86,6 +86,18 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
     }
   };
 
+  const isStep1Valid =
+    !!formData.clientId &&
+    !!formData.goodsType.trim() &&
+    !!formData.weight &&
+    !!formData.scheduleDate;
+
+  const isStep2Valid =
+    formData.pickupLocations.some(loc => loc.contactPerson.trim() && loc.contact.trim() && loc.city.trim()) &&
+    formData.dropoffLocations.some(loc => loc.contactPerson.trim() && loc.contact.trim() && loc.city.trim());
+
+  const isNextDisabled = step === 1 ? !isStep1Valid : step === 2 ? !isStep2Valid : false;
+
   const handleNext = () => setStep(step + 1);
   const handleBack = () => setStep(step - 1);
 
@@ -219,7 +231,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                   <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-[0.15em] border-b border-neutral-50 pb-2">Client & Cargo</h3>
                   
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Select Client</label>
+                    <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Select Client <span className="text-red-500">*</span></label>
                     <div className="relative group">
                       <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-primary transition-colors" />
                       <select
@@ -236,7 +248,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Type of Goods</label>
+                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Type of Goods <span className="text-red-500">*</span></label>
                       <div className="relative group">
                         <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-primary transition-colors" />
                         <input
@@ -249,7 +261,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                       </div>
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Weight (kg)</label>
+                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Weight (kg) <span className="text-red-500">*</span></label>
                       <input
                         type="number"
                         value={formData.weight}
@@ -261,7 +273,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Schedule Date</label>
+                    <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Schedule Date <span className="text-red-500">*</span></label>
                     <div className="relative">
                       <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
                       <input
@@ -335,7 +347,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <input
-                            placeholder="Contact Person"
+                            placeholder="Contact Person *"
                             value={location.contactPerson}
                             onChange={(e) => {
                               const newLocations = [...formData.pickupLocations];
@@ -345,7 +357,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                             className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none"
                           />
                           <input
-                            placeholder="Contact Number"
+                            placeholder="Contact Number *"
                             value={location.contact}
                             inputMode="numeric"
                             maxLength={10}
@@ -381,7 +393,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <input
-                            placeholder="City"
+                            placeholder="City *"
                             value={location.city}
                             onChange={(e) => {
                               const newLocations = [...formData.pickupLocations];
@@ -448,7 +460,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <input
-                            placeholder="Contact Person"
+                            placeholder="Contact Person *"
                             value={location.contactPerson}
                             onChange={(e) => {
                               const newLocations = [...formData.dropoffLocations];
@@ -458,7 +470,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                             className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none"
                           />
                           <input
-                            placeholder="Contact Number"
+                            placeholder="Contact Number *"
                             value={location.contact}
                             inputMode="numeric"
                             maxLength={10}
@@ -494,7 +506,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <input
-                            placeholder="City"
+                            placeholder="City *"
                             value={location.city}
                             onChange={(e) => {
                               const newLocations = [...formData.dropoffLocations];
@@ -671,7 +683,8 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
           )}
           <button
             onClick={step === 3 ? handleFormSubmit : handleNext}
-            className="flex-1 px-8 py-3 bg-primary text-white rounded-xl text-[11px] font-bold uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            disabled={isNextDisabled}
+            className={`flex-1 px-8 py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${isNextDisabled ? "bg-neutral-200 text-neutral-400 cursor-not-allowed" : "bg-primary text-white shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"}`}
           >
             {step === 3 ? "Create Booking" : "Next Details"}
             {step < 3 && <ChevronRight className="w-4 h-4" />}

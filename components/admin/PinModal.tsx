@@ -29,7 +29,7 @@ export default function PinModal({ isOpen, onClose }: PinModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[600] flex justify-center items-start pt-32 p-4">
+    <div className="fixed inset-0 z-[9999] flex justify-center items-start pt-32 p-4">
       <div
         className="absolute inset-0 bg-neutral-900/60 backdrop-blur-sm"
         onClick={() => {

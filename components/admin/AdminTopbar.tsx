@@ -52,6 +52,7 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
   };
 
   return (
+  <>
     <header className="h-[64px] bg-white/80 backdrop-blur-md border-b border-neutral-100 sticky top-0 z-100 flex items-center px-5 gap-3.5">
       <button
         className="p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 lg:hidden"
@@ -162,10 +163,11 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
           </div>
         </div>
       </div>
-      <PinModal 
-        isOpen={showPinModal} 
-        onClose={() => setShowPinModal(false)} 
-      />
     </header>
+    <PinModal
+      isOpen={showPinModal}
+      onClose={() => setShowPinModal(false)}
+    />
+  </>
   );
 }

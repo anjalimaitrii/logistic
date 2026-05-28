@@ -2,12 +2,11 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { clientService } from "@/services/clientService";
 
 export default function Home() {
   const router = useRouter();
-  const [step, setStep] = useState<"ID" | "PASSWORD" | "FORGOT" | "OTP" | "RESET">("ID");
+  const [step, setStep] = useState<"LOGIN" | "FORGOT" | "OTP" | "RESET">("LOGIN");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -24,19 +23,20 @@ export default function Home() {
   const [fpNewPassword, setFpNewPassword] = useState("");
   const [fpConfirmPassword, setFpConfirmPassword] = useState("");
 
-  const handleNext = () => {
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!identifier) {
       setError("Please enter your email or phone number.");
       return;
     }
-    setError("");
-    setStep("PASSWORD");
-  };
-
-  const handleLogin = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
     if (!password) {
       setError("Password is required.");
+      return;
+    }
+
+    // Admin hardcoded credentials
+    if (identifier === "admin@gmail.com" && password === "admin123") {
+      router.push("/admin/dashboard");
       return;
     }
 
@@ -53,11 +53,9 @@ export default function Home() {
         return;
       }
 
-      // Store token and user data
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.client));
 
-      // Redirect to the Client Dashboard
       router.push("/dashboard");
     } catch (err: any) {
       setError(err.message || "Login failed. Please check your credentials.");
@@ -136,7 +134,7 @@ export default function Home() {
     setIsLoading(true); setError("");
     try {
       await clientService.resetPassword(fpEmail, fpOtp.join(""), fpNewPassword);
-      setStep("ID");
+      setStep("LOGIN");
       setFpEmail(""); setFpOtp(["","","","","",""]); setFpNewPassword(""); setFpConfirmPassword("");
       alert("Password reset successfully! Please login with your new password.");
     } catch (err: any) {
@@ -309,28 +307,19 @@ export default function Home() {
           color: #4A5568; margin-bottom: 8px; letter-spacing: 0.2px;
         }
 
-        /* Phone field */
+        /* Input field */
         .ft-phone-box {
           display: flex; align-items: stretch;
           background: #F4F6FB; border: 1.5px solid #DDE1EB;
           border-radius: 12px; overflow: hidden;
           transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
-          margin-bottom: 22px;
+          margin-bottom: 18px;
         }
 
         .ft-phone-box:focus-within {
           border-color: #E85D20; background: #fff;
           box-shadow: 0 0 0 3px rgba(232,93,32,0.09);
         }
-
-        .ft-flag {
-          display: flex; align-items: center; gap: 7px;
-          padding: 0 14px; border-right: 1.5px solid #DDE1EB;
-          flex-shrink: 0; background: rgba(244,246,251,0.5);
-        }
-
-        .ft-flag .emoji { font-size: 20px; }
-        .ft-flag .code  { font-size: 13px; font-weight: 600; color: #2C3A5E; }
 
         .ft-phone-box input {
           flex: 1; padding: 14px 16px;
@@ -363,17 +352,6 @@ export default function Home() {
         .ft-btn-dark:hover {
           background: #E85D20;
           box-shadow: 0 8px 22px rgba(232,93,32,0.28);
-          transform: translateY(-1px);
-        }
-
-        .ft-btn-outline {
-          background: #F4F6FB; color: #1B2340;
-          border: 1.5px solid #DDE1EB; fill: #1B2340;
-          margin-top: 10px;
-        }
-
-        .ft-btn-outline:hover {
-          background: #EBEDF5; border-color: #C5CAD8;
           transform: translateY(-1px);
         }
 
@@ -424,8 +402,6 @@ export default function Home() {
 
         .ft-hint { font-size: 13px; color: #9AA3B2; line-height: 1.65; margin-bottom: 22px; font-weight: 400; }
 
-        .ft-otp-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 26px; }
-
         .ft-otp-row { display: grid; grid-template-columns: repeat(6,1fr); gap: 10px; margin-bottom: 26px; }
 
         .ft-otp-cell {
@@ -443,7 +419,7 @@ export default function Home() {
         }
 
         .ft-forgot-link {
-          text-align: right; margin-top: -14px; margin-bottom: 20px;
+          text-align: right; margin-top: -10px; margin-bottom: 20px;
           font-size: 13px;
         }
         .ft-forgot-link button {
@@ -556,8 +532,8 @@ export default function Home() {
           {/* ── RIGHT ── */}
           <div className="ft-right">
 
-            {/* Step 1 — Identity */}
-            <div className={`ft-step ${step === "ID" ? "active" : "exit-left"}`}>
+            {/* Step 1 — Single Login Form */}
+            <div className={`ft-step ${step === "LOGIN" ? "active" : "exit-left"}`}>
               <h3>Welcome back 👋</h3>
               <p className="ft-subtitle">Sign in to manage your fleet.</p>
 
@@ -578,38 +554,7 @@ export default function Home() {
                 />
               </div>
 
-              <button className="ft-btn ft-btn-dark" onClick={handleNext}>
-                CONTINUE
-                <svg viewBox="0 0 24 24" fill="white"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
-              </button>
-
-              <p className="ft-alt">Need help? <a href="#">Contact Support</a></p>
-            </div>
-
-            {/* Step 2 — Password */}
-            <div className={`ft-step ${step === "PASSWORD" ? "active" : (step === "ID" ? "exit-right" : "exit-left")}`}>
-              <div className="ft-back-row">
-                <button className="ft-back" onClick={() => setStep("ID")}>
-                  <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
-                </button>
-                <h3>Enter Password</h3>
-              </div>
-
-              {error && (
-                <div className="mb-4 p-3 rounded-xl bg-red-50 text-red-600 text-[12px] font-medium border border-red-100 italic">
-                  ⚠️ {error}
-                </div>
-              )}
-
-              <div className="ft-num-card">
-                <div>
-                  <div className="nl">Signing in as</div>
-                  <div className="nv">{identifier || "—"}</div>
-                </div>
-                <button className="ft-change" onClick={() => setStep("ID")}>Change</button>
-              </div>
-
-              <label className="ft-lbl">Secret Password</label>
+              <label className="ft-lbl">Password</label>
               <div className="ft-phone-box" style={{ position: "relative" }}>
                 <input
                   type={showPassword ? "text" : "password"}
@@ -617,7 +562,6 @@ export default function Home() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-                  autoFocus
                   style={{ paddingRight: "44px" }}
                 />
                 <button
@@ -639,6 +583,7 @@ export default function Home() {
                   )}
                 </button>
               </div>
+
               <div className="ft-forgot-link">
                 <button onClick={() => { setFpEmail(identifier.includes("@") ? identifier : ""); setError(""); setStep("FORGOT"); }}>
                   Forgot Password?
@@ -654,22 +599,13 @@ export default function Home() {
                 {!isLoading && <svg viewBox="0 0 24 24" fill="white"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>}
               </button>
 
-              <div className="mt-8 pt-8 border-t border-neutral-100 space-y-3">
-                <p className="text-[10px] text-neutral-400 font-bold uppercase tracking-widest text-center mb-2">Switch Account Type</p>
-
-                <Link href="/admin/dashboard" style={{ display: "block" }}>
-                  <button className="ft-btn ft-btn-outline" style={{ width: "100%", marginTop: 0 }}>
-                    ADMIN LOGIN
-                    <svg viewBox="0 0 24 24" fill="#1B2340"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>
-                  </button>
-                </Link>
-              </div>
+              <p className="ft-alt">Need help? <a href="#">Contact Support</a></p>
             </div>
 
-            {/* Step 3 — Forgot: enter email */}
+            {/* Step 2 — Forgot: enter email */}
             <div className={`ft-step ${step === "FORGOT" ? "active" : "exit-right"}`}>
               <div className="ft-back-row">
-                <button className="ft-back" onClick={() => { setStep("PASSWORD"); setError(""); }}>
+                <button className="ft-back" onClick={() => { setStep("LOGIN"); setError(""); }}>
                   <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z" /></svg>
                 </button>
                 <h3>Reset Password</h3>
@@ -696,7 +632,7 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Step 4 — OTP verify */}
+            {/* Step 3 — OTP verify */}
             <div className={`ft-step ${step === "OTP" ? "active" : "exit-right"}`}>
               <div className="ft-back-row">
                 <button className="ft-back" onClick={() => { setStep("FORGOT"); setError(""); setFpOtp(["","","","","",""]); }}>
@@ -747,7 +683,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Step 5 — Set new password */}
+            {/* Step 4 — Set new password */}
             <div className={`ft-step ${step === "RESET" ? "active" : "exit-right"}`}>
               <div className="ft-back-row">
                 <button className="ft-back" onClick={() => { setStep("OTP"); setError(""); }}>

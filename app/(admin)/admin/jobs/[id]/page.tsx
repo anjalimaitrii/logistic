@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, usePathname } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import {
   ArrowLeft,
@@ -32,7 +32,11 @@ import { format } from "date-fns";
 export default function JobDetailReport() {
   const params = useParams();
   const router = useRouter();
+  const pathname = usePathname();
   const id = params.id as string;
+  const isSecretContext = pathname.startsWith("/admin/secret");
+  const wrap = (content: React.ReactNode) =>
+    isSecretContext ? <>{content}</> : <AdminLayout>{content}</AdminLayout>;
 
   const [booking, setBooking] = useState<any>(null);
   const [assignment, setAssignment] = useState<any>(null);
@@ -445,29 +449,25 @@ export default function JobDetailReport() {
   ];
 
   if (isLoading) {
-    return (
-      <AdminLayout>
-        <div className="p-6 bg-neutral-50 min-h-screen flex items-center justify-center">
-          <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-        </div>
-      </AdminLayout>
+    return wrap(
+      <div className="p-6 bg-neutral-50 min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
     );
   }
 
   if (!booking) {
-    return (
-      <AdminLayout>
-        <div className="p-6 bg-neutral-50 min-h-screen flex flex-col items-center justify-center gap-4">
-          <Package className="w-12 h-12 text-neutral-200" />
-          <h2 className="text-xl font-bold text-slate-900">Job Not Found</h2>
-          <button onClick={() => router.back()} className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold uppercase tracking-widest">Go Back</button>
-        </div>
-      </AdminLayout>
+    return wrap(
+      <div className="p-6 bg-neutral-50 min-h-screen flex flex-col items-center justify-center gap-4">
+        <Package className="w-12 h-12 text-neutral-200" />
+        <h2 className="text-xl font-bold text-slate-900">Job Not Found</h2>
+        <button onClick={() => router.back()} className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold uppercase tracking-widest">Go Back</button>
+      </div>
     );
   }
 
-  return (
-    <AdminLayout>
+  return wrap(
+    <>
       <div className="bg-neutral-50 min-h-screen font-sans pb-10">
         {/* Header */}
         <div className="bg-white border-b border-neutral-100 px-4 md:px-8 py-5 sticky top-0 z-20">
@@ -1245,6 +1245,6 @@ export default function JobDetailReport() {
           </div>
         </div>
       )}
-    </AdminLayout>
+    </>
   );
 }
