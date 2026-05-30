@@ -27,6 +27,7 @@ import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
 import { format } from "date-fns";
+import JobRouteMap from "@/components/admin/JobRouteMap";
 
 
 export default function JobDetailReport() {
@@ -1053,21 +1054,20 @@ export default function JobDetailReport() {
                     )}
                   </div>
 
-                  {/* Route Map Preview */}
-                  <div className="rounded-2xl border border-slate-100 shadow-sm relative group overflow-hidden bg-slate-50 p-1">
-                    <div className="absolute top-4 left-4 z-10 bg-white/95 backdrop-blur-md px-2.5 py-1 rounded-lg border border-slate-100 shadow-sm">
-                      <div className="text-[9px] font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        Live Route Map
-                      </div>
-                    </div>
-                    <div className="h-[200px] rounded-xl overflow-hidden relative">
-                      <img
-                        src="https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=2074&auto=format&fit=crop"
-                        alt="Trip Route"
-                        className="w-full h-full object-cover opacity-80 grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700"
+                  {/* Live Route Map */}
+                  <div className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden bg-slate-50" style={{ height: 260 }}>
+                    {assignment?.truckNumber && assignment.truckNumber !== "N/A" ? (
+                      <JobRouteMap
+                        truckNumber={assignment.truckNumber}
+                        pickupLocations={booking?.pickupLocations || []}
+                        dropoffLocations={booking?.dropoffLocations || []}
                       />
-                    </div>
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+                        <MapPin className="w-7 h-7 text-slate-200" />
+                        <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">No truck assigned yet</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
