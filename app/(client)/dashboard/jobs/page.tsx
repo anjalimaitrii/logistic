@@ -236,8 +236,8 @@ export default function JobsPage() {
    const loadBookings = async (clientId?: string) => {
       try {
          setIsLoading(true);
-         const data = await bookingService.getAll();
-         setBookings(data || []);
+         const data = await bookingService.getAll(clientId);
+         setBookings(Array.isArray(data) ? data : (data?.bookings || []));
       } catch (error) {
          console.error("Failed to fetch bookings:", error);
       } finally {

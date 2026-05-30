@@ -26,8 +26,22 @@ import {
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
-import { format } from "date-fns";
 import JobRouteMap from "@/components/admin/JobRouteMap";
+
+function formatCAT(dateStr: string): string {
+  try {
+    return new Intl.DateTimeFormat("en", {
+      timeZone: "Africa/Lusaka",
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(new Date(dateStr));
+  } catch {
+    return "---";
+  }
+}
 
 
 export default function JobDetailReport() {
@@ -392,7 +406,7 @@ export default function JobDetailReport() {
     const historicalEvents = backendTimeline.map((item: any) => ({
       title: fmtTitle(item.title),
       description: fmtDesc(item.title, item.description),
-      time: item.time ? format(new Date(item.time), "MMM d, h:mm a") : "---",
+      time: item.time ? formatCAT(item.time) : "---",
       status: "completed",
       icon: item.title === "Petrol Refilled" ? <Fuel className="w-3.5 h-3.5" /> :
             item.title?.toLowerCase().includes("reached") ? <Flag className="w-3.5 h-3.5" /> :
@@ -647,7 +661,7 @@ export default function JobDetailReport() {
                                 {hist.oldAddress?.address?.plotNo} {hist.oldAddress?.address?.street}, {hist.oldAddress?.address?.city}
                               </div>
                               <div className="text-[9px] text-slate-400 mt-0.5">
-                                Changed: {hist.changedAt ? format(new Date(hist.changedAt), "MMM d, h:mm a") : "---"} • {hist.reason || "No reason"}
+                                Changed: {hist.changedAt ? formatCAT(hist.changedAt) : "---"} • {hist.reason || "No reason"}
                               </div>
                             </div>
                           </div>
@@ -1059,8 +1073,6 @@ export default function JobDetailReport() {
                     {assignment?.truckNumber && assignment.truckNumber !== "N/A" ? (
                       <JobRouteMap
                         truckNumber={assignment.truckNumber}
-                        pickupLocations={booking?.pickupLocations || []}
-                        dropoffLocations={booking?.dropoffLocations || []}
                       />
                     ) : (
                       <div className="w-full h-full flex flex-col items-center justify-center gap-2">

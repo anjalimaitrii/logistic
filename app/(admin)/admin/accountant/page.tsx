@@ -128,13 +128,15 @@ export default function AdminAccountant() {
   const tableData = filteredBookings.map(b => {
     const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
     const isApproved = settledBookingIds.has(b._id.toString());
-    const pickupCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "N/A";
-    const dropoffCity = b.dropoffLocations?.[0]?.address?.city || b.dropoff?.address?.city || "N/A";
+    const routeStops = [
+      ...(b.pickupLocations?.length ? b.pickupLocations : b.pickup ? [b.pickup] : []).map((l: any) => l.address?.city).filter(Boolean),
+      ...(b.dropoffLocations?.length ? b.dropoffLocations : b.dropoff ? [b.dropoff] : []).map((l: any) => l.address?.city).filter(Boolean),
+    ] as string[];
     return {
       id: b.tripId || `#TRIP-${b._id.substring(b._id.length - 4).toUpperCase()}`,
       companyName: (b.clientId as any)?.company?.companyName || "Direct Booking",
       clientName: (b.clientId as any)?.name || "N/A",
-      route: `${pickupCity} → ${dropoffCity}`,
+      route: routeStops.length ? routeStops : ["N/A"],
       status: isApproved ? "Approved" : "Assigned",
       driver: assignment?.driverName || "Unassigned",
       truckNumber: assignment?.truckNumber || "N/A",
@@ -167,7 +169,21 @@ export default function AdminAccountant() {
         </div>
       )
     },
-    { label: "Route", key: "route", render: (val: string) => <span className="text-[11px] font-normal text-neutral-400">{val}</span> },
+    {
+      label: "Route", key: "route",
+      render: (val: string[]) => {
+        const cities = Array.isArray(val) ? val : [val];
+        return (
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] font-medium text-slate-600 italic">{cities[0]}</span>
+            {cities.length > 1 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+            {cities.length > 2 && <span className="text-[11px] text-slate-400 italic">...</span>}
+            {cities.length > 2 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+            {cities.length > 1 && <span className="text-[11px] font-medium text-slate-600 italic">{cities[cities.length - 1]}</span>}
+          </div>
+        );
+      }
+    },
     {
       label: "Action",
       key: "actions",

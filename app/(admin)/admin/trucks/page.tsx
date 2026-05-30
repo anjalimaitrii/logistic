@@ -141,7 +141,6 @@ export default function AdminTrucks() {
     status: getDisplayStatus(t),
     odo: t.odometer || "0 km",
     truckType: t.truckType,
-    capacity: t.capacity,
     raw: t
   }));
 
@@ -149,7 +148,6 @@ export default function AdminTrucks() {
     { label: "Truck ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
     { label: "Model", key: "model", render: (val: string) => <span className="font-medium text-slate-700 text-nowrap">{val}</span> },
     { label: "Type", key: "truckType", render: (val: any) => <span className="font-medium text-slate-500">{val}</span> },
-    { label: "Capacity", key: "capacity", render: (val: string) => <span className="font-medium text-slate-500">{val}</span> },
     {
       label: "Status",
       key: "status",

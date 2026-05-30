@@ -85,10 +85,13 @@ export default function BookingRequestsPage() {
     return 'Pending';
   };
 
-  const getRequestRoute = (req: any) => {
-    const pickupCity = req.pickupLocations?.[0]?.address?.city || req.pickup?.address?.city || "Unknown";
-    const dropoffCity = req.dropoffLocations?.[0]?.address?.city || req.dropoff?.address?.city || "Unknown";
-    return `${pickupCity} → ${dropoffCity}`;
+  const getRequestRoute = (req: any): string[] => {
+    const pickups = (req.pickupLocations?.length ? req.pickupLocations : req.pickup ? [req.pickup] : [])
+      .map((l: any) => l.address?.city).filter(Boolean);
+    const dropoffs = (req.dropoffLocations?.length ? req.dropoffLocations : req.dropoff ? [req.dropoff] : [])
+      .map((l: any) => l.address?.city).filter(Boolean);
+    const all = [...pickups, ...dropoffs];
+    return all.length ? all : ["N/A"];
   };
 
   // Derive unique companies and clients for filter dropdowns
@@ -148,9 +151,18 @@ export default function BookingRequestsPage() {
     {
       label: "Route",
       key: "route",
-      render: (val: string) => (
-        <span className="text-[12px] font-medium text-neutral-600">{val}</span>
-      )
+      render: (val: string[]) => {
+        const cities = Array.isArray(val) ? val : [val];
+        return (
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] font-medium text-slate-600 italic">{cities[0]}</span>
+            {cities.length > 1 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+            {cities.length > 2 && <span className="text-[11px] text-slate-400 italic">...</span>}
+            {cities.length > 2 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+            {cities.length > 1 && <span className="text-[11px] font-medium text-slate-600 italic">{cities[cities.length - 1]}</span>}
+          </div>
+        );
+      }
     },
     {
       label: "Cargo Detail",

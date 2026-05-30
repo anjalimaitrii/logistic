@@ -14,7 +14,9 @@ import {
   User,
   Hash,
   Building,
-  Users
+  Users,
+  Navigation,
+  Loader2
 } from "lucide-react";
 import { clientService } from "@/services/clientService";
 import { bookingService } from "@/services/bookingService";
@@ -29,6 +31,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
   const [step, setStep] = useState(1);
   const [clients, setClients] = useState<any[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
+  const [gpsLoading, setGpsLoading] = useState<{ type: "pickup" | "dropoff"; idx: number } | null>(null);
 
   const [formData, setFormData] = useState({
     clientId: "",
@@ -74,6 +77,41 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
     } finally {
       setIsLoadingClients(false);
     }
+  };
+
+  const fetchGpsAddress = (type: "pickup" | "dropoff", idx: number) => {
+    if (!navigator.geolocation) { alert("Geolocation not supported by this browser."); return; }
+    setGpsLoading({ type, idx });
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+            { headers: { "Accept-Language": "en" } }
+          );
+          const data = await res.json();
+          const addr = data.address || {};
+          const city    = addr.city || addr.town || addr.village || addr.county || "";
+          const pincode = addr.postcode || "";
+          const street  = addr.road || addr.suburb || addr.neighbourhood || "";
+
+          setFormData(prev => {
+            const key = type === "pickup" ? "pickupLocations" : "dropoffLocations";
+            const locs = prev[key].map((loc, i) =>
+              i === idx ? { ...loc, city, pincode, street } : loc
+            );
+            return { ...prev, [key]: locs };
+          });
+        } catch {
+          alert("Failed to fetch address. Please try again.");
+        } finally {
+          setGpsLoading(null);
+        }
+      },
+      () => { alert("Location access denied. Please allow location permission."); setGpsLoading(null); },
+      { timeout: 10000 }
+    );
   };
 
   // Get alphabet letter for location (A, B, C, D, etc.)
@@ -336,17 +374,30 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                             </div>
                             <span className="text-[10px] font-semibold text-emerald-700">Pickup Stop</span>
                           </div>
-                          {formData.pickupLocations.length > 1 && (
+                          <div className="flex items-center gap-2">
                             <button
-                              onClick={() => {
-                                const newLocations = formData.pickupLocations.filter((_, i) => i !== idx);
-                                setFormData({ ...formData, pickupLocations: newLocations });
-                              }}
-                              className="text-[10px] font-semibold text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                              type="button"
+                              onClick={() => fetchGpsAddress("pickup", idx)}
+                              disabled={!!gpsLoading}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 text-[9px] font-bold uppercase tracking-wider hover:bg-emerald-100 transition-colors disabled:opacity-50"
                             >
-                              Remove
+                              {gpsLoading?.type === "pickup" && gpsLoading.idx === idx
+                                ? <Loader2 className="w-3 h-3 animate-spin" />
+                                : <Navigation className="w-3 h-3" />}
+                              GPS
                             </button>
-                          )}
+                            {formData.pickupLocations.length > 1 && (
+                              <button
+                                onClick={() => {
+                                  const newLocations = formData.pickupLocations.filter((_, i) => i !== idx);
+                                  setFormData({ ...formData, pickupLocations: newLocations });
+                                }}
+                                className="text-[10px] font-semibold text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <input
@@ -449,17 +500,30 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                             </div>
                             <span className="text-[10px] font-semibold text-rose-700">Dropoff Stop</span>
                           </div>
-                          {formData.dropoffLocations.length > 1 && (
+                          <div className="flex items-center gap-2">
                             <button
-                              onClick={() => {
-                                const newLocations = formData.dropoffLocations.filter((_, i) => i !== idx);
-                                setFormData({ ...formData, dropoffLocations: newLocations });
-                              }}
-                              className="text-[10px] font-semibold text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                              type="button"
+                              onClick={() => fetchGpsAddress("dropoff", idx)}
+                              disabled={!!gpsLoading}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 text-[9px] font-bold uppercase tracking-wider hover:bg-rose-100 transition-colors disabled:opacity-50"
                             >
-                              Remove
+                              {gpsLoading?.type === "dropoff" && gpsLoading.idx === idx
+                                ? <Loader2 className="w-3 h-3 animate-spin" />
+                                : <Navigation className="w-3 h-3" />}
+                              GPS
                             </button>
-                          )}
+                            {formData.dropoffLocations.length > 1 && (
+                              <button
+                                onClick={() => {
+                                  const newLocations = formData.dropoffLocations.filter((_, i) => i !== idx);
+                                  setFormData({ ...formData, dropoffLocations: newLocations });
+                                }}
+                                className="text-[10px] font-semibold text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                              >
+                                Remove
+                              </button>
+                            )}
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <input

@@ -217,14 +217,8 @@ export default function DashboardPage() {
    const loadBookings = async (clientId?: string) => {
       try {
          setIsLoading(true);
-         const data = await bookingService.getAll();
-         const filtered = clientId
-            ? data.filter((b: any) => {
-               const id = b.clientId?._id || b.clientId;
-               return id === clientId;
-            })
-            : data;
-         setBookings(filtered || []);
+         const data = await bookingService.getAll(clientId);
+         setBookings(Array.isArray(data) ? data : (data?.bookings || []));
       } catch (error) {
          console.error("Dashboard fetch error:", error);
       } finally {

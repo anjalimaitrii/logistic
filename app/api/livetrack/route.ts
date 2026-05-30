@@ -6,12 +6,13 @@ const CREDENTIALS = {
   password: 'Krishna@1985',
 };
 
-// Module-level token cache (survives across requests in Node.js server mode)
-let cachedToken: string | null = null;
-let tokenExpiry = 0;
+// Use global to survive Next.js dev-mode hot reloads
+const g = global as any;
+if (!g.__livetrackToken)  g.__livetrackToken  = null;
+if (!g.__livetrackExpiry) g.__livetrackExpiry = 0;
 
 async function getToken(): Promise<string> {
-  if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
+  if (g.__livetrackToken && Date.now() < g.__livetrackExpiry) return g.__livetrackToken;
 
   const res = await fetch(`${TRAKZEE_BASE}?token=generateAccessToken`, {
     method: 'POST',
@@ -41,8 +42,8 @@ async function getToken(): Promise<string> {
     throw new Error('Token not found in response');
   }
 
-  cachedToken = token;
-  tokenExpiry = Date.now() + 22 * 60 * 60 * 1000; // refresh after 22h
+  g.__livetrackToken  = token;
+  g.__livetrackExpiry = Date.now() + 22 * 60 * 60 * 1000;
   return token;
 }
 
@@ -74,9 +75,8 @@ export async function GET(req: Request) {
     });
 
     if (!res.ok) {
-      // Token may have expired — invalidate cache and return error so client retries
-      cachedToken = null;
-      tokenExpiry = 0;
+      g.__livetrackToken  = null;
+      g.__livetrackExpiry = 0;
       throw new Error(`Live data request failed: ${res.status}`);
     }
 

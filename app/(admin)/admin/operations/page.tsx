@@ -117,7 +117,10 @@ export default function AdminOperations() {
       id: b.tripId || b._id.substring(b._id.length - 6).toUpperCase(),
       companyName: (b.clientId as any)?.company?.companyName || (b.metadata?.client ? "Admin Booking" : "Direct Booking"),
       clientName: (b.clientId as any)?.name || b.metadata?.client || "N/A",
-      route: `${b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || 'N/A'} → ${b.dropoffLocations?.[0]?.address?.city || b.dropoff?.address?.city || 'N/A'}`,
+      route: [
+        ...(b.pickupLocations?.length ? b.pickupLocations : b.pickup ? [b.pickup] : []).map((l: any) => l.address?.city).filter(Boolean),
+        ...(b.dropoffLocations?.length ? b.dropoffLocations : b.dropoff ? [b.dropoff] : []).map((l: any) => l.address?.city).filter(Boolean),
+      ] as string[],
       status: assignment ? "Assigned" : "Unassigned",
       weight: b.cargoDetails?.weight,
       goodsType: b.cargoDetails?.goodsType,
@@ -142,7 +145,21 @@ export default function AdminOperations() {
         </div>
       )
     },
-    { label: "Route", key: "route", render: (val: string) => <span className="text-[11px] font-medium text-neutral-400 italic pr-2">{val}</span> },
+    {
+      label: "Route", key: "route",
+      render: (val: string[]) => {
+        const cities = Array.isArray(val) ? val : [val];
+        return (
+          <div className="flex items-center gap-1">
+            <span className="text-[11px] font-medium text-slate-600 italic">{cities[0]}</span>
+            {cities.length > 1 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+            {cities.length > 2 && <span className="text-[11px] text-slate-400 italic">...</span>}
+            {cities.length > 2 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+            {cities.length > 1 && <span className="text-[11px] font-medium text-slate-600 italic">{cities[cities.length - 1]}</span>}
+          </div>
+        );
+      }
+    },
     {
       label: "Status",
       key: "status",
