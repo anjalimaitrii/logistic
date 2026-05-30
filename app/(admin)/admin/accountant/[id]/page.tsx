@@ -25,10 +25,10 @@ export default function AccountantJobDetail() {
 
   // One entry per leg (stop-to-stop)
   const [legData, setLegData] = useState<{ km: string; mileage: string }[]>([
-    { km: "200", mileage: "4" },
+    { km: "0", mileage: "0" },
   ]);
-  const [fuelRate, setFuelRate] = useState("100");
-  const [allocationMoney, setAllocationMoney] = useState("");
+  const [fuelRate, setFuelRate] = useState("0");
+  const [allocationMoney, setAllocationMoney] = useState("0");
 
   useEffect(() => {
     if (id) loadJobDetails();
@@ -91,19 +91,19 @@ export default function AccountantJobDetail() {
           setLegData(
             Array.from({ length: totalLegs }, (_, i) => ({
               km: i === 0
-                ? settlement.fuelDetails.pickupKm?.toString() || "200"
-                : settlement.fuelDetails.dropoffKm?.toString() || "200",
+                ? settlement.fuelDetails.pickupKm?.toString() || "0"
+                : settlement.fuelDetails.dropoffKm?.toString() || "0",
               mileage: i === 0
-                ? settlement.fuelDetails.pickupMileage?.toString() || "4"
-                : settlement.fuelDetails.dropoffMileage?.toString() || "4",
+                ? settlement.fuelDetails.pickupMileage?.toString() || "0"
+                : settlement.fuelDetails.dropoffMileage?.toString() || "0",
             }))
           );
         }
-        setFuelRate(settlement.fuelDetails.fuelRate?.toString() || "100");
+        setFuelRate(settlement.fuelDetails.fuelRate?.toString() || "0");
         setAllocationMoney(settlement.financials.cashAllocation?.toString() || "");
       } else {
-        setLegData(Array.from({ length: totalLegs }, () => ({ km: "200", mileage: "4" })));
-        if (data.advancePaid) setAllocationMoney(data.advancePaid.toString());
+        setLegData(Array.from({ length: totalLegs }, () => ({ km: "0", mileage: "0" })));
+        setAllocationMoney(data.advancePaid ? data.advancePaid.toString() : "0");
       }
     } catch (error) {
       console.error("Failed to load job details:", error);
