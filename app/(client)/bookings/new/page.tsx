@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
 import {
@@ -17,7 +17,8 @@ import {
    Hash,
    MapPin,
    Building,
-   X
+   X,
+   Clock,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -45,7 +46,6 @@ const emptyLocation = (): LocationEntry => ({
 
 const getLabel = (idx: number, offset = 0) => String.fromCharCode(65 + offset + idx);
 
-// ── Defined OUTSIDE page component to prevent remount on every keystroke ──
 const ACCENT = {
    emerald: {
       bar: "bg-emerald-500",
@@ -57,6 +57,7 @@ const ACCENT = {
       gpsOff: "hover:text-emerald-500 hover:border-emerald-100",
       focus: "focus:border-emerald-100",
       add: "border-emerald-300 text-emerald-600 hover:bg-emerald-50",
+      suggestion: "border-emerald-100",
    },
    rose: {
       bar: "bg-rose-500",
@@ -68,8 +69,33 @@ const ACCENT = {
       gpsOff: "hover:text-rose-500 hover:border-rose-100",
       focus: "focus:border-rose-100",
       add: "border-rose-300 text-rose-600 hover:bg-rose-50",
+      suggestion: "border-rose-100",
    },
 };
+
+function extractPreviousLocations(bookings: any[]): LocationEntry[] {
+   const seen = new Set<string>();
+   const locs: LocationEntry[] = [];
+   for (const booking of bookings) {
+      const stops = [...(booking.pickupLocations || []), ...(booking.dropoffLocations || [])];
+      for (const stop of stops) {
+         const key = `${stop.address?.city}|${stop.address?.street}|${stop.address?.plotNo}|${stop.contactNumber}`;
+         if (!seen.has(key) && stop.address?.city) {
+            seen.add(key);
+            locs.push({
+               contactPerson: stop.contactPerson || "",
+               contact: stop.contactNumber || "",
+               plotNo: stop.address?.plotNo || "",
+               street: stop.address?.street || "",
+               city: stop.address?.city || "",
+               pincode: stop.address?.pincode || "",
+               gps: stop.gpsEnabled || false,
+            });
+         }
+      }
+   }
+   return locs.slice(0, 10);
+}
 
 interface LocationSectionProps {
    type: "pickupLocations" | "dropoffLocations";
@@ -78,13 +104,33 @@ interface LocationSectionProps {
    locations: LocationEntry[];
    offset: number;
    isPickup: boolean;
+   previousAddresses: LocationEntry[];
    onUpdate: (type: "pickupLocations" | "dropoffLocations", idx: number, field: keyof LocationEntry, value: string | boolean) => void;
    onAdd: (type: "pickupLocations" | "dropoffLocations") => void;
    onRemove: (type: "pickupLocations" | "dropoffLocations", idx: number) => void;
+   onFill: (type: "pickupLocations" | "dropoffLocations", idx: number, address: LocationEntry) => void;
 }
 
-function LocationSection({ type, label, color, locations, offset, isPickup, onUpdate, onAdd, onRemove }: LocationSectionProps) {
+function LocationSection({ type, label, color, locations, offset, isPickup, previousAddresses, onUpdate, onAdd, onRemove, onFill }: LocationSectionProps) {
    const a = ACCENT[color];
+   const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
+   const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+   const handleAddressFieldFocus = (idx: number) => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      if (previousAddresses.length > 0) setFocusedIdx(idx);
+   };
+
+   const handleAddressFieldBlur = () => {
+      hideTimerRef.current = setTimeout(() => setFocusedIdx(null), 150);
+   };
+
+   const handleSuggestionClick = (idx: number, addr: LocationEntry) => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      onFill(type, idx, addr);
+      setFocusedIdx(null);
+   };
+
    return (
       <section className="bg-white rounded-2xl border border-slate-100 p-5 shadow-sm space-y-4">
          <div className="flex items-center gap-2">
@@ -127,6 +173,7 @@ function LocationSection({ type, label, color, locations, offset, isPickup, onUp
                      </div>
                   </div>
 
+                  {/* Contact fields */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                      <div className="relative">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
@@ -142,52 +189,101 @@ function LocationSection({ type, label, color, locations, offset, isPickup, onUp
                         <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
                         <input
                            type="tel"
-                           placeholder="Contact Number"
+                           placeholder="Contact Number *"
                            value={loc.contact}
                            onChange={(e) => onUpdate(type, idx, "contact", e.target.value)}
                            className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
                         />
                      </div>
-                     <div className="relative">
-                        <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
-                        <input
-                           type="text"
-                           placeholder="Plot / Office No"
-                           value={loc.plotNo}
-                           onChange={(e) => onUpdate(type, idx, "plotNo", e.target.value)}
-                           className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
-                        />
+                  </div>
+
+                  {/* Address fields — suggestions appear below these */}
+                  <div className="relative">
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="relative">
+                           <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                           <input
+                              type="text"
+                              placeholder="Plot / Office No"
+                              value={loc.plotNo}
+                              onChange={(e) => onUpdate(type, idx, "plotNo", e.target.value)}
+                              onFocus={() => handleAddressFieldFocus(idx)}
+                              onBlur={handleAddressFieldBlur}
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
+                           />
+                        </div>
+                        <div className="relative">
+                           <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                           <input
+                              type="text"
+                              placeholder="Street / Building"
+                              value={loc.street}
+                              onChange={(e) => onUpdate(type, idx, "street", e.target.value)}
+                              onFocus={() => handleAddressFieldFocus(idx)}
+                              onBlur={handleAddressFieldBlur}
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
+                           />
+                        </div>
+                        <div className="relative">
+                           <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                           <input
+                              type="text"
+                              placeholder="City *"
+                              value={loc.city}
+                              onChange={(e) => onUpdate(type, idx, "city", e.target.value)}
+                              onFocus={() => handleAddressFieldFocus(idx)}
+                              onBlur={handleAddressFieldBlur}
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
+                           />
+                        </div>
+                        <div className="relative">
+                           <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 scale-x-[-1] rotate-180" />
+                           <input
+                              type="text"
+                              placeholder="Pincode"
+                              value={loc.pincode}
+                              onChange={(e) => onUpdate(type, idx, "pincode", e.target.value)}
+                              onFocus={() => handleAddressFieldFocus(idx)}
+                              onBlur={handleAddressFieldBlur}
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
+                           />
+                        </div>
                      </div>
-                     <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
-                        <input
-                           type="text"
-                           placeholder="Street / Building"
-                           value={loc.street}
-                           onChange={(e) => onUpdate(type, idx, "street", e.target.value)}
-                           className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
-                        />
-                     </div>
-                     <div className="relative">
-                        <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
-                        <input
-                           type="text"
-                           placeholder="City"
-                           value={loc.city}
-                           onChange={(e) => onUpdate(type, idx, "city", e.target.value)}
-                           className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
-                        />
-                     </div>
-                     <div className="relative">
-                        <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 scale-x-[-1] rotate-180" />
-                        <input
-                           type="text"
-                           placeholder="Pincode"
-                           value={loc.pincode}
-                           onChange={(e) => onUpdate(type, idx, "pincode", e.target.value)}
-                           className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
-                        />
-                     </div>
+
+                     {/* Previous address suggestions */}
+                     {focusedIdx === idx && (
+                        <div className={`mt-2 rounded-xl border ${a.suggestion} bg-white shadow-lg overflow-hidden`}>
+                           <div className="flex items-center gap-1.5 px-3 py-2 border-b border-slate-50">
+                              <Clock className="w-3 h-3 text-slate-300" />
+                              <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400">Previous Addresses</span>
+                           </div>
+                           <div className="max-h-48 overflow-y-auto">
+                              {previousAddresses.map((prev, pIdx) => (
+                                 <button
+                                    key={pIdx}
+                                    type="button"
+                                    onMouseDown={(e) => {
+                                       e.preventDefault();
+                                       handleSuggestionClick(idx, prev);
+                                    }}
+                                    className="w-full text-left px-3 py-2.5 hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 flex items-center gap-2.5"
+                                 >
+                                    <MapPin className="w-3 h-3 text-slate-300 shrink-0" />
+                                    <div className="min-w-0 flex-1">
+                                       <p className="text-[11px] font-medium text-slate-700 truncate">
+                                          {[prev.plotNo, prev.street, prev.city, prev.pincode].filter(Boolean).join(", ")}
+                                       </p>
+                                       {(prev.contactPerson || prev.contact) && (
+                                          <p className="text-[9px] text-slate-400 mt-0.5 truncate">
+                                             {[prev.contactPerson, prev.contact].filter(Boolean).join(" · ")}
+                                          </p>
+                                       )}
+                                    </div>
+                                 </button>
+                              ))}
+                           </div>
+                        </div>
+                     )}
                   </div>
                </div>
             ))}
@@ -210,11 +306,21 @@ export default function NewBookingPage() {
    const isDesktop = useMediaQuery("(min-width: 768px)");
    const router = useRouter();
    const [user, setUser] = useState<any>(null);
+   const [previousLocations, setPreviousLocations] = useState<LocationEntry[]>([]);
 
    useEffect(() => {
       const storedUser = localStorage.getItem("user");
       if (storedUser) setUser(JSON.parse(storedUser));
    }, []);
+
+   useEffect(() => {
+      const clientId = user?._id || user?.id;
+      if (!clientId) return;
+      bookingService.getAll(clientId).then((data: any) => {
+         const bookings = Array.isArray(data) ? data : (data?.bookings || []);
+         setPreviousLocations(extractPreviousLocations(bookings));
+      }).catch(() => {});
+   }, [user]);
 
    const [formData, setFormData] = useState({
       goodsType: "",
@@ -245,6 +351,13 @@ export default function NewBookingPage() {
 
    const removeLocation = (type: "pickupLocations" | "dropoffLocations", idx: number) => {
       setFormData(prev => ({ ...prev, [type]: prev[type].filter((_, i) => i !== idx) }));
+   };
+
+   const fillLocation = (type: "pickupLocations" | "dropoffLocations", idx: number, address: LocationEntry) => {
+      setFormData(prev => ({
+         ...prev,
+         [type]: prev[type].map((loc, i) => i === idx ? { ...address } : loc),
+      }));
    };
 
    const handleSubmit = async () => {
@@ -306,7 +419,7 @@ export default function NewBookingPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 px-2 gap-4">
                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Type of Goods</label>
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Type of Goods <span className="text-red-500">*</span></label>
                   <div className="relative group">
                      <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 group-focus-within:text-primary transition-colors" />
                      <input
@@ -319,7 +432,7 @@ export default function NewBookingPage() {
                   </div>
                </div>
                <div className="space-y-1">
-                  <label className="text-[9px] font-semibold text-slate-300 uppercase tracking-widest ml-1">Approx Weight (kg)</label>
+                  <label className="text-[9px] font-semibold text-slate-300 uppercase tracking-widest ml-1">Approx Weight (kg) <span className="text-red-500">*</span></label>
                   <input
                      type="number"
                      placeholder="0"
@@ -354,9 +467,11 @@ export default function NewBookingPage() {
             locations={formData.pickupLocations}
             offset={0}
             isPickup={true}
+            previousAddresses={previousLocations}
             onUpdate={updateLocation}
             onAdd={addLocation}
             onRemove={removeLocation}
+            onFill={fillLocation}
          />
 
          {/* ── 3. DROPOFF LOCATIONS ── */}
@@ -367,9 +482,11 @@ export default function NewBookingPage() {
             locations={formData.dropoffLocations}
             offset={formData.pickupLocations.length}
             isPickup={false}
+            previousAddresses={previousLocations}
             onUpdate={updateLocation}
             onAdd={addLocation}
             onRemove={removeLocation}
+            onFill={fillLocation}
          />
 
          {/* ── 4. VEHICLE CATEGORY ── */}

@@ -54,6 +54,20 @@ export default function JobDetailReport() {
     date: new Date().toISOString().split('T')[0]
   });
 
+  // Completion Inspection Modal
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [completionForm, setCompletionForm] = useState({
+    vehicleCondition: "Good",
+    tyreCondition: "Good",
+    tyreNumber: "",
+    tollAmount: "",
+    challans: "",
+    deliveryOrders: [""],
+    damages: [{ description: "", amount: "" }],
+    notes: "",
+  });
+  const [isSubmittingCompletion, setIsSubmittingCompletion] = useState(false);
+
   // Address Change Modal State
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [addressChangeData, setAddressChangeData] = useState({
@@ -201,11 +215,41 @@ export default function JobDetailReport() {
   };
 
   const handleStatusUpdate = async (newStatus: string) => {
+    if (newStatus === "COMPLETED") {
+      setShowCompletionModal(true);
+      return;
+    }
     try {
       await bookingService.updateTripStatus(id, newStatus.toLowerCase());
       await loadData();
     } catch (error) {
       console.error("Status update failed:", error);
+    }
+  };
+
+  const handleSubmitCompletion = async () => {
+    setIsSubmittingCompletion(true);
+    try {
+      const { tollAmount, deliveryOrders, damages, ...inspectionData } = completionForm;
+      if (assignment?._id) {
+        await assignmentService.markTruckInspected(assignment._id, {
+          ...inspectionData,
+          deliveryOrders: deliveryOrders.filter(d => d.trim()),
+          damages: damages.filter(d => d.description.trim()),
+        });
+      }
+      const tollAmt = parseFloat(tollAmount);
+      if (tollAmt > 0) {
+        await settlementService.process({ bookingId: id, tollAmount: tollAmt });
+      }
+      await bookingService.updateTripStatus(id, "completed");
+      setShowCompletionModal(false);
+      await loadData();
+    } catch (error) {
+      console.error("Completion failed:", error);
+      alert("Failed to complete job");
+    } finally {
+      setIsSubmittingCompletion(false);
     }
   };
 
@@ -1031,6 +1075,105 @@ export default function JobDetailReport() {
           </div>
         </div>
       </div>
+      {/* Completion Inspection Modal */}
+      {showCompletionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={() => setShowCompletionModal(false)} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+            <div className="px-6 pt-6 pb-4 border-b border-neutral-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h2 className="text-[15px] font-bold text-slate-900">Complete Job — Final Inspection</h2>
+                  <p className="text-[11px] text-neutral-400 font-medium">
+                    {assignment?.driverName || "Driver"} · {assignment?.truckNumber || "N/A"}
+                    {booking?.tripId && <span className="text-primary ml-1">· {booking.tripId}</span>}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Vehicle Condition</label>
+                  <select value={completionForm.vehicleCondition} onChange={e => setCompletionForm(f => ({ ...f, vehicleCondition: e.target.value }))} className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer">
+                    <option>Excellent</option><option>Good</option><option>Fair</option><option>Poor — Needs Repair</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Tyre Condition</label>
+                  <select value={completionForm.tyreCondition} onChange={e => setCompletionForm(f => ({ ...f, tyreCondition: e.target.value }))} className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer">
+                    <option>Excellent</option><option>Good</option><option>Fair</option><option>Poor — Replace</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Tyre Number</label>
+                  <input type="text" value={completionForm.tyreNumber} onChange={e => setCompletionForm(f => ({ ...f, tyreNumber: e.target.value }))} placeholder="e.g. TY-2024-001" className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Toll Challans</label>
+                  <input type="text" value={completionForm.challans} onChange={e => setCompletionForm(f => ({ ...f, challans: e.target.value }))} placeholder="Challan no. or ref." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Toll Amount</label>
+                <input type="number" value={completionForm.tollAmount} onChange={e => setCompletionForm(f => ({ ...f, tollAmount: e.target.value }))} placeholder="0 — leave blank if none" className="w-full bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-amber-300 transition-all" />
+                <p className="text-[9px] text-neutral-400 italic">Deducted from toll wallet on submission</p>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Delivery Orders</label>
+                  <button type="button" onClick={() => setCompletionForm(f => ({ ...f, deliveryOrders: [...f.deliveryOrders, ""] }))} className="text-[9px] font-bold text-primary uppercase tracking-widest hover:underline">+ Add</button>
+                </div>
+                {completionForm.deliveryOrders.map((do_, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input type="text" value={do_} onChange={e => { const arr = [...completionForm.deliveryOrders]; arr[i] = e.target.value; setCompletionForm(f => ({ ...f, deliveryOrders: arr })); }} placeholder={`DO #${i + 1}`} className="flex-1 bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
+                    {completionForm.deliveryOrders.length > 1 && <button type="button" onClick={() => setCompletionForm(f => ({ ...f, deliveryOrders: f.deliveryOrders.filter((_, idx) => idx !== i) }))} className="px-2 text-rose-400 hover:text-rose-600 text-[11px] font-bold">✕</button>}
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Damages</label>
+                  <button type="button" onClick={() => setCompletionForm(f => ({ ...f, damages: [...f.damages, { description: "", amount: "" }] }))} className="text-[9px] font-bold text-rose-500 uppercase tracking-widest hover:underline">+ Add</button>
+                </div>
+                {completionForm.damages.map((dmg, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <input type="text" value={dmg.description} onChange={e => { const arr = completionForm.damages.map((d, idx) => idx === i ? { ...d, description: e.target.value } : d); setCompletionForm(f => ({ ...f, damages: arr })); }} placeholder="Description" className="flex-1 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-rose-300 transition-all" />
+                    <input type="number" value={dmg.amount} onChange={e => { const arr = completionForm.damages.map((d, idx) => idx === i ? { ...d, amount: e.target.value } : d); setCompletionForm(f => ({ ...f, damages: arr })); }} placeholder="Amount" className="w-24 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-rose-300 transition-all" />
+                    {completionForm.damages.length > 1 && <button type="button" onClick={() => setCompletionForm(f => ({ ...f, damages: f.damages.filter((_, idx) => idx !== i) }))} className="px-2 pt-2 text-rose-400 hover:text-rose-600 text-[11px] font-bold">✕</button>}
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Notes</label>
+                <textarea rows={2} value={completionForm.notes} onChange={e => setCompletionForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any observations or issues..." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] text-slate-700 outline-none focus:border-primary/30 transition-all resize-none" />
+              </div>
+            </div>
+
+            <div className="px-6 pb-6 pt-4 border-t border-neutral-100 flex gap-3 shrink-0">
+              <button onClick={() => setShowCompletionModal(false)} className="flex-1 py-3 border border-neutral-100 rounded-2xl text-[11px] font-bold text-neutral-400 uppercase tracking-widest hover:bg-neutral-50 transition-all">
+                Cancel
+              </button>
+              <button onClick={handleSubmitCompletion} disabled={isSubmittingCompletion} className="flex-1 py-3 bg-emerald-500 text-white rounded-2xl text-[11px] font-bold uppercase tracking-widest hover:bg-emerald-600 active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-emerald-200">
+                <CheckCircle2 className="w-4 h-4" />
+                {isSubmittingCompletion ? "Completing..." : "Confirm & Complete Job"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Address Change Modal */}
       {showAddressModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">

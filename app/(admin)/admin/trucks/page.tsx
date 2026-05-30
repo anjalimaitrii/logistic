@@ -13,8 +13,9 @@ import { fetchLiveVehicles } from "@/services/liveTrackingService";
 
 function gpsStatusToTruck(s: string) {
   if (s === "RUNNING") return "Active";
-  if (s === "IDLE") return "Idle";
-  return "Maint.";
+  if (s === "IDLE")    return "Idle";
+  if (s === "STOP")    return "Stopped";
+  return "Inactive";
 }
 
 export default function AdminTrucks() {
@@ -62,6 +63,18 @@ export default function AdminTrucks() {
         return id && !dbIds.has(id);
       });
 
+      // Fix any existing DB trucks still carrying the old "Maint." value
+      const staleMaints = db.filter((t: any) => t.status === "Maint.");
+      if (staleMaints.length > 0) {
+        await Promise.allSettled(
+          staleMaints.map((t: any) => {
+            const gpsStatus = statusMap[t.truckId];
+            const corrected = gpsStatus || "Stopped";
+            return truckService.update(t._id, { status: corrected });
+          })
+        );
+      }
+
       if (newVehicles.length > 0) {
         await Promise.allSettled(
           newVehicles.map((v) => {
@@ -75,7 +88,9 @@ export default function AdminTrucks() {
             });
           })
         );
-        // Reload from DB to get proper MongoDB _id
+      }
+
+      if (staleMaints.length > 0 || newVehicles.length > 0) {
         const fresh = await truckService.getAll();
         setTrucks(fresh || []);
       }
@@ -105,24 +120,25 @@ export default function AdminTrucks() {
     }
   };
 
-  // GPS status takes priority; DB status only used for Maint. override
   const getDisplayStatus = (t: any): string => {
-    if (t.status === "Maint.") return "Maint.";
-    return gpsStatusMap[t.truckId] || t.status || "Idle";
+    const gps = gpsStatusMap[t.truckId];
+    if (gps) return gps;
+    if (t.status === "Maint." || t.status === "Inactive") return "Stopped";
+    return t.status || "Idle";
   };
 
 
   const kpis = [
     { label: "Total Fleet", value: trucks.length.toString(), icon: "🚛", subText: "Registered units", trend: "Live", variant: "primary" as const },
     { label: "Active", value: trucks.filter(t => getDisplayStatus(t) === "Active").length.toString(), icon: "🛣️", subText: "Currently on road", trend: "Sync", variant: "success" as const },
-    { label: "Maintenance", value: trucks.filter(t => getDisplayStatus(t) === "Maint.").length.toString(), icon: "🔧", subText: "Units in workshop", trend: "Review", variant: "danger" as const },
-    { label: "Idle", value: trucks.filter(t => getDisplayStatus(t) === "Idle").length.toString(), icon: "🅿️", subText: "Available for dispatch", trend: "Ready", variant: "warning" as const },
+    { label: "Idle", value: trucks.filter(t => getDisplayStatus(t) === "Idle").length.toString(), icon: "🅿️", subText: "Engine on, stationary", trend: "Ready", variant: "warning" as const },
+    { label: "Stopped", value: trucks.filter(t => getDisplayStatus(t) === "Stopped" || getDisplayStatus(t) === "Inactive").length.toString(), icon: "🔴", subText: "Stopped / Inactive", trend: "Review", variant: "danger" as const },
   ];
 
   const tableData = trucks.map(t => ({
     id: t.truckId,
     model: t.vehicleModel,
-    status: t.status,
+    status: getDisplayStatus(t),
     odo: t.odometer || "0 km",
     truckType: t.truckType,
     capacity: t.capacity,
@@ -139,12 +155,13 @@ export default function AdminTrucks() {
       key: "status",
       render: (_val: string, row: any) => {
         const ds = getDisplayStatus(row.raw);
+        const colorClass =
+          ds === "Active"   ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+          ds === "Idle"     ? "bg-amber-50 text-amber-500 border-amber-100" :
+          ds === "Stopped"  ? "bg-rose-50 text-rose-500 border-rose-100" :
+                              "bg-slate-50 text-slate-400 border-slate-200";
         return (
-          <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${
-            ds === "Active" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-            ds === "Idle"   ? "bg-amber-50 text-amber-500 border-amber-100" :
-                              "bg-rose-50 text-rose-500 border-rose-100"
-          }`}>
+          <span className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border ${colorClass}`}>
             {ds}
           </span>
         );
