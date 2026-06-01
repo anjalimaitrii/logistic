@@ -60,7 +60,7 @@ export function getDriverName(v: LiveVehicle): string {
 }
 
 export async function fetchLiveVehicles(): Promise<LiveVehicle[]> {
-  const res = await fetch(`/api/livetrack`, { cache: 'no-store' });
+  const res = await fetch(`/api/livetrack`, { cache: 'default' });
   if (!res.ok) throw new Error('Failed to fetch live tracking data');
   const data = await res.json();
   if (!data.success) throw new Error(data.error || 'Unknown error');

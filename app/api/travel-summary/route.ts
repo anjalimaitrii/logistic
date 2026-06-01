@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 
-const WEBSERVICE_BASE = 'http://13.127.228.11/webservice';
+const WEBSERVICE_BASE = process.env.TRAKZEE_BASE_URL || 'http://13.127.228.11/webservice';
 const CREDENTIALS = {
-  username: 'speedogisticzm@tntzm.gps',
-  password: 'Krishna@1985',
+  username: process.env.TRAKZEE_USERNAME || '',
+  password: process.env.TRAKZEE_PASSWORD || '',
 };
 
 // Token cache (22h TTL)
