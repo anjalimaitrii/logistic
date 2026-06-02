@@ -39,7 +39,7 @@ interface LocationEntry {
   plotNo: string;
   street: string;
   city: string;
-  lga: string;
+  pincode: string;
 }
 
 const NIGERIAN_CITIES = [
@@ -62,7 +62,7 @@ const emptyLocation = (): LocationEntry => ({
   plotNo: "",
   street: "",
   city: "",
-  lga: "",
+  pincode: "",
 });
 
 export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: CreateBookingDrawerProps) {
@@ -148,14 +148,14 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
           );
           const data = await res.json();
           const addr = data.address || {};
-          const city   = addr.city || addr.town || addr.village || "";
-          const lga    = addr.county || addr.state_district || "";
-          const street = addr.road || addr.suburb || addr.neighbourhood || "";
+          const city    = addr.city || addr.town || addr.village || "";
+          const pincode = addr.postcode || "";
+          const street  = addr.road || addr.suburb || addr.neighbourhood || "";
 
           setFormData(prev => {
             const key = type === "pickup" ? "pickupLocations" : "dropoffLocations";
             const locs = prev[key].map((loc, i) =>
-              i === idx ? { ...loc, city, lga, street } : loc
+              i === idx ? { ...loc, city, pincode, street } : loc
             );
             return { ...prev, [key]: locs };
           });
@@ -258,7 +258,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
           plotNo: loc.plotNo,
           street: loc.street,
           city: loc.city,
-          lga: loc.lga,
+          pincode: loc.pincode,
         },
         gpsEnabled: false,
       });
@@ -415,7 +415,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
           />
         </div>
 
-        {/* Address row 2 — City + LGA */}
+        {/* Address row 2 — City + Pincode */}
         <div className="grid grid-cols-2 gap-3">
           <select
             value={location.city}
@@ -428,9 +428,9 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
             ))}
           </select>
           <input
-            placeholder="LGA"
-            value={location.lga}
-            onChange={(e) => updateLoc(type, idx, "lga", e.target.value)}
+            placeholder="Pincode"
+            value={location.pincode}
+            onChange={(e) => updateLoc(type, idx, "pincode", e.target.value)}
             className={inputCls}
           />
         </div>
@@ -701,7 +701,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                           {getLocationLabel(formData.pickupLocations.length, formData.dropoffLocations.length, true, idx)}
                         </div>
                         <div className="flex-1">
-                          <div className="font-semibold text-emerald-900 text-[11px]">{location.city}{location.lga ? `, ${location.lga}` : ""}</div>
+                          <div className="font-semibold text-emerald-900 text-[11px]">{location.city}{location.pincode ? `, ${location.pincode}` : ""}</div>
                           <div className="text-emerald-600 text-[9px] mt-0.5">{location.contactPerson} · {location.contact}</div>
                           {location.contactPerson2 && (
                             <div className="text-emerald-500 text-[9px]">{location.contactPerson2} · {location.contact2}</div>
@@ -726,7 +726,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                           {getLocationLabel(formData.pickupLocations.length, formData.dropoffLocations.length, false, idx)}
                         </div>
                         <div className="flex-1">
-                          <div className="font-semibold text-rose-900 text-[11px]">{location.city}{location.lga ? `, ${location.lga}` : ""}</div>
+                          <div className="font-semibold text-rose-900 text-[11px]">{location.city}{location.pincode ? `, ${location.pincode}` : ""}</div>
                           <div className="text-rose-600 text-[9px] mt-0.5">{location.contactPerson} · {location.contact}</div>
                           {location.contactPerson2 && (
                             <div className="text-rose-500 text-[9px]">{location.contactPerson2} · {location.contact2}</div>
