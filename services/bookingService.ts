@@ -3,11 +3,14 @@ import { fetchApi } from './api';
 export interface LocationStop {
   contactPerson: string;
   contactNumber: string;
+  contactPerson2?: string;
+  contactNumber2?: string;
   address: {
     plotNo: string;
     street: string;
     city: string;
-    pincode: string;
+    lga?: string;
+    pincode?: string;
   };
   gpsEnabled?: boolean;
   sequence: number;

@@ -109,9 +109,7 @@ export default function AdminJobsPage() {
     const pickupLocs = b?.pickupLocations?.length > 0 ? b.pickupLocations : (b?.pickup ? [b.pickup] : []);
     const dropoffLocs = b?.dropoffLocations?.length > 0 ? b.dropoffLocations : (b?.dropoff ? [b.dropoff] : []);
     const allLocs = [...pickupLocs, ...dropoffLocs];
-    const firstCity = allLocs[0]?.address?.city || "Origin";
-    const lastCity = allLocs[allLocs.length - 1]?.address?.city || "Dest.";
-    const route = allLocs.length > 2 ? `${firstCity} → ... → ${lastCity}` : `${firstCity} → ${lastCity}`;
+    const route = allLocs.map((l: any) => l.address?.city).filter(Boolean) as string[];
     const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
     return {
       id: b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
@@ -163,7 +161,24 @@ export default function AdminJobsPage() {
     {
       label: "ROUTE",
       key: "route",
-      render: (val: string) => <span className="text-[12px] font-medium text-slate-500 italic">{val}</span>
+      render: (val: string[]) => {
+        const cities = Array.isArray(val) ? val : [val];
+        return (
+          <div className="relative group inline-flex items-center gap-1">
+            <span className="text-[11px] font-medium text-slate-600 italic">{cities[0]}</span>
+            {cities.length > 1 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+            {cities.length > 2 && <span className="text-[11px] text-slate-400 italic">...</span>}
+            {cities.length > 2 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+            {cities.length > 1 && <span className="text-[11px] font-medium text-slate-600 italic">{cities[cities.length - 1]}</span>}
+            {cities.length > 2 && (
+              <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-50 bg-slate-900 text-white text-[10px] font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl pointer-events-none">
+                {cities.join(" → ")}
+                <div className="absolute top-full left-3 border-4 border-transparent border-t-slate-900" />
+              </div>
+            )}
+          </div>
+        );
+      }
     },
     {
       label: "ACTIONS",

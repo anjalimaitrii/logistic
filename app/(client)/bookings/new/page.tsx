@@ -25,6 +25,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useRouter } from "next/navigation";
 import { bookingService } from "@/services/bookingService";
+import { goodsTypeService } from "@/services/goodsTypeService";
 
 const TRUCK_TYPES = [
    { name: "Flat Bed", icon: "🚜", desc: "Open Platform", cap: "Required" },
@@ -342,6 +343,11 @@ export default function NewBookingPage() {
    const router = useRouter();
    const [user, setUser] = useState<any>(null);
    const [localPrevious, setLocalPrevious] = useState<LocationEntry[]>([]);
+   const [goodsTypes, setGoodsTypes] = useState<{ _id: string; name: string }[]>([]);
+
+   useEffect(() => {
+      goodsTypeService.getAll().then(data => setGoodsTypes(data || [])).catch(() => {});
+   }, []);
    // Maps "pickupLocations-0" → index in localPrevious (to update on edit)
    const [suggestionSource, setSuggestionSource] = useState<Record<string, number>>({});
 
@@ -486,15 +492,16 @@ export default function NewBookingPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 px-2 gap-4">
                <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Type of Goods <span className="text-red-500">*</span></label>
-                  <div className="relative group">
-                     <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 group-focus-within:text-primary transition-colors" />
-                     <input
-                        type="text"
-                        placeholder="e.g. Electronics"
+                  <div className="relative">
+                     <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 pointer-events-none" />
+                     <select
                         value={formData.goodsType}
-                        onChange={(e) => setFormData(prev => ({ ...prev, goodsType: e.target.value.replace(/[0-9]/g, "") }))}
-                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-primary/20 outline-none transition-all"
-                     />
+                        onChange={(e) => setFormData(prev => ({ ...prev, goodsType: e.target.value }))}
+                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-primary/20 outline-none transition-all appearance-none cursor-pointer"
+                     >
+                        <option value="">Select goods type...</option>
+                        {goodsTypes.map(g => <option key={g._id} value={g.name}>{g.name}</option>)}
+                     </select>
                   </div>
                </div>
                <div className="space-y-1">

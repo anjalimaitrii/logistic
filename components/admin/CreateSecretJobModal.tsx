@@ -4,10 +4,11 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, ChevronRight, MapPin, Package, Calendar,
-  CheckCircle2, ArrowLeft, Users
+  CheckCircle2, ArrowLeft, Users, Plus, Trash2
 } from "lucide-react";
 import { clientService } from "@/services/clientService";
 import { bookingService } from "@/services/bookingService";
+import { goodsTypeService } from "@/services/goodsTypeService";
 
 interface CreateSecretJobModalProps {
   isOpen: boolean;
@@ -22,6 +23,9 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
   const [clients, setClients] = useState<any[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
   const [withTax, setWithTax] = useState(true);
+  const [goodsTypes, setGoodsTypes] = useState<{ _id: string; name: string }[]>([]);
+  const [showGoodsManager, setShowGoodsManager] = useState(false);
+  const [newGoodsInput, setNewGoodsInput] = useState("");
 
   const [formData, setFormData] = useState({
     clientId: "",
@@ -34,7 +38,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
   });
 
   useEffect(() => {
-    if (isOpen) loadClients();
+    if (isOpen) { loadClients(); loadGoodsTypes(); }
   }, [isOpen]);
 
   const loadClients = async () => {
@@ -45,6 +49,31 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
     } catch { } finally {
       setIsLoadingClients(false);
     }
+  };
+
+  const loadGoodsTypes = async () => {
+    try {
+      const data = await goodsTypeService.getAll();
+      setGoodsTypes(data || []);
+    } catch { }
+  };
+
+  const addGoodsType = async () => {
+    const val = newGoodsInput.trim();
+    if (!val) return;
+    try {
+      const created = await goodsTypeService.create(val);
+      setGoodsTypes(prev => [...prev, created]);
+      setNewGoodsInput("");
+    } catch { }
+  };
+
+  const deleteGoodsType = async (id: string, name: string) => {
+    try {
+      await goodsTypeService.remove(id);
+      setGoodsTypes(prev => prev.filter(g => g._id !== id));
+      if (formData.goodsType === name) setFormData(f => ({ ...f, goodsType: "" }));
+    } catch { }
   };
 
   const lbl = (pCount: number, dCount: number, isPick: boolean, idx: number) =>
@@ -215,13 +244,39 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                     {isLoadingClients && <p className="text-[9px] text-primary animate-pulse ml-1">Fetching clients...</p>}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-4">
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Type of Goods <span className="text-red-500">*</span></label>
-                      <div className="relative group">
-                        <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-primary transition-colors" />
-                        <input type="text" value={formData.goodsType} onChange={(e) => setFormData({ ...formData, goodsType: e.target.value })} placeholder="e.g. Textiles" className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm" />
+                      <div className="flex items-center justify-between ml-1">
+                        <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest">Type of Goods <span className="text-red-500">*</span></label>
+                        <button type="button" onClick={() => setShowGoodsManager(v => !v)} className="flex items-center gap-1 text-[9px] font-bold text-primary uppercase tracking-widest hover:underline">
+                          <Plus className="w-3 h-3" /> Manage
+                        </button>
                       </div>
+                      <div className="relative">
+                        <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 pointer-events-none" />
+                        <select value={formData.goodsType} onChange={(e) => setFormData({ ...formData, goodsType: e.target.value })} className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm appearance-none cursor-pointer">
+                          <option value="">Select goods type...</option>
+                          {goodsTypes.map(g => <option key={g._id} value={g.name}>{g.name}</option>)}
+                        </select>
+                      </div>
+                      {showGoodsManager && (
+                        <div className="bg-white border border-neutral-100 rounded-xl p-3 shadow-sm space-y-2">
+                          <div className="flex gap-2">
+                            <input type="text" value={newGoodsInput} onChange={(e) => setNewGoodsInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addGoodsType()} placeholder="New goods type..." className="flex-1 bg-neutral-50 border border-neutral-200 rounded-lg py-1.5 px-3 text-[12px] outline-none focus:border-primary/30" />
+                            <button type="button" onClick={addGoodsType} className="px-3 py-1.5 bg-primary text-white rounded-lg text-[10px] font-bold uppercase tracking-widest hover:brightness-110 transition-all">Add</button>
+                          </div>
+                          <div className="max-h-36 overflow-y-auto space-y-1">
+                            {goodsTypes.map(g => (
+                              <div key={g._id} className="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-neutral-50">
+                                <span className="text-[12px] font-medium text-neutral-700">{g.name}</span>
+                                <button type="button" onClick={() => deleteGoodsType(g._id, g.name)} className="p-1 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors">
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Weight (kg) <span className="text-red-500">*</span></label>

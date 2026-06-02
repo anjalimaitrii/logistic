@@ -220,6 +220,7 @@ export default function JobsPage() {
    const [isLoading, setIsLoading] = useState(true);
    const [viewMode, setViewMode] = useState<"personal" | "company">("personal");
    const [user, setUser] = useState<any>(null);
+   const [cancellingId, setCancellingId] = useState<string | null>(null);
    const isDesktop = useMediaQuery("(min-width: 768px)");
 
    useEffect(() => {
@@ -245,6 +246,20 @@ export default function JobsPage() {
       }
    };
 
+   const handleCancel = async (bookingId: string) => {
+      if (!confirm("Are you sure you want to cancel this booking?")) return;
+      setCancellingId(bookingId);
+      try {
+         await bookingService.updateStatus(bookingId, "cancelled");
+         const clientId = user?._id || user?.id;
+         await loadBookings(clientId);
+      } catch {
+         alert("Failed to cancel booking. Please try again.");
+      } finally {
+         setCancellingId(null);
+      }
+   };
+
    // ── Filter by personal / company ──
    const currentViewBookings = bookings.filter(b => {
       const currentUserId = user?._id || user?.id;
@@ -266,7 +281,7 @@ export default function JobsPage() {
    ];
 
    // ── Map bookings to display rows (new multi-location structure) ──
-   const displayJobs = currentViewBookings.filter(b => b.status !== "pending").map(b => {
+   const displayJobs = currentViewBookings.filter(b => b.status !== "cancelled").map(b => {
       const firstPickup = (b.pickupLocations || [])[0];
       const lastDropoff = (b.dropoffLocations || [])[(b.dropoffLocations?.length || 1) - 1];
       const pickupCount = b.pickupLocations?.length || 0;
@@ -284,6 +299,7 @@ export default function JobsPage() {
             ? new Date(b.cargoDetails.loadingDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
             : "N/A",
          finalAmount: b.financials?.finalAmount || b.finalAmount,
+         canCancel: !b.tripStatus || ["", "accepted", "pending"].includes((b.tripStatus || "").toLowerCase()),
       };
    });
 
@@ -472,6 +488,17 @@ export default function JobsPage() {
                                                 <MessageSquare className="w-4 h-4" />
                                              </button>
                                           )}
+                                          {job.canCancel && (
+                                             <button
+                                                onClick={() => handleCancel(job.raw._id)}
+                                                disabled={cancellingId === job.raw._id}
+                                                className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest text-rose-500 border border-rose-100 bg-rose-50 hover:bg-rose-100 transition-all disabled:opacity-50"
+                                                title="Cancel Booking"
+                                             >
+                                                <X className="w-3 h-3" />
+                                                {cancellingId === job.raw._id ? "..." : "Cancel"}
+                                             </button>
+                                          )}
                                        </div>
                                     </td>
                                  </tr>
@@ -534,6 +561,16 @@ export default function JobsPage() {
                                           className="p-2.5 bg-primary/10 hover:bg-primary/20 rounded-lg text-primary transition-all"
                                        >
                                           <MessageSquare className="w-4 h-4" />
+                                       </button>
+                                    )}
+                                    {job.canCancel && (
+                                       <button
+                                          onClick={() => handleCancel(job.raw._id)}
+                                          disabled={cancellingId === job.raw._id}
+                                          className="px-3 py-2 bg-rose-50 hover:bg-rose-100 rounded-lg text-[10px] font-bold text-rose-500 uppercase tracking-widest transition-all flex items-center gap-1 disabled:opacity-50 border border-rose-100"
+                                       >
+                                          <X className="w-3.5 h-3.5" />
+                                          {cancellingId === job.raw._id ? "..." : "Cancel"}
                                        </button>
                                     )}
                                  </div>

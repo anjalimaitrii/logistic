@@ -52,8 +52,9 @@ export const assignmentService = {
     tyreNumber?: string;
     challans?: string;
     deliveryOrders?: string[];
-    damages?: { description: string; amount: string }[];
+    damages?: { quantity: string; amount: string }[];
     notes?: string;
+    attachments?: { name: string; data: string; mimeType: string; size: number }[];
   }) => {
     return await fetchApi(`/api/assignments/driver/${driverId}/mark-inspected`, {
       method: 'PATCH',

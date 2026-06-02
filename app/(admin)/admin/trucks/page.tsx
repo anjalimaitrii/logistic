@@ -10,6 +10,7 @@ import TruckComplianceDrawer from "@/components/admin/TruckComplianceDrawer";
 import { ChevronRight, Eye, Settings, Plus, Package } from "lucide-react";
 import { truckService } from "@/services/truckService";
 import { fetchLiveVehicles } from "@/services/liveTrackingService";
+import { driverService } from "@/services/driverService";
 
 function gpsStatusToTruck(s: string) {
   if (s === "RUNNING") return "Active";
@@ -24,12 +25,28 @@ export default function AdminTrucks() {
   const [selectedTruck, setSelectedTruck] = useState<string | null>(null);
   const [trucks, setTrucks] = useState<any[]>([]);
   const [gpsStatusMap, setGpsStatusMap] = useState<Record<string, string>>({});
+  const [driverMap, setDriverMap] = useState<Record<string, string>>({}); // truckNumber → driverName
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
     loadTrucks();
+    loadDriverMap();
   }, []);
+
+  const loadDriverMap = async () => {
+    try {
+      const drivers = await driverService.getAll();
+      const map: Record<string, string> = {};
+      (drivers || []).forEach((d: any) => {
+        const truckId = d.assignedTruck?.truckId;
+        if (truckId && d.name) {
+          map[truckId] = d.name;
+        }
+      });
+      setDriverMap(map);
+    } catch { }
+  };
 
   const loadTrucks = async () => {
     setIsLoading(true);
@@ -141,13 +158,20 @@ export default function AdminTrucks() {
     status: getDisplayStatus(t),
     odo: t.odometer || "0 km",
     truckType: t.truckType,
+    driver: driverMap[t.truckId] || null,
     raw: t
   }));
 
   const columns = [
     { label: "Truck ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
-    { label: "Model", key: "model", render: (val: string) => <span className="font-medium text-slate-700 text-nowrap">{val}</span> },
     { label: "Type", key: "truckType", render: (val: any) => <span className="font-medium text-slate-500">{val}</span> },
+    {
+      label: "Driver",
+      key: "driver",
+      render: (val: string | null) => val
+        ? <span className="text-[11px] font-semibold text-slate-700">{val}</span>
+        : <span className="text-[10px] text-slate-300 italic">Unassigned</span>
+    },
     {
       label: "Status",
       key: "status",

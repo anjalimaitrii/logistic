@@ -150,12 +150,18 @@ export default function AdminOperations() {
       render: (val: string[]) => {
         const cities = Array.isArray(val) ? val : [val];
         return (
-          <div className="flex items-center gap-1">
+          <div className="relative group inline-flex items-center gap-1">
             <span className="text-[11px] font-medium text-slate-600 italic">{cities[0]}</span>
             {cities.length > 1 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
             {cities.length > 2 && <span className="text-[11px] text-slate-400 italic">...</span>}
             {cities.length > 2 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
             {cities.length > 1 && <span className="text-[11px] font-medium text-slate-600 italic">{cities[cities.length - 1]}</span>}
+            {cities.length > 2 && (
+              <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-50 bg-slate-900 text-white text-[10px] font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl pointer-events-none">
+                {cities.join(" → ")}
+                <div className="absolute top-full left-3 border-4 border-transparent border-t-slate-900" />
+              </div>
+            )}
           </div>
         );
       }

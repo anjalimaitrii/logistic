@@ -25,6 +25,11 @@ export interface TruckPayload {
   tireNumbers?: string;
   nextServiceKm?: string;
   estNextServiceDate?: string;
+  maintenanceFareCost?: string;
+  currentService?: string;
+  nextService?: string;
+  nextServiceDate?: string;
+  tireSerialNumber?: string;
 }
 
 export const truckService = {
