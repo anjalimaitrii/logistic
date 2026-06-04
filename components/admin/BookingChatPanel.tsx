@@ -81,7 +81,7 @@ export default function BookingChatPanel({ isOpen, onClose, request, clientId, o
             <div>
               <div className="text-[14px] font-bold text-neutral-900">{request?.customer || "Customer"}</div>
               <div className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 mt-0.5" style={{ color: connected ? "#22c55e" : "#f59e0b" }}>
-                <span className="w-1.5 h-1.5 rounded-full ring-4" style={{ background: connected ? "#22c55e" : "#f59e0b", ringColor: connected ? "rgb(34 197 94 / 0.1)" : "rgb(245 158 11 / 0.1)" }} />
+                <span className="w-1.5 h-1.5 rounded-full ring-4" style={{ background: connected ? "#22c55e" : "#f59e0b", ["--tw-ring-color" as any]: connected ? "rgb(34 197 94 / 0.1)" : "rgb(245 158 11 / 0.1)" }} />
                 {connected ? "Online" : "Connecting..."}
               </div>
             </div>
