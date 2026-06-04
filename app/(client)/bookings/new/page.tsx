@@ -28,14 +28,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { useRouter } from "next/navigation";
 import { bookingService } from "@/services/bookingService";
 import { goodsTypeService } from "@/services/goodsTypeService";
-
-const NIGERIAN_STATES = [
-   "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
-   "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT (Abuja)", "Gombe",
-   "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos",
-   "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto",
-   "Taraba", "Yobe", "Zamfara",
-];
+import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES } from "@/lib/africaLocations";
 
 const TRUCK_TYPES = [
    { name: "Flat Bed", icon: "🚜", desc: "Open Platform", cap: "Required" },
@@ -50,13 +43,14 @@ type LocationEntry = {
    clientName: string;
    plotNo: string;
    street: string;
-   city: string;
+   country: string;
    state: string;
+   city: string;
    gps: boolean;
 };
 
 const emptyLocation = (): LocationEntry => ({
-   contactPerson: "", contact: "", contactPerson2: "", contact2: "", clientName: "", plotNo: "", street: "", city: "", state: "", gps: false
+   contactPerson: "", contact: "", contactPerson2: "", contact2: "", clientName: "", plotNo: "", street: "", country: "", state: "", city: "", gps: false
 });
 
 const getLabel = (idx: number, offset = 0) => String.fromCharCode(65 + offset + idx);
@@ -343,31 +337,39 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                               className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
                            />
                         </div>
-                        <div className="relative">
-                           <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
-                           <input
-                              type="text"
-                              placeholder="City *"
-                              value={loc.city}
-                              onChange={(e) => onUpdate(type, idx, "city", e.target.value)}
-                              onFocus={() => handleAddressFieldFocus(idx)}
-                              onBlur={handleAddressFieldBlur}
-                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
-                           />
+                        <div className="relative col-span-full">
+                           <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 pointer-events-none" />
+                           <select
+                              value={loc.country}
+                              onChange={(e) => { onUpdate(type, idx, "country", e.target.value); onUpdate(type, idx, "state", ""); onUpdate(type, idx, "city", ""); }}
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all appearance-none cursor-pointer ${a.focus}`}
+                           >
+                              <option value="">Country *</option>
+                              {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                           </select>
                         </div>
                         <div className="relative">
                            <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 pointer-events-none" />
                            <select
                               value={loc.state}
-                              onChange={(e) => onUpdate(type, idx, "state", e.target.value)}
-                              onFocus={() => handleAddressFieldFocus(idx)}
-                              onBlur={handleAddressFieldBlur}
-                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all appearance-none cursor-pointer ${a.focus}`}
+                              onChange={(e) => { onUpdate(type, idx, "state", e.target.value); onUpdate(type, idx, "city", ""); }}
+                              disabled={!loc.country}
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all appearance-none cursor-pointer disabled:opacity-50 ${a.focus}`}
                            >
-                              <option value="">State</option>
-                              {NIGERIAN_STATES.map(s => (
-                                 <option key={s} value={s}>{s}</option>
-                              ))}
+                              <option value="">State / Province</option>
+                              {(AFRICAN_STATES[loc.country] || []).map(s => <option key={s} value={s}>{s}</option>)}
+                           </select>
+                        </div>
+                        <div className="relative">
+                           <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 pointer-events-none" />
+                           <select
+                              value={loc.city}
+                              onChange={(e) => onUpdate(type, idx, "city", e.target.value)}
+                              disabled={!loc.country}
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all appearance-none cursor-pointer disabled:opacity-50 ${a.focus}`}
+                           >
+                              <option value="">City *</option>
+                              {(AFRICAN_CITIES[loc.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
                            </select>
                         </div>
                      </div>
@@ -541,7 +543,7 @@ export default function NewBookingPage() {
             contactPerson: loc.contactPerson,
             contactNumber: loc.contact,
             ...(loc.contactPerson2.trim() && { contactPerson2: loc.contactPerson2, contactNumber2: loc.contact2 }),
-            address: { plotNo: loc.plotNo, street: loc.street, city: loc.city, state: loc.state },
+            address: { plotNo: loc.plotNo, street: loc.street, country: loc.country, state: loc.state, city: loc.city },
             gpsEnabled: loc.gps,
          })),
          dropoffLocations: formData.dropoffLocations.map((loc, idx) => ({
@@ -550,7 +552,7 @@ export default function NewBookingPage() {
             contactNumber: loc.contact,
             ...(loc.contactPerson2.trim() && { contactPerson2: loc.contactPerson2, contactNumber2: loc.contact2 }),
             ...(loc.clientName.trim() && { clientName: loc.clientName }),
-            address: { plotNo: loc.plotNo, street: loc.street, city: loc.city, state: loc.state },
+            address: { plotNo: loc.plotNo, street: loc.street, country: loc.country, state: loc.state, city: loc.city },
             gpsEnabled: loc.gps,
          })),
          requirement: { bodyType: formData.truckType },

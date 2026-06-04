@@ -114,6 +114,18 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
         </svg>
       ),
     },
+    {
+      label: "Route Master",
+      href: "/admin/routes",
+      icon: (
+        <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path d="M3 12h18" />
+          <path d="M3 12l4-4m-4 4 4 4" />
+          <path d="M21 12l-4-4m4 4-4 4" />
+          <circle cx="12" cy="12" r="2" />
+        </svg>
+      ),
+    },
   ];
 
   const operationsItems: NavItem[] = [

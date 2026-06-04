@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
+import { settlementService } from "@/services/settlementService";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
 
 export default function AdminJobsPage() {
@@ -36,25 +37,29 @@ export default function AdminJobsPage() {
   const loadBookings = async () => {
     try {
       setIsLoading(true);
-      const [bookingsData, assignmentsData] = await Promise.all([
+      const [bookingsData, assignmentsData, settlementsData] = await Promise.all([
         bookingService.getAll(),
-        assignmentService.getAll()
+        assignmentService.getAll(),
+        settlementService.getAll().catch(() => []),
       ]);
 
       const assignments = assignmentsData || [];
-      const assignedBookingIds = new Set(assignments.map((a: any) =>
-        (a.bookingId?._id || a.bookingId)?.toString()
-      ));
+      const settlements = settlementsData || [];
 
-      // Show finalized jobs OR assigned jobs — exclude cancelled, rejected, without-tax secret jobs
+      // Only jobs that have been approved by accountant (settlement exists)
+      const approvedBookingIds = new Set(
+        settlements.map((s: any) => (s.bookingId?._id || s.bookingId)?.toString())
+      );
+
       const visibleJobs = (bookingsData || []).filter((b: any) => {
         const s = b.status?.toLowerCase();
         if (s === "cancelled" || s === "rejected") return false;
         if (b.isSecret === true && b.withTax === false) return false;
-        return s === "finalized" || assignedBookingIds.has(b._id.toString());
+        return approvedBookingIds.has(b._id.toString());
       });
+
       setBookings(visibleJobs);
-      setAssignments(assignmentsData || []);
+      setAssignments(assignments);
     } catch (error) {
       console.error("Failed to fetch bookings:", error);
     } finally {

@@ -14,6 +14,7 @@ import {
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
+import { routeService } from "@/services/routeService";
 
 export default function AccountantJobDetail() {
   const router = useRouter();
@@ -78,7 +79,6 @@ export default function AccountantJobDetail() {
 
       if (settlement) {
         setIsApproved(true);
-        // Load saved legs if available, else fall back to old two-leg format
         if (settlement.fuelDetails?.legs) {
           setLegData(
             settlement.fuelDetails.legs.map((l: any) => ({
@@ -87,7 +87,6 @@ export default function AccountantJobDetail() {
             }))
           );
         } else {
-          // backward-compat: spread old pickup/dropoff values across legs
           setLegData(
             Array.from({ length: totalLegs }, (_, i) => ({
               km: i === 0
@@ -102,8 +101,27 @@ export default function AccountantJobDetail() {
         setFuelRate(settlement.fuelDetails.fuelRate?.toString() || "0");
         setAllocationMoney(settlement.financials.cashAllocation?.toString() || "");
       } else {
-        setLegData(Array.from({ length: totalLegs }, () => ({ km: "0", mileage: "0" })));
-        setAllocationMoney(data.advancePaid ? data.advancePaid.toString() : "0");
+        // No settlement yet — try Route Master for pre-fill
+        const pCity = data.pickupLocations?.[0]?.address?.city || data.pickup?.address?.city;
+        const dCity = (data.dropoffLocations?.[data.dropoffLocations.length - 1] || data.dropoffLocations?.[0])?.address?.city || data.dropoff?.address?.city;
+
+        let routeKm = "0";
+        let routeAllocation = data.advancePaid ? data.advancePaid.toString() : "0";
+
+        if (pCity && dCity) {
+          const match = await routeService.findMatch(pCity, dCity).catch(() => null);
+          if (match) {
+            routeKm = match.distance.toString();
+            routeAllocation = match.allocationMoney.toString();
+          }
+        }
+
+        // All legs (including return) get the same route distance
+        setLegData(Array.from({ length: totalLegs }, () => ({
+          km: routeKm,
+          mileage: "0",
+        })));
+        setAllocationMoney(routeAllocation);
       }
     } catch (error) {
       console.error("Failed to load job details:", error);
