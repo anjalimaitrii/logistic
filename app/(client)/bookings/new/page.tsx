@@ -97,8 +97,9 @@ function extractPreviousLocations(bookings: any[]): LocationEntry[] {
                contactPerson2: "", contact2: "", clientName: "",
                plotNo: stop.address?.plotNo || "",
                street: stop.address?.street || "",
-               city: stop.address?.city || "",
+               country: stop.address?.country || "",
                state: stop.address?.state || "",
+               city: stop.address?.city || "",
                gps: stop.gpsEnabled || false,
             });
          }
