@@ -7,7 +7,7 @@ import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateTruckModal from "@/components/admin/CreateTruckModal";
 import TruckComplianceDrawer from "@/components/admin/TruckComplianceDrawer";
-import { ChevronRight, Eye, Settings, Plus, Package } from "lucide-react";
+import { ChevronRight, Eye, Settings, Plus, Package, X, Trash2 } from "lucide-react";
 import { truckService } from "@/services/truckService";
 import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import { driverService } from "@/services/driverService";
@@ -29,6 +29,11 @@ export default function AdminTrucks() {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
+  // Collection modal state
+  const [collectionTruck, setCollectionTruck] = useState<any | null>(null);
+  const [colForm, setColForm] = useState({ name: "", description: "", quantity: "1" });
+  const [colSaving, setColSaving] = useState(false);
+
   useEffect(() => {
     loadTrucks();
     loadDriverMap();
@@ -46,6 +51,31 @@ export default function AdminTrucks() {
       });
       setDriverMap(map);
     } catch { }
+  };
+
+  const handleAddCollection = async () => {
+    if (!collectionTruck || !colForm.name.trim()) return;
+    setColSaving(true);
+    try {
+      const updated = await truckService.addCollection(collectionTruck._id, {
+        name: colForm.name.trim(),
+        description: colForm.description.trim(),
+        quantity: Number(colForm.quantity) || 1,
+      });
+      setTrucks(prev => prev.map(t => t._id === updated._id ? updated : t));
+      setCollectionTruck(updated);
+      setColForm({ name: "", description: "", quantity: "1" });
+    } catch { alert("Failed to add collection item."); }
+    finally { setColSaving(false); }
+  };
+
+  const handleRemoveCollection = async (colId: string) => {
+    if (!collectionTruck) return;
+    try {
+      const updated = await truckService.removeCollection(collectionTruck._id, colId);
+      setTrucks(prev => prev.map(t => t._id === updated._id ? updated : t));
+      setCollectionTruck(updated);
+    } catch { alert("Failed to remove item."); }
   };
 
   const loadTrucks = async () => {
@@ -190,6 +220,23 @@ export default function AdminTrucks() {
       }
     },
     {
+      label: "Collection",
+      key: "collection",
+      align: "center" as const,
+      render: (_: any, row: any) => {
+        const count = row.raw.collections?.length || 0;
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); setCollectionTruck(row.raw); setColForm({ name: "", description: "", quantity: "1" }); }}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-50 border border-orange-100 text-orange-600 hover:bg-orange-100 transition-all text-[10px] font-bold uppercase tracking-widest"
+          >
+            <Package className="w-3 h-3" />
+            {count > 0 ? count : "+"}
+          </button>
+        );
+      },
+    },
+    {
       label: "Actions",
       key: "actions",
       align: "center" as const,
@@ -282,6 +329,89 @@ export default function AdminTrucks() {
         onClose={() => setIsComplianceOpen(false)}
         truckId={selectedTruck}
       />
+
+      {/* Collection Modal */}
+      {collectionTruck && (
+        <div className="fixed inset-0 z-600 pointer-events-none">
+          <div
+            className="absolute inset-0 bg-neutral-900/30 backdrop-blur-sm pointer-events-auto"
+            onClick={() => setCollectionTruck(null)}
+          />
+          <div className="absolute right-0 top-0 bottom-0 w-full max-w-110 bg-white shadow-2xl pointer-events-auto flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b border-neutral-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-[15px] font-semibold text-neutral-900">Collections</h2>
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mt-0.5">{collectionTruck.truckId} · {collectionTruck.vehicleModel}</p>
+              </div>
+              <button onClick={() => setCollectionTruck(null)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-neutral-50 text-neutral-400 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Add form */}
+              <div className="bg-orange-50/50 border border-orange-100 rounded-2xl p-4 space-y-3">
+                <h3 className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">Add Item</h3>
+                <input
+                  type="text"
+                  placeholder="Name *"
+                  value={colForm.name}
+                  onChange={e => setColForm(f => ({ ...f, name: e.target.value }))}
+                  className="w-full bg-white border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] font-medium text-slate-900 outline-none focus:border-orange-200 transition-all"
+                />
+                <input
+                  type="text"
+                  placeholder="Description"
+                  value={colForm.description}
+                  onChange={e => setColForm(f => ({ ...f, description: e.target.value }))}
+                  className="w-full bg-white border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] font-medium text-slate-900 outline-none focus:border-orange-200 transition-all"
+                />
+                <input
+                  type="number"
+                  placeholder="Quantity"
+                  min={1}
+                  value={colForm.quantity}
+                  onChange={e => setColForm(f => ({ ...f, quantity: e.target.value }))}
+                  className="w-full bg-white border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] font-medium text-slate-900 outline-none focus:border-orange-200 transition-all"
+                />
+                <button
+                  onClick={handleAddCollection}
+                  disabled={colSaving || !colForm.name.trim()}
+                  className="w-full py-2.5 bg-orange-500 text-white rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-orange-600 transition-all disabled:opacity-50"
+                >
+                  {colSaving ? "Saving…" : "+ Add to Collection"}
+                </button>
+              </div>
+
+              {/* Existing items */}
+              <div className="space-y-2">
+                <h3 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                  Items ({collectionTruck.collections?.length || 0})
+                </h3>
+                {(!collectionTruck.collections || collectionTruck.collections.length === 0) && (
+                  <p className="text-[11px] text-neutral-300 font-medium text-center py-6">No items yet</p>
+                )}
+                {collectionTruck.collections?.map((col: any) => (
+                  <div key={col._id} className="flex items-start justify-between gap-3 p-3 bg-white border border-neutral-100 rounded-xl">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] font-semibold text-slate-900">{col.name}</div>
+                      {col.description && <div className="text-[11px] text-neutral-400 mt-0.5">{col.description}</div>}
+                      <div className="text-[10px] font-bold text-orange-500 mt-1 uppercase tracking-widest">Qty: {col.quantity}</div>
+                    </div>
+                    <button
+                      onClick={() => handleRemoveCollection(col._id)}
+                      className="p-1.5 text-neutral-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

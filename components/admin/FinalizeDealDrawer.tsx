@@ -88,7 +88,7 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
                     <div className="text-[12px] font-semibold text-neutral-900">{loc.address?.city || "—"}</div>
                     {(loc.address?.plotNo || loc.address?.street) && (
                       <div className="text-[10px] text-neutral-500 mt-0.5">
-                        {[loc.address?.plotNo, loc.address?.street, loc.address?.pincode].filter(Boolean).join(", ")}
+                        {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}
                       </div>
                     )}
                     <div className="text-[10px] text-emerald-600 mt-0.5 flex items-center gap-1">
@@ -117,7 +117,7 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
                     <div className="text-[12px] font-semibold text-neutral-900">{loc.address?.city || "—"}</div>
                     {(loc.address?.plotNo || loc.address?.street) && (
                       <div className="text-[10px] text-neutral-500 mt-0.5">
-                        {[loc.address?.plotNo, loc.address?.street, loc.address?.pincode].filter(Boolean).join(", ")}
+                        {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}
                       </div>
                     )}
                     <div className="text-[10px] text-rose-600 mt-0.5 flex items-center gap-1">

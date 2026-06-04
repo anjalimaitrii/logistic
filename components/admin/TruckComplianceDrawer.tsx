@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
    X,
@@ -12,7 +12,8 @@ import {
    Hash,
    Wrench,
    DollarSign,
-   ChevronDown
+   ChevronDown,
+   Check,
 } from "lucide-react";
 import { truckService } from "@/services/truckService";
 
@@ -30,17 +31,30 @@ const COMPLIANCE_DOC_TYPES = [
    "Identity",
 ];
 
-const TIRE_SERIAL_OPTIONS = [
-   "TYR-2024-001",
-   "TYR-2024-002",
-   "TYR-2024-003",
-   "TYR-2024-004",
-   "TYR-2024-005",
-   "TYR-2024-006",
-   "TYR-2024-007",
-   "TYR-2024-008",
-   "TYR-2024-009",
-   "TYR-2024-010",
+const TYRE_POSITIONS = [
+   "Front Left (1)",
+   "Front Right (2)",
+   "1st Axle Left Inner (3)",
+   "1st Axle Right Inner (4)",
+   "1st Axle Left Outer (5)",
+   "1st Axle Right Outer (6)",
+   "2nd Axle Left Inner (7)",
+   "2nd Axle Right Inner (8)",
+   "2nd Axle Left Outer (9)",
+   "2nd Axle Right Outer (10)",
+   "3rd Axle Left Inner (11)",
+   "3rd Axle Right Inner (12)",
+   "3rd Axle Left Outer (13)",
+   "3rd Axle Right Outer (14)",
+   "4th Axle Left Inner (15)",
+   "4th Axle Right Inner (16)",
+   "4th Axle Left Outer (17)",
+   "4th Axle Right Outer (18)",
+   "5th Axle Left Inner (19)",
+   "5th Axle Right Inner (20)",
+   "5th Axle Left Outer (21)",
+   "5th Axle Right Outer (22)",
+   "Spare Tyre (23)",
 ];
 
 const defaultDocs = () =>
@@ -53,7 +67,9 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
    const [currentService, setCurrentService] = useState("");
    const [nextService, setNextService] = useState("");
    const [nextServiceDate, setNextServiceDate] = useState("");
-   const [tireSerialNumber, setTireSerialNumber] = useState("TYR-2024-001");
+   const [tyrePositions, setTyrePositions] = useState<string[]>([]);
+   const [tyreDropdownOpen, setTyreDropdownOpen] = useState(false);
+   const tyreDropdownRef = useRef<HTMLDivElement>(null);
    const [isLoading, setIsLoading] = useState(false);
    const [truckPlateNo, setTruckPlateNo] = useState("");
 
@@ -72,7 +88,7 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
          setCurrentService(data.currentService || "");
          setNextService(data.nextService || "");
          setNextServiceDate(data.nextServiceDate || data.estNextServiceDate || "");
-         setTireSerialNumber(data.tireSerialNumber || "TYR-2024-001");
+         setTyrePositions(Array.isArray(data.tireSerialNumber) ? data.tireSerialNumber : data.tireSerialNumber ? [data.tireSerialNumber] : []);
 
          if (data.complianceDocs && data.complianceDocs.length > 0) {
             // Merge saved docs with the required types (add missing ones)
@@ -100,7 +116,7 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
             currentService,
             nextService,
             nextServiceDate,
-            tireSerialNumber,
+            tireSerialNumber: tyrePositions,
          });
          onClose();
       } catch (error) {
@@ -109,6 +125,22 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
       } finally {
          setIsLoading(false);
       }
+   };
+
+   useEffect(() => {
+      const handler = (e: MouseEvent) => {
+         if (tyreDropdownRef.current && !tyreDropdownRef.current.contains(e.target as Node)) {
+            setTyreDropdownOpen(false);
+         }
+      };
+      document.addEventListener("mousedown", handler);
+      return () => document.removeEventListener("mousedown", handler);
+   }, []);
+
+   const toggleTyrePosition = (pos: string) => {
+      setTyrePositions(prev =>
+         prev.includes(pos) ? prev.filter(p => p !== pos) : [...prev, pos]
+      );
    };
 
    const updateDocDate = (type: string, date: string) => {
@@ -318,24 +350,65 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                           <div className="p-1.5 rounded-lg bg-orange-50 text-orange-600">
                                              <Hash className="w-3.5 h-3.5" />
                                           </div>
-                                          <h3 className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">Tire Serial Number</h3>
+                                          <h3 className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">Tyre Position</h3>
                                        </div>
 
                                        <div className="bg-neutral-50 border border-neutral-100 rounded-2xl p-4">
                                           <div className="space-y-1.5">
-                                             <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest ml-1">Select Tire Serial</label>
-                                             <div className="relative">
-                                                <select
-                                                   value={tireSerialNumber}
-                                                   onChange={(e) => setTireSerialNumber(e.target.value)}
-                                                   className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-primary/20 transition-all appearance-none pr-10"
+                                             <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest ml-1">
+                                                Select Tyre Position{tyrePositions.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-primary text-white rounded text-[8px]">{tyrePositions.length}</span>}
+                                             </label>
+                                             <div className="relative" ref={tyreDropdownRef}>
+                                                {/* Trigger */}
+                                                <button
+                                                   type="button"
+                                                   onClick={() => setTyreDropdownOpen(v => !v)}
+                                                   className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-900 outline-none focus:border-primary/20 transition-all flex items-center justify-between gap-2 text-left"
                                                 >
-                                                   {TIRE_SERIAL_OPTIONS.map((serial) => (
-                                                      <option key={serial} value={serial}>{serial}</option>
-                                                   ))}
-                                                </select>
-                                                <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400 pointer-events-none" />
+                                                   <span className={tyrePositions.length === 0 ? "text-neutral-300" : "text-slate-900"}>
+                                                      {tyrePositions.length === 0
+                                                         ? "Select positions..."
+                                                         : tyrePositions.length === 1
+                                                         ? tyrePositions[0]
+                                                         : `${tyrePositions.length} positions selected`}
+                                                   </span>
+                                                   <ChevronDown className={`w-4 h-4 text-neutral-400 shrink-0 transition-transform ${tyreDropdownOpen ? "rotate-180" : ""}`} />
+                                                </button>
+
+                                                {/* Dropdown list */}
+                                                {tyreDropdownOpen && (
+                                                   <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-neutral-100 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto">
+                                                      {TYRE_POSITIONS.map((pos) => {
+                                                         const selected = tyrePositions.includes(pos);
+                                                         return (
+                                                            <button
+                                                               key={pos}
+                                                               type="button"
+                                                               onClick={() => toggleTyrePosition(pos)}
+                                                               className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-[12px] font-medium transition-colors hover:bg-neutral-50 ${selected ? "text-primary" : "text-slate-700"}`}
+                                                            >
+                                                               <span className={`w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-all ${selected ? "bg-primary border-primary" : "border-neutral-200"}`}>
+                                                                  {selected && <Check className="w-2.5 h-2.5 text-white" />}
+                                                               </span>
+                                                               {pos}
+                                                            </button>
+                                                         );
+                                                      })}
+                                                   </div>
+                                                )}
                                              </div>
+
+                                             {/* Selected chips */}
+                                             {tyrePositions.length > 0 && (
+                                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                                   {tyrePositions.map(pos => (
+                                                      <span key={pos} className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-lg text-[10px] font-bold">
+                                                         {pos}
+                                                         <button type="button" onClick={() => toggleTyrePosition(pos)} className="hover:text-rose-500 transition-colors ml-0.5">×</button>
+                                                      </span>
+                                                   ))}
+                                                </div>
+                                             )}
                                           </div>
                                        </div>
                                     </div>

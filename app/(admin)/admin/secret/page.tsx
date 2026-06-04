@@ -364,6 +364,7 @@ export default function SecretDashboard() {
       <BookingChatPanel
         isOpen={isChatOpen}
         onClose={() => { setIsChatOpen(false); setSelectedRequest(null); }}
+        clientId={(selectedRequest?.clientId as any)?._id || (selectedRequest?.clientId as any)?.id || ""}
         request={selectedRequest}
         onFinalize={() => {
           setIsChatOpen(false);

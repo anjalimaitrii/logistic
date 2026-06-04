@@ -10,7 +10,6 @@ export interface LocationStop {
     street: string;
     city: string;
     lga?: string;
-    pincode?: string;
   };
   gpsEnabled?: boolean;
   sequence: number;

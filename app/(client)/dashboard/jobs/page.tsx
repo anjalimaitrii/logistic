@@ -148,7 +148,7 @@ function BookingDetailModal({ booking, onClose }: ModalProps) {
                               {loc.address?.city && (
                                  <p className="text-slate-600 col-span-2">
                                     <span className="text-slate-400">Address:</span>{" "}
-                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.pincode].filter(Boolean).join(", ")}
+                                    {[loc.address.plotNo, loc.address.street, loc.address.city].filter(Boolean).join(", ")}
                                  </p>
                               )}
                            </div>
@@ -188,7 +188,7 @@ function BookingDetailModal({ booking, onClose }: ModalProps) {
                               {loc.address?.city && (
                                  <p className="text-slate-600 col-span-2">
                                     <span className="text-slate-400">Address:</span>{" "}
-                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.pincode].filter(Boolean).join(", ")}
+                                    {[loc.address.plotNo, loc.address.street, loc.address.city].filter(Boolean).join(", ")}
                                  </p>
                               )}
                            </div>
@@ -221,6 +221,20 @@ export default function JobsPage() {
    const [viewMode, setViewMode] = useState<"personal" | "company">("personal");
    const [user, setUser] = useState<any>(null);
    const [cancellingId, setCancellingId] = useState<string | null>(null);
+   const [filterOpen, setFilterOpen] = useState(false);
+   const [startDate, setStartDate] = useState("");
+   const [endDate, setEndDate] = useState("");
+   const filterRef = React.useRef<HTMLDivElement>(null);
+
+   useEffect(() => {
+      const handleClick = (e: MouseEvent) => {
+         if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+            setFilterOpen(false);
+         }
+      };
+      document.addEventListener("mousedown", handleClick);
+      return () => document.removeEventListener("mousedown", handleClick);
+   }, []);
    const isDesktop = useMediaQuery("(min-width: 768px)");
 
    useEffect(() => {
@@ -280,8 +294,17 @@ export default function JobsPage() {
       { label: "Completed", value: currentViewBookings.filter(b => b.status === "completed" || b.status === "delivered").length, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
    ];
 
+   // ── Date range filter ──
+   const dateFilteredBookings = currentViewBookings.filter(b => {
+      if (!startDate && !endDate) return true;
+      const bookingDate = new Date(b.createdAt || b.cargoDetails?.loadingDate);
+      if (startDate && bookingDate < new Date(startDate)) return false;
+      if (endDate && bookingDate > new Date(endDate + "T23:59:59")) return false;
+      return true;
+   });
+
    // ── Map bookings to display rows (new multi-location structure) ──
-   const displayJobs = currentViewBookings.filter(b => b.status !== "cancelled").map(b => {
+   const displayJobs = dateFilteredBookings.filter(b => b.status !== "cancelled").map(b => {
       const firstPickup = (b.pickupLocations || [])[0];
       const lastDropoff = (b.dropoffLocations || [])[(b.dropoffLocations?.length || 1) - 1];
       const pickupCount = b.pickupLocations?.length || 0;
@@ -375,10 +398,60 @@ export default function JobsPage() {
                            Company Jobs
                         </button>
                      </div>
-                     <button className="flex items-center gap-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-[11px] font-bold text-slate-600 hover:bg-slate-50 transition-all uppercase tracking-widest">
-                        <Filter className="w-3.5 h-3.5" />
-                        Filter
-                     </button>
+                     <div className="relative" ref={filterRef}>
+                        <button
+                           onClick={() => setFilterOpen(v => !v)}
+                           className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all ${(startDate || endDate) ? "bg-primary text-white border-primary shadow-md shadow-primary/20" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                        >
+                           <Filter className="w-3.5 h-3.5" />
+                           Filter
+                           {(startDate || endDate) && <span className="w-1.5 h-1.5 rounded-full bg-white/70 ml-0.5" />}
+                        </button>
+
+                        {filterOpen && (
+                           <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-4 space-y-3">
+                              <div className="flex items-center justify-between">
+                                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Date Range</span>
+                                 {(startDate || endDate) && (
+                                    <button
+                                       onClick={() => { setStartDate(""); setEndDate(""); }}
+                                       className="text-[9px] font-bold text-rose-500 hover:text-rose-700 uppercase tracking-widest transition-colors"
+                                    >
+                                       Clear
+                                    </button>
+                                 )}
+                              </div>
+                              <div className="grid grid-cols-2 gap-3">
+                                 <div className="space-y-1">
+                                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Start</label>
+                                    <input
+                                       type="date"
+                                       value={startDate}
+                                       max={new Date().toISOString().split("T")[0]}
+                                       onChange={e => setStartDate(e.target.value)}
+                                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[12px] font-medium text-slate-800 outline-none focus:border-primary/40 focus:bg-white transition-all"
+                                    />
+                                 </div>
+                                 <div className="space-y-1">
+                                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">End</label>
+                                    <input
+                                       type="date"
+                                       value={endDate}
+                                       min={startDate || undefined}
+                                       max={new Date().toISOString().split("T")[0]}
+                                       onChange={e => setEndDate(e.target.value)}
+                                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[12px] font-medium text-slate-800 outline-none focus:border-primary/40 focus:bg-white transition-all"
+                                    />
+                                 </div>
+                              </div>
+                              {(startDate || endDate) && (
+                                 <p className="text-[10px] text-slate-400 font-medium text-center">
+                                    {displayJobs.length} result{displayJobs.length !== 1 ? "s" : ""} found
+                                 </p>
+                              )}
+                           </div>
+                        )}
+                     </div>
                   </div>
                </div>
 
@@ -595,6 +668,8 @@ export default function JobsPage() {
             isOpen={!!chatJobId}
             onClose={() => setChatJobId(null)}
             jobId={chatJobId || ""}
+            clientId={user?._id || user?.id || ""}
+            clientName={user?.name || "Client"}
          />
 
          {/* ── MOBILE NAV ── */}

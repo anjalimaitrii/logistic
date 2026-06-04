@@ -305,7 +305,7 @@ export default function AccountantJobDetail() {
                           <div className="text-sm font-semibold text-slate-900 leading-tight">{loc.address?.city || "—"}</div>
                           {(loc.address?.plotNo || loc.address?.street) && (
                             <div className="text-[11px] text-neutral-500 mt-0.5">
-                              {[loc.address?.plotNo, loc.address?.street, loc.address?.pincode].filter(Boolean).join(", ")}
+                              {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}
                             </div>
                           )}
                           {loc.contactPerson && (
@@ -343,7 +343,7 @@ export default function AccountantJobDetail() {
                             <div className="text-sm font-semibold text-slate-900 leading-tight">{loc.address?.city || "—"}</div>
                             {(loc.address?.plotNo || loc.address?.street) && (
                               <div className="text-[11px] text-neutral-500 mt-0.5">
-                                {[loc.address?.plotNo, loc.address?.street, loc.address?.pincode].filter(Boolean).join(", ")}
+                                {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}
                               </div>
                             )}
                             {loc.contactPerson && (
@@ -428,6 +428,11 @@ export default function AccountantJobDetail() {
                     const fromType = isReturn ? "Dropoff Stop" : getStopType(i);
                     const toType = isReturn ? "Return to Warehouse" : getStopType(i + 1);
 
+                    const fromLabel = isReturn
+                      ? String.fromCharCode(65 + allStops.length - 1)
+                      : String.fromCharCode(65 + i);
+                    const toLabel = isReturn ? "A" : String.fromCharCode(65 + i + 1);
+
                     const color = getLegColor(i);
                     const calc = calculations.legCalcs[i];
 
@@ -449,12 +454,20 @@ export default function AccountantJobDetail() {
                       rose:    "text-rose-700",
                       violet:  "text-violet-700",
                     };
+                    const labelBg: Record<string, string> = {
+                      emerald: "bg-emerald-500",
+                      slate:   "bg-slate-600",
+                      rose:    "bg-rose-500",
+                      violet:  "bg-violet-500",
+                    };
 
                     return (
                       <div key={i} className={`p-4 rounded-xl border space-y-3 ${colorMap[color]}`}>
                         {/* From stop */}
                         <div className="flex items-start gap-2">
-                          <span className={`w-2 h-2 rounded-full mt-1 shrink-0 ${dotMap[color]}`} />
+                          <div className={`w-5 h-5 rounded-full ${labelBg[color]} text-white flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5`}>
+                            {fromLabel}
+                          </div>
                           <div>
                             <div className={`text-[8px] font-bold uppercase tracking-widest ${textColor[color]}`}>{fromType}</div>
                             <div className="text-[12px] font-semibold text-slate-900">{fromCity}</div>
@@ -467,7 +480,9 @@ export default function AccountantJobDetail() {
                         </div>
                         {/* To stop */}
                         <div className="flex items-start gap-2">
-                          <span className={`w-2 h-2 rounded-full mt-1 shrink-0 ${dotMap[color]}`} />
+                          <div className={`w-5 h-5 rounded-full ${labelBg[color]} text-white flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5`}>
+                            {toLabel}
+                          </div>
                           <div className="flex-1">
                             <div className={`text-[8px] font-bold uppercase tracking-widest ${textColor[color]}`}>{toType}</div>
                             <div className="text-[12px] font-semibold text-slate-900">{toCity}</div>

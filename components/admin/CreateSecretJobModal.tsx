@@ -7,6 +7,14 @@ import {
   CheckCircle2, ArrowLeft, Users, Plus, Trash2, UserPlus
 } from "lucide-react";
 
+const NIGERIAN_STATES = [
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
+  "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT (Abuja)", "Gombe",
+  "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos",
+  "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto",
+  "Taraba", "Yobe", "Zamfara",
+];
+
 const NIGERIAN_CITIES = [
   "Abuja", "Abeokuta", "Ado-Ekiti", "Akure", "Asaba", "Awka",
   "Bauchi", "Benin City", "Birnin Kebbi", "Calabar",
@@ -28,7 +36,7 @@ interface CreateSecretJobModalProps {
   onSubmit: (data: any) => void;
 }
 
-const emptyLocation = () => ({ contactPerson: "", contact: "", contactPerson2: "", contact2: "", plotNo: "", street: "", city: "", pincode: "" });
+const emptyLocation = () => ({ contactPerson: "", contact: "", contactPerson2: "", contact2: "", plotNo: "", street: "", city: "", state: "" });
 
 export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: CreateSecretJobModalProps) {
   const [step, setStep] = useState(1);
@@ -155,7 +163,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
           contactPerson: l.contactPerson,
           contactNumber: l.contact,
           ...(l.contactPerson2.trim() && { contactPerson2: l.contactPerson2, contactNumber2: l.contact2 }),
-          address: { plotNo: l.plotNo, street: l.street, city: l.city, pincode: l.pincode },
+          address: { plotNo: l.plotNo, street: l.street, city: l.city, state: l.state },
           gpsEnabled: false,
         })),
         dropoffLocations: formData.dropoffLocations.map((l, i) => ({
@@ -163,7 +171,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
           contactPerson: l.contactPerson,
           contactNumber: l.contact,
           ...(l.contactPerson2.trim() && { contactPerson2: l.contactPerson2, contactNumber2: l.contact2 }),
-          address: { plotNo: l.plotNo, street: l.street, city: l.city, pincode: l.pincode },
+          address: { plotNo: l.plotNo, street: l.street, city: l.city, state: l.state },
           gpsEnabled: false,
         })),
         requirement: { bodyType: formData.truckType },
@@ -319,7 +327,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                   <div className="space-y-3 pt-2">
                     <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Requirement</label>
                     <div className="grid grid-cols-2 gap-3">
-                      {[{ name: "Flat Bed", icon: "🚜" }, { name: "Walled", icon: "🚛" }].map((truck) => (
+                      {[{ name: "Flat Bed", icon: "🚜" }, { name: "Side Drop", icon: "🚛" }].map((truck) => (
                         <button
                           key={truck.name}
                           onClick={() => setFormData({ ...formData, truckType: truck.name })}
@@ -382,7 +390,10 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                           <option value="">City *</option>
                           {NIGERIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
-                        <input placeholder="Pincode" value={loc.pincode} onChange={(e) => updatePickup(idx, "pincode", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <select value={loc.state} onChange={(e) => updatePickup(idx, "state", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
+                          <option value="">State</option>
+                          {NIGERIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
                       </div>
                     </div>
                   ))}
@@ -433,7 +444,10 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                           <option value="">City *</option>
                           {NIGERIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
-                        <input placeholder="Pincode" value={loc.pincode} onChange={(e) => updateDropoff(idx, "pincode", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <select value={loc.state} onChange={(e) => updateDropoff(idx, "state", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
+                          <option value="">State</option>
+                          {NIGERIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
                       </div>
                     </div>
                   ))}

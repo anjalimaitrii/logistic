@@ -25,11 +25,9 @@ export default function CreateJobModal({ isOpen, onClose, onSubmit }: CreateJobM
     client: "",
     pickupStreet: "",
     pickupCity: "",
-    pickupPincode: "",
     pickupContact: "",
     dropoffStreet: "",
     dropoffCity: "",
-    dropoffPincode: "",
     dropoffContact: "",
     goodsType: "",
     weight: "",
@@ -122,16 +120,11 @@ export default function CreateJobModal({ isOpen, onClose, onSubmit }: CreateJobM
                             <MapPin className="w-3.5 h-3.5 text-emerald-500" />
                             <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-tight">Origin Location</span>
                          </div>
-                         <div className="grid grid-cols-3 gap-2">
+                         <div className="grid grid-cols-2 gap-2">
                             <input
                               placeholder="City"
                               className="bg-white border border-neutral-100 rounded-xl px-4 py-2 text-[12px] font-semibold outline-none"
                               onChange={(e) => setFormData({...formData, pickupCity: e.target.value})}
-                            />
-                            <input
-                              placeholder="Pincode"
-                              className="bg-white border border-neutral-100 rounded-xl px-4 py-2 text-[12px] font-semibold outline-none"
-                              onChange={(e) => setFormData({...formData, pickupPincode: e.target.value})}
                             />
                             <input
                               placeholder="Contact no."
@@ -152,16 +145,11 @@ export default function CreateJobModal({ isOpen, onClose, onSubmit }: CreateJobM
                             <MapPin className="w-3.5 h-3.5 text-rose-500" />
                             <span className="text-[9px] font-bold text-rose-600 uppercase tracking-tight">Destination Point</span>
                          </div>
-                         <div className="grid grid-cols-3 gap-2">
+                         <div className="grid grid-cols-2 gap-2">
                             <input
                               placeholder="City"
                               className="bg-white border border-neutral-100 rounded-xl px-4 py-2 text-[12px] font-semibold outline-none"
                               onChange={(e) => setFormData({...formData, dropoffCity: e.target.value})}
-                            />
-                            <input
-                              placeholder="Pincode"
-                              className="bg-white border border-neutral-100 rounded-xl px-4 py-2 text-[12px] font-semibold outline-none"
-                              onChange={(e) => setFormData({...formData, dropoffPincode: e.target.value})}
                             />
                             <input
                               placeholder="Contact no."

@@ -87,6 +87,7 @@ export default function JobDetailReport() {
   const [isSubmittingCompletion, setIsSubmittingCompletion] = useState(false);
   const [completionFiles, setCompletionFiles] = useState<File[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Address Change Modal State
   const [showAddressModal, setShowAddressModal] = useState(false);
@@ -96,13 +97,11 @@ export default function JobDetailReport() {
     pPlotNo: "",
     pStreet: "",
     pCity: "",
-    pPincode: "",
     dContactPerson: "",
     dContactNumber: "",
     dPlotNo: "",
     dStreet: "",
     dCity: "",
-    dPincode: "",
     reason: "",
     newPickupKm: "",
     newDropoffKm: "",
@@ -114,6 +113,19 @@ export default function JobDetailReport() {
       loadData();
     }
   }, [id]);
+
+  const handleCancelTrip = async () => {
+    if (!confirm("Are you sure you want to cancel this trip? This cannot be undone.")) return;
+    setIsCancelling(true);
+    try {
+      await bookingService.updateStatus(id, "cancelled");
+      await loadData();
+    } catch {
+      alert("Failed to cancel trip. Please try again.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -250,9 +262,9 @@ export default function JobDetailReport() {
   const handleSubmitCompletion = async () => {
     setIsSubmittingCompletion(true);
     try {
-      // Convert files to base64 for DB storage
+      // Upload files to S3 — store URLs in DB
       const attachments = completionFiles.length > 0
-        ? await uploadService.toBase64(completionFiles)
+        ? await uploadService.uploadToS3(completionFiles, "job-attachments")
         : [];
 
       const { tollAmount, deliveryOrders, damages, ...inspectionData } = completionForm;
@@ -290,13 +302,11 @@ export default function JobDetailReport() {
       pPlotNo: firstPickup?.address?.plotNo || "",
       pStreet: firstPickup?.address?.street || "",
       pCity: firstPickup?.address?.city || "",
-      pPincode: firstPickup?.address?.pincode || "",
       dContactPerson: lastDropoff?.contactPerson || "",
       dContactNumber: lastDropoff?.contactNumber || "",
       dPlotNo: lastDropoff?.address?.plotNo || "",
       dStreet: lastDropoff?.address?.street || "",
       dCity: lastDropoff?.address?.city || "",
-      dPincode: lastDropoff?.address?.pincode || "",
       reason: "",
       newPickupKm: settlement?.fuelDetails?.pickupKm || "",
       newDropoffKm: settlement?.fuelDetails?.dropoffKm || "",
@@ -319,7 +329,6 @@ export default function JobDetailReport() {
             plotNo: addressChangeData.pPlotNo,
             street: addressChangeData.pStreet,
             city: addressChangeData.pCity,
-            pincode: addressChangeData.pPincode
           }
         }, 
         {
@@ -329,7 +338,6 @@ export default function JobDetailReport() {
             plotNo: addressChangeData.dPlotNo,
             street: addressChangeData.dStreet,
             city: addressChangeData.dCity,
-            pincode: addressChangeData.dPincode
           }
         },
         addressChangeData.reason, 
@@ -342,8 +350,8 @@ export default function JobDetailReport() {
 
       setShowAddressModal(false);
       setAddressChangeData({ 
-        pContactPerson: "", pContactNumber: "", pPlotNo: "", pStreet: "", pCity: "", pPincode: "",
-        dContactPerson: "", dContactNumber: "", dPlotNo: "", dStreet: "", dCity: "", dPincode: "",
+        pContactPerson: "", pContactNumber: "", pPlotNo: "", pStreet: "", pCity: "",
+        dContactPerson: "", dContactNumber: "", dPlotNo: "", dStreet: "", dCity: "",
         reason: "", newPickupKm: "", newDropoffKm: "", newFinalAmount: "" 
       });
       await loadData();
@@ -566,13 +574,25 @@ export default function JobDetailReport() {
               </div>
             </div>
 
-            <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border ${
-              jobInfo?.status?.startsWith("STARTED") || jobInfo?.status?.startsWith("REACHED") ? "bg-blue-50 text-blue-600 border-blue-100" :
-              jobInfo?.status === "FINALIZED" || jobInfo?.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-              jobInfo?.status?.startsWith("LOADING") || jobInfo?.status?.startsWith("OFFLOADING") ? "bg-orange-50 text-orange-600 border-orange-100" :
-              "bg-neutral-50 text-neutral-400 border-neutral-100"
-            }`}>
-              {jobInfo?.status?.replace(/_(\d+)$/, ' (Stop $1)')}
+            <div className="flex items-center gap-2">
+              <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border ${
+                jobInfo?.status?.startsWith("STARTED") || jobInfo?.status?.startsWith("REACHED") ? "bg-blue-50 text-blue-600 border-blue-100" :
+                jobInfo?.status === "FINALIZED" || jobInfo?.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
+                jobInfo?.status?.startsWith("LOADING") || jobInfo?.status?.startsWith("OFFLOADING") ? "bg-orange-50 text-orange-600 border-orange-100" :
+                jobInfo?.status === "CANCELLED" ? "bg-rose-50 text-rose-500 border-rose-100" :
+                "bg-neutral-50 text-neutral-400 border-neutral-100"
+              }`}>
+                {jobInfo?.status?.replace(/_(\d+)$/, ' (Stop $1)')}
+              </div>
+              {!booking?.tripStatus && booking?.status !== "cancelled" && (
+                <button
+                  onClick={handleCancelTrip}
+                  disabled={isCancelling}
+                  className="px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.15em] border border-rose-200 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white transition-all disabled:opacity-50"
+                >
+                  {isCancelling ? "Cancelling…" : "Cancel Trip"}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1272,25 +1292,14 @@ export default function JobDetailReport() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">City *</label>
-                      <input
-                        type="text"
-                        value={addressChangeData.pCity}
-                        onChange={(e) => setAddressChangeData(p => ({...p, pCity: e.target.value}))}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Pincode</label>
-                      <input
-                        type="text"
-                        value={addressChangeData.pPincode}
-                        onChange={(e) => setAddressChangeData(p => ({...p, pPincode: e.target.value}))}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
-                      />
-                    </div>
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">City *</label>
+                    <input
+                      type="text"
+                      value={addressChangeData.pCity}
+                      onChange={(e) => setAddressChangeData(p => ({...p, pCity: e.target.value}))}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
+                    />
                   </div>
                 </div>
 
@@ -1339,25 +1348,14 @@ export default function JobDetailReport() {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">City *</label>
-                      <input
-                        type="text"
-                        value={addressChangeData.dCity}
-                        onChange={(e) => setAddressChangeData(p => ({...p, dCity: e.target.value}))}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">Pincode</label>
-                      <input
-                        type="text"
-                        value={addressChangeData.dPincode}
-                        onChange={(e) => setAddressChangeData(p => ({...p, dPincode: e.target.value}))}
-                        className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
-                      />
-                    </div>
+                  <div>
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">City *</label>
+                    <input
+                      type="text"
+                      value={addressChangeData.dCity}
+                      onChange={(e) => setAddressChangeData(p => ({...p, dCity: e.target.value}))}
+                      className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
+                    />
                   </div>
                 </div>
 

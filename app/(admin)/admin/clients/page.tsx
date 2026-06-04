@@ -36,7 +36,6 @@ export default function AdminClients() {
     street: "",
     city: "",
     state: "",
-    pincode: "",
     billingName: "",
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -128,7 +127,6 @@ export default function AdminClients() {
         street: companyForm.street,
         city: companyForm.city,
         state: companyForm.state,
-        pincode: companyForm.pincode,
       },
       accounting: {
         billingName: companyForm.billingName || companyForm.companyName,
@@ -144,7 +142,7 @@ export default function AdminClients() {
       if (viewType === 'companies') fetchData();
 
       setCompanyForm({
-        companyName: "", cinNumber: "", street: "", city: "", state: "", pincode: "",
+        companyName: "", cinNumber: "", street: "", city: "", state: "",
         billingName: ""
       });
       setCompanyModalOpen(false);
@@ -590,10 +588,9 @@ export default function AdminClients() {
                   <div className="h-px flex-1 bg-neutral-100" />
                 </div>
                 <input type="text" placeholder="Street / Building" value={companyForm.street} onChange={(e) => setCompanyForm({ ...companyForm, street: e.target.value })} className={inputClass} />
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <input type="text" placeholder="City" value={companyForm.city} onChange={(e) => setCompanyForm({ ...companyForm, city: e.target.value })} className={inputClass} />
                   <input type="text" placeholder="State" value={companyForm.state} onChange={(e) => setCompanyForm({ ...companyForm, state: e.target.value })} className={inputClass} />
-                  <input type="text" placeholder="Pincode" value={companyForm.pincode} onChange={(e) => setCompanyForm({ ...companyForm, pincode: e.target.value })} className={inputClass} />
                 </div>
               </div>
 

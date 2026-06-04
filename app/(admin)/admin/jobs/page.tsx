@@ -41,11 +41,19 @@ export default function AdminJobsPage() {
         assignmentService.getAll()
       ]);
 
-      // ONLY SHOW FINALIZED JOBS — exclude without-tax secret jobs (they belong in Secret Jobs page)
-      const finalizedOnly = (bookingsData || []).filter((b: any) =>
-        b.status === 'finalized' && !(b.isSecret === true && b.withTax === false)
-      );
-      setBookings(finalizedOnly);
+      const assignments = assignmentsData || [];
+      const assignedBookingIds = new Set(assignments.map((a: any) =>
+        (a.bookingId?._id || a.bookingId)?.toString()
+      ));
+
+      // Show finalized jobs OR assigned jobs — exclude cancelled, rejected, without-tax secret jobs
+      const visibleJobs = (bookingsData || []).filter((b: any) => {
+        const s = b.status?.toLowerCase();
+        if (s === "cancelled" || s === "rejected") return false;
+        if (b.isSecret === true && b.withTax === false) return false;
+        return s === "finalized" || assignedBookingIds.has(b._id.toString());
+      });
+      setBookings(visibleJobs);
       setAssignments(assignmentsData || []);
     } catch (error) {
       console.error("Failed to fetch bookings:", error);

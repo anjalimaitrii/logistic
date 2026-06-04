@@ -39,8 +39,16 @@ interface LocationEntry {
   plotNo: string;
   street: string;
   city: string;
-  pincode: string;
+  state: string;
 }
+
+const NIGERIAN_STATES = [
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
+  "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT (Abuja)", "Gombe",
+  "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos",
+  "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto",
+  "Taraba", "Yobe", "Zamfara",
+];
 
 const NIGERIAN_CITIES = [
   "Abuja", "Abeokuta", "Ado-Ekiti", "Akure", "Asaba", "Awka",
@@ -62,7 +70,7 @@ const emptyLocation = (): LocationEntry => ({
   plotNo: "",
   street: "",
   city: "",
-  pincode: "",
+  state: "",
 });
 
 export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: CreateBookingDrawerProps) {
@@ -148,14 +156,14 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
           );
           const data = await res.json();
           const addr = data.address || {};
-          const city    = addr.city || addr.town || addr.village || "";
-          const pincode = addr.postcode || "";
-          const street  = addr.road || addr.suburb || addr.neighbourhood || "";
+          const city   = addr.city || addr.town || addr.village || "";
+          const state  = addr.state || addr.county || addr.state_district || "";
+          const street = addr.road || addr.suburb || addr.neighbourhood || "";
 
           setFormData(prev => {
             const key = type === "pickup" ? "pickupLocations" : "dropoffLocations";
             const locs = prev[key].map((loc, i) =>
-              i === idx ? { ...loc, city, pincode, street } : loc
+              i === idx ? { ...loc, city, state, street } : loc
             );
             return { ...prev, [key]: locs };
           });
@@ -258,7 +266,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
           plotNo: loc.plotNo,
           street: loc.street,
           city: loc.city,
-          pincode: loc.pincode,
+          state: loc.state,
         },
         gpsEnabled: false,
       });
@@ -415,7 +423,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
           />
         </div>
 
-        {/* Address row 2 — City + Pincode */}
+        {/* Address row 2 — City + State */}
         <div className="grid grid-cols-2 gap-3">
           <select
             value={location.city}
@@ -427,12 +435,16 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
-          <input
-            placeholder="Pincode"
-            value={location.pincode}
-            onChange={(e) => updateLoc(type, idx, "pincode", e.target.value)}
-            className={inputCls}
-          />
+          <select
+            value={location.state}
+            onChange={(e) => updateLoc(type, idx, "state", e.target.value)}
+            className={`${inputCls} appearance-none cursor-pointer`}
+          >
+            <option value="">State</option>
+            {NIGERIAN_STATES.map(s => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
         </div>
       </div>
     );
@@ -589,7 +601,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                     <div className="grid grid-cols-2 gap-3">
                       {[
                         { name: "Flat Bed", icon: "🚜" },
-                        { name: "Walled", icon: "🚛" },
+                        { name: "Side Drop", icon: "🚛" },
                       ].map((truck) => (
                         <button
                           key={truck.name}
@@ -701,7 +713,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                           {getLocationLabel(formData.pickupLocations.length, formData.dropoffLocations.length, true, idx)}
                         </div>
                         <div className="flex-1">
-                          <div className="font-semibold text-emerald-900 text-[11px]">{location.city}{location.pincode ? `, ${location.pincode}` : ""}</div>
+                          <div className="font-semibold text-emerald-900 text-[11px]">{location.city}{location.state ? `, ${location.state}` : ""}</div>
                           <div className="text-emerald-600 text-[9px] mt-0.5">{location.contactPerson} · {location.contact}</div>
                           {location.contactPerson2 && (
                             <div className="text-emerald-500 text-[9px]">{location.contactPerson2} · {location.contact2}</div>
@@ -726,7 +738,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                           {getLocationLabel(formData.pickupLocations.length, formData.dropoffLocations.length, false, idx)}
                         </div>
                         <div className="flex-1">
-                          <div className="font-semibold text-rose-900 text-[11px]">{location.city}{location.pincode ? `, ${location.pincode}` : ""}</div>
+                          <div className="font-semibold text-rose-900 text-[11px]">{location.city}{location.state ? `, ${location.state}` : ""}</div>
                           <div className="text-rose-600 text-[9px] mt-0.5">{location.contactPerson} · {location.contact}</div>
                           {location.contactPerson2 && (
                             <div className="text-rose-500 text-[9px]">{location.contactPerson2} · {location.contact2}</div>

@@ -1,20 +1,17 @@
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
 export const uploadService = {
-  // Convert files to base64 for MongoDB storage — no S3 needed
-  toBase64: (files: File[]): Promise<{ name: string; data: string; mimeType: string; size: number }[]> => {
-    return Promise.all(
-      files.map(file =>
-        new Promise<{ name: string; data: string; mimeType: string; size: number }>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload  = () => resolve({
-            name:     file.name,
-            data:     (reader.result as string).split(",")[1], // strip base64 prefix
-            mimeType: file.type,
-            size:     file.size,
-          });
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        })
-      )
-    );
+  uploadToS3: async (
+    files: File[],
+    folder = "job-attachments"
+  ): Promise<{ name: string; url: string; size: number; type: string }[]> => {
+    const form = new FormData();
+    files.forEach((f) => form.append("files", f));
+    form.append("folder", folder);
+
+    const res = await fetch(`${API_URL}/api/upload`, { method: "POST", body: form });
+    if (!res.ok) throw new Error("S3 upload failed");
+    const data = await res.json();
+    return data.files as { name: string; url: string; size: number; type: string }[];
   },
 };

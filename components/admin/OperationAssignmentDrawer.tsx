@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
   Truck,
-  MapPin,
   Package,
   Phone,
   Calendar,
@@ -16,7 +15,6 @@ import {
 } from "lucide-react";
 import { driverService } from "@/services/driverService";
 import { assignmentService } from "@/services/assignmentService";
-import { collectionService } from "@/services/collectionService";
 
 interface OperationAssignmentDrawerProps {
   isOpen: boolean;
@@ -28,9 +26,7 @@ interface OperationAssignmentDrawerProps {
 export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubmit }: OperationAssignmentDrawerProps) {
   const [step, setStep] = useState(1);
   const [drivers, setDrivers] = useState<any[]>([]);
-  const [collections, setCollections] = useState<any[]>([]);
   const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
-  const [isLoadingCollections, setIsLoadingCollections] = useState(false);
   const [driverQueueInfo, setDriverQueueInfo] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
@@ -40,13 +36,11 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
     truckId: "",
     truckNumber: "",
     truckHealth: "Excellent",
-    collection: ""
   });
 
   useEffect(() => {
     if (isOpen) {
       loadDrivers();
-      loadCollections();
     }
   }, [isOpen]);
 
@@ -62,21 +56,6 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
       console.error("Failed to load drivers:", error);
     } finally {
       setIsLoadingDrivers(false);
-    }
-  };
-
-  const loadCollections = async () => {
-    try {
-      setIsLoadingCollections(true);
-      const data = await collectionService.getAll();
-      setCollections(data || []);
-      if (data && data.length > 0 && !formData.collection) {
-        setFormData(prev => ({ ...prev, collection: data[0].name }));
-      }
-    } catch (error) {
-      console.error("Failed to load collections:", error);
-    } finally {
-      setIsLoadingCollections(false);
     }
   };
 
@@ -131,7 +110,6 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
           truckId: job.assignment.truckId || "",
           truckNumber: job.assignment.truckNumber || "",
           truckHealth: job.assignment.truckHealth || "Excellent",
-          collection: job.assignment.collectionArea || "Collection 1"
         });
       } else {
         setFormData({
@@ -141,7 +119,6 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
           truckId: "",
           truckNumber: "",
           truckHealth: "Excellent",
-          collection: "Collection 1"
         });
       }
       setDriverQueueInfo([]);
@@ -231,7 +208,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                             <div className="text-[12px] font-semibold text-neutral-900">{loc.address?.city || "—"}</div>
                             {(loc.address?.plotNo || loc.address?.street) && (
                               <div className="text-[11px] text-neutral-500 mt-0.5">
-                                {[loc.address?.plotNo, loc.address?.street, loc.address?.pincode].filter(Boolean).join(", ")}
+                                {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}
                               </div>
                             )}
                             <div className="flex items-center gap-1 text-[10px] text-emerald-600 mt-0.5">
@@ -259,7 +236,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                             <div className="text-[12px] font-semibold text-neutral-900">{loc.address?.city || "—"}</div>
                             {(loc.address?.plotNo || loc.address?.street) && (
                               <div className="text-[11px] text-neutral-500 mt-0.5">
-                                {[loc.address?.plotNo, loc.address?.street, loc.address?.pincode].filter(Boolean).join(", ")}
+                                {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}
                               </div>
                             )}
                             <div className="flex items-center gap-1 text-[10px] text-rose-600 mt-0.5">
@@ -423,31 +400,6 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                       </div>
                     </div>
 
-                    {/* Collection Area */}
-                    <div className="bg-neutral-50 rounded-2xl p-4 border border-neutral-100 hover:border-primary/30 transition-all shadow-sm">
-                      <label className="text-[9px] font-semibold text-neutral-400 uppercase tracking-widest flex items-center gap-1.5 mb-2">
-                        <MapPin className="w-3 h-3 text-primary" /> Dispatch Collection Area
-                      </label>
-                      <div className="relative">
-                        <select
-                          value={formData.collection}
-                          onChange={(e) => setFormData({ ...formData, collection: e.target.value })}
-                          disabled={job?.isApproved}
-                          className={`bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full appearance-none ${job?.isApproved ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
-                        >
-                          {isLoadingCollections ? (
-                            <option>Loading...</option>
-                          ) : collections.length > 0 ? (
-                            collections.map((c: any) => (
-                              <option key={c._id} value={c.name}>{c.name}</option>
-                            ))
-                          ) : (
-                            <option value="">No collections found</option>
-                          )}
-                        </select>
-                        {!job?.isApproved && <ChevronDown className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-300 pointer-events-none" />}
-                      </div>
-                    </div>
                   </div>
                 </section>
               </motion.div>

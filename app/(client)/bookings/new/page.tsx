@@ -20,6 +20,8 @@ import {
    X,
    Clock,
    Loader2,
+   UserPlus,
+   Briefcase,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -27,23 +29,34 @@ import { useRouter } from "next/navigation";
 import { bookingService } from "@/services/bookingService";
 import { goodsTypeService } from "@/services/goodsTypeService";
 
+const NIGERIAN_STATES = [
+   "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
+   "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT (Abuja)", "Gombe",
+   "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos",
+   "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto",
+   "Taraba", "Yobe", "Zamfara",
+];
+
 const TRUCK_TYPES = [
    { name: "Flat Bed", icon: "🚜", desc: "Open Platform", cap: "Required" },
-   { name: "Walled", icon: "🚛", desc: "Enclosed Sides", cap: "Required" },
+   { name: "Side Drop", icon: "🚛", desc: "Drop Side Body", cap: "Required" },
 ];
 
 type LocationEntry = {
    contactPerson: string;
    contact: string;
+   contactPerson2: string;
+   contact2: string;
+   clientName: string;
    plotNo: string;
    street: string;
    city: string;
-   pincode: string;
+   state: string;
    gps: boolean;
 };
 
 const emptyLocation = (): LocationEntry => ({
-   contactPerson: "", contact: "", plotNo: "", street: "", city: "", pincode: "", gps: false
+   contactPerson: "", contact: "", contactPerson2: "", contact2: "", clientName: "", plotNo: "", street: "", city: "", state: "", gps: false
 });
 
 const getLabel = (idx: number, offset = 0) => String.fromCharCode(65 + offset + idx);
@@ -87,10 +100,11 @@ function extractPreviousLocations(bookings: any[]): LocationEntry[] {
             locs.push({
                contactPerson: stop.contactPerson || "",
                contact: stop.contactNumber || "",
+               contactPerson2: "", contact2: "", clientName: "",
                plotNo: stop.address?.plotNo || "",
                street: stop.address?.street || "",
                city: stop.address?.city || "",
-               pincode: stop.address?.pincode || "",
+               state: stop.address?.state || "",
                gps: stop.gpsEnabled || false,
             });
          }
@@ -118,6 +132,13 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
    const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
    const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
    const [gpsLoadingIdx, setGpsLoadingIdx] = useState<number | null>(null);
+   const [showContact2, setShowContact2] = useState<boolean[]>(() => locations.map(() => false));
+   const [showClientName, setShowClientName] = useState<boolean[]>(() => locations.map(() => false));
+
+   useEffect(() => {
+      setShowContact2(prev => locations.map((_, i) => prev[i] ?? false));
+      setShowClientName(prev => locations.map((_, i) => prev[i] ?? false));
+   }, [locations.length]);
 
    const fetchGps = (idx: number) => {
       if (!navigator.geolocation) { alert("Geolocation not supported."); return; }
@@ -134,9 +155,9 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                const addr = data.address || {};
                onFill(type, idx, {
                   ...locations[idx],
-                  city:    addr.city || addr.town || addr.village || addr.county || "",
-                  pincode: addr.postcode || "",
-                  street:  addr.road || addr.suburb || addr.neighbourhood || "",
+                  city:   addr.city || addr.town || addr.village || addr.county || "",
+                  state:  addr.state || addr.county || addr.state_district || "",
+                  street: addr.road || addr.suburb || addr.neighbourhood || "",
                });
             } catch {
                alert("Failed to fetch address.");
@@ -208,7 +229,33 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                      </div>
                   </div>
 
-                  {/* Contact fields */}
+                  {/* Dropoff only — client/business name (above contact) */}
+                  {!isPickup && (
+                     <>
+                        <button
+                           type="button"
+                           onClick={() => setShowClientName(prev => { const a = [...prev]; a[idx] = !a[idx]; return a; })}
+                           className={`flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest transition-colors ${showClientName[idx] ? `${a.title}` : "text-slate-400 hover:text-slate-600"}`}
+                        >
+                           <Briefcase className="w-3 h-3" />
+                           {showClientName[idx] ? "Remove Client Name" : "+ Add Client (Optional)"}
+                        </button>
+                        {showClientName[idx] && (
+                           <div className="relative">
+                              <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                              <input
+                                 type="text"
+                                 placeholder="Client / Business Name"
+                                 value={loc.clientName}
+                                 onChange={(e) => onUpdate(type, idx, "clientName", e.target.value)}
+                                 className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
+                              />
+                           </div>
+                        )}
+                     </>
+                  )}
+
+                  {/* Primary contact */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                      <div className="relative">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
@@ -216,7 +263,7 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                            type="text"
                            placeholder="Contact Person"
                            value={loc.contactPerson}
-                           onChange={(e) => onUpdate(type, idx, "contactPerson", e.target.value)}
+                           onChange={(e) => onUpdate(type, idx, "contactPerson", e.target.value.replace(/[0-9]/g, ""))}
                            className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
                         />
                      </div>
@@ -232,6 +279,42 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                         />
                      </div>
                   </div>
+
+                  {/* Optional 2nd contact toggle */}
+                  <button
+                     type="button"
+                     onClick={() => setShowContact2(prev => { const a = [...prev]; a[idx] = !a[idx]; return a; })}
+                     className={`flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest transition-colors ${showContact2[idx] ? `${a.title}` : "text-slate-400 hover:text-slate-600"}`}
+                  >
+                     <UserPlus className="w-3 h-3" />
+                     {showContact2[idx] ? "Remove 2nd Contact" : "+ Add 2nd Contact (Optional)"}
+                  </button>
+
+                  {showContact2[idx] && (
+                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-dashed border-slate-100">
+                        <div className="relative">
+                           <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                           <input
+                              type="text"
+                              placeholder="2nd Contact Person"
+                              value={loc.contactPerson2}
+                              onChange={(e) => onUpdate(type, idx, "contactPerson2", e.target.value.replace(/[0-9]/g, ""))}
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
+                           />
+                        </div>
+                        <div className="relative">
+                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                           <input
+                              type="tel"
+                              placeholder="2nd Contact Number"
+                              value={loc.contact2}
+                              maxLength={10}
+                              onChange={(e) => onUpdate(type, idx, "contact2", e.target.value.replace(/\D/g, "").slice(0, 10))}
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
+                           />
+                        </div>
+                     </div>
+                  )}
 
                   {/* Address fields — suggestions appear below these */}
                   <div className="relative">
@@ -273,16 +356,19 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                            />
                         </div>
                         <div className="relative">
-                           <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 scale-x-[-1] rotate-180" />
-                           <input
-                              type="text"
-                              placeholder="Pincode"
-                              value={loc.pincode}
-                              onChange={(e) => onUpdate(type, idx, "pincode", e.target.value)}
+                           <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 pointer-events-none" />
+                           <select
+                              value={loc.state}
+                              onChange={(e) => onUpdate(type, idx, "state", e.target.value)}
                               onFocus={() => handleAddressFieldFocus(idx)}
                               onBlur={handleAddressFieldBlur}
-                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
-                           />
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all appearance-none cursor-pointer ${a.focus}`}
+                           >
+                              <option value="">State</option>
+                              {NIGERIAN_STATES.map(s => (
+                                 <option key={s} value={s}>{s}</option>
+                              ))}
+                           </select>
                         </div>
                      </div>
 
@@ -307,7 +393,7 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                                     <MapPin className="w-3 h-3 text-slate-300 shrink-0" />
                                     <div className="min-w-0 flex-1">
                                        <p className="text-[11px] font-medium text-slate-700 truncate">
-                                          {[prev.plotNo, prev.street, prev.city, prev.pincode].filter(Boolean).join(", ")}
+                                          {[prev.plotNo, prev.street, prev.city, prev.state].filter(Boolean).join(", ")}
                                        </p>
                                        {(prev.contactPerson || prev.contact) && (
                                           <p className="text-[9px] text-slate-400 mt-0.5 truncate">
@@ -454,18 +540,21 @@ export default function NewBookingPage() {
             sequence: idx + 1,
             contactPerson: loc.contactPerson,
             contactNumber: loc.contact,
-            address: { plotNo: loc.plotNo, street: loc.street, city: loc.city, pincode: loc.pincode },
+            ...(loc.contactPerson2.trim() && { contactPerson2: loc.contactPerson2, contactNumber2: loc.contact2 }),
+            address: { plotNo: loc.plotNo, street: loc.street, city: loc.city, state: loc.state },
             gpsEnabled: loc.gps,
          })),
          dropoffLocations: formData.dropoffLocations.map((loc, idx) => ({
             sequence: idx + 1,
             contactPerson: loc.contactPerson,
             contactNumber: loc.contact,
-            address: { plotNo: loc.plotNo, street: loc.street, city: loc.city, pincode: loc.pincode },
+            ...(loc.contactPerson2.trim() && { contactPerson2: loc.contactPerson2, contactNumber2: loc.contact2 }),
+            ...(loc.clientName.trim() && { clientName: loc.clientName }),
+            address: { plotNo: loc.plotNo, street: loc.street, city: loc.city, state: loc.state },
             gpsEnabled: loc.gps,
          })),
          requirement: { bodyType: formData.truckType },
-         status: "pending",
+         status: "active",
          metadata: { source: "webapp_client", createdAt: new Date().toISOString() }
       };
 

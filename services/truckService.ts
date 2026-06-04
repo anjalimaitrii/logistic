@@ -29,7 +29,7 @@ export interface TruckPayload {
   currentService?: string;
   nextService?: string;
   nextServiceDate?: string;
-  tireSerialNumber?: string;
+  tireSerialNumber?: string | string[];
 }
 
 export const truckService = {
@@ -57,6 +57,19 @@ export const truckService = {
 
   delete: async (id: string) => {
     return await fetchApi(`/api/trucks/${id}`, {
+      method: 'DELETE',
+    });
+  },
+
+  addCollection: async (truckId: string, payload: { name: string; description: string; quantity: number }) => {
+    return await fetchApi(`/api/trucks/${truckId}/collections`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  removeCollection: async (truckId: string, colId: string) => {
+    return await fetchApi(`/api/trucks/${truckId}/collections/${colId}`, {
       method: 'DELETE',
     });
   },

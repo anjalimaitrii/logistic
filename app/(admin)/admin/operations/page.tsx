@@ -35,10 +35,10 @@ export default function AdminOperations() {
         settlementService.getAll().catch(() => [])
       ]);
 
-      const all       = bookingsData || [];
-      const finalized = all.filter((b: any) => b.status?.toLowerCase() === "finalized");
+      const all = bookingsData || [];
+      const visible = all.filter((b: any) => !["cancelled", "rejected"].includes(b.status?.toLowerCase()));
 
-      setBookings(finalized);
+      setBookings(visible);
       setAssignments(assignmentsData || []);
       setSettlements(settlementsData || []);
     } catch (error) {

@@ -47,10 +47,11 @@ export default function AdminAccountant() {
         (a.bookingId?._id || a.bookingId)?.toString()
       ));
 
-      // Only show finalized bookings that have been assigned to a driver
-      const finalizedAndAssigned = (bookingsData || []).filter((b: any) =>
-        b.status?.toLowerCase() === "finalized" && assignedBookingIds.has(b._id.toString())
-      );
+      // Show all assigned bookings (driver assigned), excluding cancelled/rejected
+      const finalizedAndAssigned = (bookingsData || []).filter((b: any) => {
+        const s = b.status?.toLowerCase();
+        return assignedBookingIds.has(b._id.toString()) && s !== "cancelled" && s !== "rejected";
+      });
 
       setBookings(finalizedAndAssigned);
       setAssignments(assignments);

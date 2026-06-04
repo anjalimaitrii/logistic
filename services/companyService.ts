@@ -7,7 +7,6 @@ export interface CompanyPayload {
     street: string;
     city: string;
     state: string;
-    pincode: string;
   };
   contact?: {
     person: string;

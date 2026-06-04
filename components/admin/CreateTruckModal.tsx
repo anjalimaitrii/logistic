@@ -116,7 +116,7 @@ export default function CreateTruckModal({ isOpen, onClose, onSubmit }: CreateTr
                         value={formData.truckType}
                         onChange={(e) => setFormData({ ...formData, truckType: e.target.value })}
                       >
-                        <option value="walled">Walled</option>
+                        <option value="Side Drop">Side Drop</option>
                         <option value="Flatbed">Flatbed</option>
                       </select>
                     </div>

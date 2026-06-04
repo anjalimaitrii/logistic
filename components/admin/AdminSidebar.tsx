@@ -60,16 +60,6 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
       ),
     },
     {
-      label: "Live Track",
-      href: "/admin/livetrack",
-      icon: (
-        <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-          <circle cx="12" cy="12" r="3" />
-          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
-        </svg>
-      ),
-    },
-    {
       label: "Accountant",
       href: "/admin/accountant",
       icon: (
@@ -121,17 +111,6 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
           <circle cx="9" cy="7" r="4" />
           <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
           <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-        </svg>
-      ),
-    },
-    {
-      label: "Collection",
-      href: "/admin/collection",
-      icon: (
-        <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-          <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-          <line x1="12" y1="22.08" x2="12" y2="12" />
         </svg>
       ),
     },

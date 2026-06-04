@@ -131,7 +131,7 @@ function BookingDetailModal({ booking, onClose }: { booking: any; onClose: () =>
                               {loc.address?.city && (
                                  <p className="text-slate-600 col-span-2">
                                     <span className="text-slate-400">Address:</span>{" "}
-                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.pincode].filter(Boolean).join(", ")}
+                                    {[loc.address.plotNo, loc.address.street, loc.address.city].filter(Boolean).join(", ")}
                                  </p>
                               )}
                            </div>
@@ -171,7 +171,7 @@ function BookingDetailModal({ booking, onClose }: { booking: any; onClose: () =>
                               {loc.address?.city && (
                                  <p className="text-slate-600 col-span-2">
                                     <span className="text-slate-400">Address:</span>{" "}
-                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.pincode].filter(Boolean).join(", ")}
+                                    {[loc.address.plotNo, loc.address.street, loc.address.city].filter(Boolean).join(", ")}
                                  </p>
                               )}
                            </div>

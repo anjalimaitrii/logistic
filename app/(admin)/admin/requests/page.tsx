@@ -5,14 +5,14 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
 import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
-import { MessageSquare, CheckCircle, XCircle, Clock, ChevronRight, Package, Search } from "lucide-react";
+import { MessageSquare, CheckCircle, ChevronRight, Package, Search } from "lucide-react";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
 import StatCard from "@/components/admin/StatCard";
 import { bookingService } from "@/services/bookingService";
 import { useRouter } from "next/navigation";
 import CreateBookingDrawer from "@/components/admin/CreateBookingDrawer";
 
-type RequestStatus = "Pending" | "Accepted" | "Rejected" | "Finalized";
+type RequestStatus = "Active" | "Finalized";
 
 export default function BookingRequestsPage() {
   const router = useRouter();
@@ -56,15 +56,6 @@ export default function BookingRequestsPage() {
     }
   };
 
-  const handleStatusChange = async (id: string, newStatus: string, additionalData: any = {}) => {
-    try {
-      await bookingService.updateStatus(id, newStatus.toLowerCase(), additionalData);
-      loadRequests();
-    } catch (error) {
-      console.error("Status update error:", error);
-    }
-  };
-
   const handleUpdateJob = async (id: string, payload: any) => {
     try {
       await bookingService.update(id, payload);
@@ -76,13 +67,9 @@ export default function BookingRequestsPage() {
   };
 
   const getStatusLabel = (status: string): RequestStatus => {
-    if (!status) return 'Pending';
-    const s = status.toLowerCase();
-    if (s === 'pending') return 'Pending';
-    if (s === 'active' || s === 'accepted') return 'Accepted';
-    if (s === 'rejected') return 'Rejected';
-    if (s === 'finalized' || s === 'delivered') return 'Finalized';
-    return 'Pending';
+    const s = (status || "").toLowerCase();
+    if (s === 'finalized' || s === 'delivered' || s === 'completed') return 'Finalized';
+    return 'Active';
   };
 
   const getRequestRoute = (req: any): string[] => {
@@ -189,16 +176,10 @@ export default function BookingRequestsPage() {
       label: "Status",
       key: "status",
       render: (val: RequestStatus) => (
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${val === 'Pending' ? 'bg-amber-50 text-amber-600' :
-          val === 'Accepted' ? 'bg-blue-50 text-blue-600' :
-            val === 'Rejected' ? 'bg-rose-50 text-rose-500' :
-              'bg-emerald-50 text-emerald-600'
-          }`}>
-          <div className={`w-1 h-1 rounded-full ${val === 'Pending' ? 'bg-amber-500' :
-            val === 'Accepted' ? 'bg-blue-600' :
-              val === 'Rejected' ? 'bg-rose-500' :
-                'bg-emerald-600'
-            }`} />
+        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${
+          val === 'Finalized' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'
+        }`}>
+          <div className={`w-1 h-1 rounded-full ${val === 'Finalized' ? 'bg-emerald-600' : 'bg-blue-600'}`} />
           {val}
         </span>
       )
@@ -209,32 +190,7 @@ export default function BookingRequestsPage() {
       align: "center" as const,
       render: (_: any, row: any) => (
         <div className="flex gap-2 justify-center items-center">
-          {row.status === "Pending" && (
-            <>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleStatusChange(row.raw._id, "Accepted");
-                }}
-                className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all group"
-                title="Accept Request"
-              >
-                <CheckCircle className="w-4 h-4 group-hover:scale-110 transition-transform" />
-              </button>
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleStatusChange(row.raw._id, "Rejected");
-                }}
-                className="p-2 bg-rose-50 text-rose-500 rounded-lg hover:bg-rose-600 hover:text-white transition-all group"
-                title="Reject Request"
-              >
-                <XCircle className="w-4 h-4 group-hover:scale-110 transition-transform" />
-              </button>
-            </>
-          )}
-
-          {row.status === "Accepted" && (
+          {row.status === "Active" && (
             <>
               <button
                 onClick={(e) => {
@@ -243,11 +199,10 @@ export default function BookingRequestsPage() {
                   setIsChatOpen(true);
                 }}
                 className="p-2 bg-neutral-50 text-neutral-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all border border-transparent hover:border-primary/20 group"
-                title="Negotiate Chat"
+                title="Chat"
               >
                 <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </button>
-
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -260,18 +215,10 @@ export default function BookingRequestsPage() {
               </button>
             </>
           )}
-
           {row.status === "Finalized" && (
             <div className="flex items-center gap-1 text-[9px] font-semibold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full">
               <CheckCircle className="w-3 h-3" />
-              Approved
-            </div>
-          )}
-
-          {row.status === "Rejected" && (
-            <div className="flex items-center gap-1 text-[9px] font-semibold text-rose-500 uppercase tracking-widest bg-rose-50 px-3 py-1 rounded-full">
-              <XCircle className="w-3 h-3" />
-              Rejected
+              Done
             </div>
           )}
         </div>
@@ -281,9 +228,9 @@ export default function BookingRequestsPage() {
 
   const stats = [
     { label: "Total Submissions", value: requests.length.toString(), icon: "📩", subText: "Overall Requests", trend: "Live", variant: "primary" as const },
-    { label: "Accepted Deals", value: requests.filter(r => r.status === 'accepted' || r.status === 'finalized').length.toString(), icon: "🤝", subText: "Active/Accepted", trend: "Sync", variant: "success" as const },
-    { label: "Pending Review", value: requests.filter(r => r.status === 'pending').length.toString(), icon: "⏳", subText: "Awaiting Action", trend: "High", variant: "warning" as const },
-    { label: "Rejections", value: requests.filter(r => r.status === 'rejected').length.toString(), icon: "🚫", subText: "Closed Requests", trend: "Live", variant: "danger" as const },
+    { label: "Active Bookings", value: requests.filter(r => !['finalized','delivered','completed','transit'].includes(r.status)).length.toString(), icon: "🤝", subText: "Awaiting Finalization", trend: "Live", variant: "success" as const },
+    { label: "Finalized", value: requests.filter(r => ['finalized','delivered','completed'].includes(r.status)).length.toString(), icon: "✅", subText: "Deals Closed", trend: "Sync", variant: "warning" as const },
+    { label: "In Transit", value: requests.filter(r => r.status === 'transit').length.toString(), icon: "🚛", subText: "On The Road", trend: "Live", variant: "danger" as const },
   ];
 
   return (
@@ -355,9 +302,9 @@ export default function BookingRequestsPage() {
             </div>
           }
           onRowClick={(row) => {
-            if (row.status === "Accepted") {
+            if (row.status === "Active") {
               setSelectedRequest(row.raw);
-              setIsChatOpen(true);
+              setIsFinalizeDrawerOpen(true);
             }
           }}
           emptyState={
@@ -378,6 +325,7 @@ export default function BookingRequestsPage() {
         <BookingChatPanel
           isOpen={isChatOpen}
           onClose={() => setIsChatOpen(false)}
+          clientId={(selectedRequest?.clientId as any)?._id || (selectedRequest?.clientId as any)?.id || ""}
           request={selectedRequest ? {
             id: selectedRequest.tripId || `#BR-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
             customer: (selectedRequest.clientId as any)?.name || "Direct Client",
@@ -406,13 +354,14 @@ export default function BookingRequestsPage() {
             date: new Date(selectedRequest.createdAt || Date.now()).toLocaleDateString(),
             status: getStatusLabel(selectedRequest.status) as any
           } : null}
-          onSubmit={(data) => {
+          onSubmit={async (data) => {
             if (selectedRequest) {
-              handleStatusChange(selectedRequest._id, "Finalized", {
+              await bookingService.updateStatus(selectedRequest._id, "finalized", {
                 finalAmount: Number(data.amount),
                 advancePaid: Number(data.advancePaid),
                 specialRequest: data.specialRequest
               });
+              loadRequests();
             }
             setIsFinalizeDrawerOpen(false);
           }}
