@@ -74,9 +74,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       }).catch(() => {});
     };
 
-    // Chat message notification — only when client sends (admin is recipient)
-    const handleReceiveMessage = (data: { roomId: string; sender: "admin" | "client"; senderName: string; message: string }) => {
-      if (data.sender !== "client") return;
+    // Global chat notification — fires when any client sends a message
+    const handleChatNotif = (data: { roomId: string; senderName: string; message: string }) => {
       const payload = {
         icon: "💬",
         title: `New Message — ${data.senderName}`,
@@ -93,10 +92,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     };
 
     socket.on("new_job", handleNewJob);
-    socket.on("receive_message", handleReceiveMessage);
+    socket.on("chat_notification", handleChatNotif);
     return () => {
       socket.off("new_job", handleNewJob);
-      socket.off("receive_message", handleReceiveMessage);
+      socket.off("chat_notification", handleChatNotif);
     };
   }, []);
 
