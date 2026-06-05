@@ -154,12 +154,6 @@ export default function JobDetailReport() {
     }
   };
 
-  const _unused = async () => {
-    try { } finally {
-      setIsApplyingRoute(false);
-    }
-  };
-
   const jobInfo = useMemo(() => {
     if (!booking) return null;
     return {
