@@ -212,7 +212,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
   });
   const [formData, setFormData] = useState({
     clientId: "",
-    goodsType: "",
+    goodsType: [] as string[],
     weight: "",
     scheduleDate: new Date().toISOString().split("T")[0],
     pickupLocations: [emptyLocation()],
@@ -249,7 +249,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
     try {
       await goodsTypeService.remove(id);
       setGoodsTypes(prev => prev.filter(g => g._id !== id));
-      if (formData.goodsType === name) setFormData(f => ({ ...f, goodsType: "" }));
+      setFormData(f => ({ ...f, goodsType: f.goodsType.filter(g => g !== name) }));
     } catch { /* silent */ }
   };
 
@@ -308,7 +308,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
     });
   };
 
-  const isStep1Valid = !!formData.clientId && !!formData.goodsType.trim() && !!formData.weight && !!formData.scheduleDate;
+  const isStep1Valid = !!formData.clientId && formData.goodsType.length > 0 && !!formData.weight && !!formData.scheduleDate;
   const isStep2Valid =
     formData.pickupLocations.some(l => l.contactPerson.trim() && l.contact.trim() && l.city.trim()) &&
     formData.dropoffLocations.some(l => l.contactPerson.trim() && l.contact.trim() && l.city.trim());
@@ -327,7 +327,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
       });
       const payload = {
         clientId: formData.clientId,
-        cargoDetails: { goodsType: formData.goodsType, weight: parseInt(formData.weight), loadingDate: formData.scheduleDate },
+        cargoDetails: { goodsType: formData.goodsType, weight: parseFloat(formData.weight), loadingDate: formData.scheduleDate },
         pickupLocations: formData.pickupLocations.map(mapLoc),
         dropoffLocations: formData.dropoffLocations.map(mapLoc),
         requirement: { bodyType: formData.truckType },
@@ -411,17 +411,34 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                       <Plus className="w-3 h-3" /> Manage
                     </button>
                   </div>
-                  <div className="relative">
-                    <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 pointer-events-none" />
-                    <select
-                      value={formData.goodsType}
-                      onChange={e => setFormData(f => ({ ...f, goodsType: e.target.value }))}
-                      className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm appearance-none cursor-pointer"
-                    >
-                      <option value="">Select goods type...</option>
-                      {goodsTypes.map(g => <option key={g._id} value={g.name}>{g.name}</option>)}
-                    </select>
+                  <div className="flex flex-wrap gap-2">
+                    {goodsTypes.map(g => {
+                      const selected = formData.goodsType.includes(g.name);
+                      return (
+                        <button
+                          key={g._id}
+                          type="button"
+                          onClick={() => setFormData(f => ({
+                            ...f,
+                            goodsType: selected
+                              ? f.goodsType.filter(t => t !== g.name)
+                              : [...f.goodsType, g.name],
+                          }))}
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
+                            selected
+                              ? "bg-primary text-white border-primary shadow-sm shadow-primary/20"
+                              : "bg-neutral-50 text-neutral-500 border-neutral-200 hover:border-primary/40"
+                          }`}
+                        >
+                          {selected && <span className="mr-1">✓</span>}{g.name}
+                        </button>
+                      );
+                    })}
+                    {goodsTypes.length === 0 && <p className="text-[11px] text-neutral-400 italic">No goods types yet — use Manage to add</p>}
                   </div>
+                  {formData.goodsType.length > 0 && (
+                    <p className="text-[10px] text-primary font-bold ml-1">{formData.goodsType.length} selected</p>
+                  )}
                   {showGoodsManager && (
                     <div className="bg-white border border-neutral-100 rounded-xl p-3 shadow-sm space-y-2">
                       <div className="flex gap-2">
@@ -564,7 +581,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1">Cargo</div>
-                      <div className="text-[11px] font-medium text-slate-700">{formData.goodsType} · {formData.weight} Tons</div>
+                      <div className="text-[11px] font-medium text-slate-700">{formData.goodsType.join(", ")} · {formData.weight} Tons</div>
                     </div>
                     <div className="text-right">
                       <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1">Vehicle</div>

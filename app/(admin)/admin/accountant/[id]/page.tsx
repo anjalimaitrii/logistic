@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import {
@@ -15,10 +15,13 @@ import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
 import { routeService } from "@/services/routeService";
+import { useNotifications } from "@/context/NotificationContext";
 
 export default function AccountantJobDetail() {
   const router = useRouter();
   const { id } = useParams();
+  const { addNotification } = useNotifications();
+  const notifiedRef = useRef<Set<string>>(new Set());
   const [jobData, setJobData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isApproved, setIsApproved] = useState(false);
@@ -31,9 +34,55 @@ export default function AccountantJobDetail() {
   const [fuelRate, setFuelRate] = useState("0");
   const [allocationMoney, setAllocationMoney] = useState("0");
 
+  // Route Master original values — to detect manual overrides
+  const [routeDefaults, setRouteDefaults] = useState<{ km: number; allocationMoney: number } | null>(null);
+
   useEffect(() => {
     if (id) loadJobDetails();
   }, [id]);
+
+  const handleKmChange = (i: number, value: string) => {
+    const updated = [...legData];
+    updated[i] = { ...updated[i], km: value };
+    setLegData(updated);
+  };
+
+  // Fires only when user leaves the km field (final value)
+  const handleKmBlur = (i: number, value: string) => {
+    if (!routeDefaults || !jobData) return;
+    const newKm = parseFloat(value) || 0;
+    if (newKm <= 0) return;
+    if (newKm !== routeDefaults.km && !notifiedRef.current.has(`km-${i}`)) {
+      notifiedRef.current.add(`km-${i}`);
+      const tripId = jobData.tripId || `#${jobData._id?.slice(-4).toUpperCase()}`;
+      addNotification(
+        "⚠️",
+        `Distance Changed — ${tripId}`,
+        `Route Master: ${routeDefaults.km} km → Leg ${i + 1}: ${newKm} km`
+      );
+    }
+    if (newKm === routeDefaults.km) notifiedRef.current.delete(`km-${i}`);
+  };
+
+  const handleAllocationChange = (value: string) => {
+    setAllocationMoney(value);
+  };
+
+  const handleAllocationBlur = (value: string) => {
+    if (!routeDefaults || !jobData) return;
+    const newVal = parseFloat(value) || 0;
+    if (newVal <= 0) return;
+    if (newVal !== routeDefaults.allocationMoney && !notifiedRef.current.has("alloc")) {
+      notifiedRef.current.add("alloc");
+      const tripId = jobData.tripId || `#${jobData._id?.slice(-4).toUpperCase()}`;
+      addNotification(
+        "💰",
+        `Allocation Changed — ${tripId}`,
+        `Route Master: K${routeDefaults.allocationMoney.toLocaleString()} → Trip: K${newVal.toLocaleString()}`
+      );
+    }
+    if (newVal === routeDefaults.allocationMoney) notifiedRef.current.delete("alloc");
+  };
 
   const calculations = useMemo(() => {
     const rate = parseFloat(fuelRate) || 0;
@@ -74,49 +123,59 @@ export default function AccountantJobDetail() {
 
       const totalStops =
         (data.pickupLocations?.length || 0) + (data.dropoffLocations?.length || 0);
-      // +1 for the return journey (last dropoff → first pickup)
       const totalLegs = Math.max(totalStops, 1);
+
+      // Always fetch route master match — used for pre-fill AND override detection
+      const pCity = data.pickupLocations?.[0]?.address?.city || data.pickup?.address?.city;
+      const dCity = (data.dropoffLocations?.[data.dropoffLocations.length - 1] || data.dropoffLocations?.[0])?.address?.city || data.dropoff?.address?.city;
+      const routeMatch = (pCity && dCity)
+        ? await routeService.findMatch(pCity, dCity).catch(() => null)
+        : null;
+
+      if (routeMatch) {
+        setRouteDefaults({ km: routeMatch.distance, allocationMoney: routeMatch.allocationMoney });
+      }
 
       if (settlement) {
         setIsApproved(true);
-        if (settlement.fuelDetails?.legs) {
-          setLegData(
-            settlement.fuelDetails.legs.map((l: any) => ({
-              km: l.km.toString(),
-              mileage: l.mileage.toString(),
-            }))
-          );
-        } else {
-          setLegData(
-            Array.from({ length: totalLegs }, (_, i) => ({
-              km: i === 0
-                ? settlement.fuelDetails.pickupKm?.toString() || "0"
-                : settlement.fuelDetails.dropoffKm?.toString() || "0",
-              mileage: i === 0
-                ? settlement.fuelDetails.pickupMileage?.toString() || "0"
-                : settlement.fuelDetails.dropoffMileage?.toString() || "0",
-            }))
-          );
-        }
+
+        const legs = settlement.fuelDetails?.legs
+          ? settlement.fuelDetails.legs.map((l: any) => ({ km: l.km.toString(), mileage: l.mileage.toString() }))
+          : Array.from({ length: totalLegs }, (_, i) => ({
+              km: i === 0 ? settlement.fuelDetails.pickupKm?.toString() || "0" : settlement.fuelDetails.dropoffKm?.toString() || "0",
+              mileage: i === 0 ? settlement.fuelDetails.pickupMileage?.toString() || "0" : settlement.fuelDetails.dropoffMileage?.toString() || "0",
+            }));
+
+        setLegData(legs);
         setFuelRate(settlement.fuelDetails.fuelRate?.toString() || "0");
-        setAllocationMoney(settlement.financials.cashAllocation?.toString() || "");
-      } else {
-        // No settlement yet — try Route Master for pre-fill
-        const pCity = data.pickupLocations?.[0]?.address?.city || data.pickup?.address?.city;
-        const dCity = (data.dropoffLocations?.[data.dropoffLocations.length - 1] || data.dropoffLocations?.[0])?.address?.city || data.dropoff?.address?.city;
+        const savedAllocation = settlement.financials.cashAllocation?.toString() || "";
+        setAllocationMoney(savedAllocation);
 
-        let routeKm = "0";
-        let routeAllocation = data.advancePaid ? data.advancePaid.toString() : "0";
+        // Notify if saved values differ from Route Master
+        if (routeMatch) {
+          const tripId = data.tripId || `#${data._id?.slice(-4).toUpperCase()}`;
+          const savedKm = parseFloat(legs[0]?.km || "0");
+          const savedAlloc = parseFloat(savedAllocation) || 0;
 
-        if (pCity && dCity) {
-          const match = await routeService.findMatch(pCity, dCity).catch(() => null);
-          if (match) {
-            routeKm = match.distance.toString();
-            routeAllocation = match.allocationMoney.toString();
+          if (savedKm > 0 && savedKm !== routeMatch.distance) {
+            addNotification(
+              "⚠️",
+              `Distance Changed — ${tripId}`,
+              `Route Master: ${routeMatch.distance} km → Trip: ${savedKm} km`
+            );
+          }
+          if (savedAlloc > 0 && savedAlloc !== routeMatch.allocationMoney) {
+            addNotification(
+              "💰",
+              `Allocation Changed — ${tripId}`,
+              `Route Master: K${routeMatch.allocationMoney.toLocaleString()} → Trip: K${savedAlloc.toLocaleString()}`
+            );
           }
         }
+      } else {
+        const routeKm = routeMatch?.distance.toString() ?? "0";
+        const routeAllocation = routeMatch?.allocationMoney.toString() ?? (data.advancePaid?.toString() || "0");
 
-        // All legs (including return) get the same route distance
         setLegData(Array.from({ length: totalLegs }, () => ({
           km: routeKm,
           mileage: "0",
@@ -177,6 +236,15 @@ export default function AccountantJobDetail() {
 
       if (!silent) {
         setIsApproved(true);
+        const tripId = jobData?.tripId || `#${jobData?._id?.slice(-4).toUpperCase()}`;
+        const driver = jobData?.assignment?.driverName || "Driver";
+        const pickup = allStops[0]?.address?.city || "—";
+        const dropoff = allStops[allStops.length - 1]?.address?.city || "—";
+        addNotification(
+          "✅",
+          `Trip Approved — ${tripId}`,
+          `${driver} · ${pickup} → ${dropoff} · Distance: ${routeDefaults ? `${routeDefaults.km} km → ` : ""}${legData[0]?.km || "0"} km · Allocation: K${parseFloat(allocationMoney).toLocaleString()}`
+        );
         alert("Trip approved successfully!");
       }
     } catch (error) {
@@ -284,6 +352,28 @@ export default function AccountantJobDetail() {
         </div>
 
         <div className="p-4 md:p-6 max-w-[1280px] mx-auto space-y-4 md:space-y-6">
+
+          {/* Route Master override notification */}
+          {routeDefaults && (() => {
+            const kmChanged = legData.some(l => parseFloat(l.km) > 0 && parseFloat(l.km) !== routeDefaults.km);
+            const allocChanged = parseFloat(allocationMoney) > 0 && parseFloat(allocationMoney) !== routeDefaults.allocationMoney;
+            if (!kmChanged && !allocChanged) return null;
+            const changes: string[] = [];
+            if (kmChanged) changes.push(`distance changed from ${routeDefaults.km} km (Route Master)`);
+            if (allocChanged) changes.push(`allocation changed from K${routeDefaults.allocationMoney.toLocaleString()} (Route Master)`);
+            return (
+              <div className="flex items-start gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+                <span className="text-amber-500 text-base shrink-0">⚠️</span>
+                <div>
+                  <p className="text-[11px] font-bold text-amber-700 uppercase tracking-widest">Route Data Modified</p>
+                  <p className="text-[11px] text-amber-700 mt-0.5">
+                    For this trip: {changes.join(" · ")}
+                  </p>
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
             {statCards.map((card, i) => (
               <div
@@ -406,11 +496,19 @@ export default function AccountantJobDetail() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[9px] font-bold text-slate-600 uppercase tracking-widest font-sans ml-1">Allocation Amount (₦)</label>
+                  <div className="flex items-center justify-between ml-1">
+                    <label className="text-[9px] font-bold text-slate-600 uppercase tracking-widest font-sans">Allocation Amount (K)</label>
+                    {routeDefaults && parseFloat(allocationMoney) !== routeDefaults.allocationMoney && parseFloat(allocationMoney) > 0 && (
+                      <span className="text-[7px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                        Route: K{routeDefaults.allocationMoney.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="number"
                     value={allocationMoney}
-                    onChange={(e) => setAllocationMoney(e.target.value)}
+                    onChange={(e) => handleAllocationChange(e.target.value)}
+                    onBlur={(e) => handleAllocationBlur(e.target.value)}
                     placeholder="0.00"
                     className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-400 focus:bg-white transition-all placeholder:text-neutral-300"
                   />
@@ -513,16 +611,24 @@ export default function AccountantJobDetail() {
                         {/* Inputs */}
                         <div className="grid grid-cols-2 gap-2 pt-1">
                           <div className="space-y-1">
-                            <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest ml-1">Distance (KM)</label>
+                            <div className="flex items-center justify-between ml-1">
+                              <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest">Distance (KM)</label>
+                              {routeDefaults && parseFloat(leg.km) !== routeDefaults.km && parseFloat(leg.km) > 0 && (
+                                <span className="text-[7px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                                  Route: {routeDefaults.km} km
+                                </span>
+                              )}
+                            </div>
                             <input
                               type="number"
                               value={leg.km}
-                              onChange={(e) => {
-                                const updated = [...legData];
-                                updated[i] = { ...updated[i], km: e.target.value };
-                                setLegData(updated);
-                              }}
-                              className="w-full bg-white border border-neutral-200 rounded-lg py-1.5 px-3 text-[11px] font-semibold text-slate-900 outline-none"
+                              onChange={(e) => handleKmChange(i, e.target.value)}
+                              onBlur={(e) => handleKmBlur(i, e.target.value)}
+                              className={`w-full border rounded-lg py-1.5 px-3 text-[11px] font-semibold text-slate-900 outline-none transition-colors ${
+                                routeDefaults && parseFloat(leg.km) !== routeDefaults.km && parseFloat(leg.km) > 0
+                                  ? "bg-amber-50 border-amber-300"
+                                  : "bg-white border-neutral-200"
+                              }`}
                             />
                           </div>
                           <div className="space-y-1">

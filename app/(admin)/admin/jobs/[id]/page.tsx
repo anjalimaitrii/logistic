@@ -27,7 +27,6 @@ import {
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
-import { routeService, RouteEntry } from "@/services/routeService";
 import JobRouteMap from "@/components/admin/JobRouteMap";
 import { uploadService } from "@/services/uploadService";
 import React from "react";
@@ -61,8 +60,6 @@ export default function JobDetailReport() {
   const [assignment, setAssignment] = useState<any>(null);
   const [settlement, setSettlement] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [routeMatch, setRouteMatch] = useState<RouteEntry | null>(null);
-  const [isApplyingRoute, setIsApplyingRoute] = useState(false);
 
   // Trip Expense Tracker State
   const [tripExpenses, setTripExpenses] = useState<any[]>([]);
@@ -150,13 +147,6 @@ export default function JobDetailReport() {
         setTripExpenses(settlementData.expenses);
       }
 
-      // Check Route Master for a matching pre-configured route
-      const pCity = bookingData.pickupLocations?.[0]?.address?.city || bookingData.pickup?.address?.city;
-      const dCity = bookingData.dropoffLocations?.[0]?.address?.city || bookingData.dropoff?.address?.city;
-      if (pCity && dCity) {
-        const match = await routeService.findMatch(pCity, dCity);
-        setRouteMatch(match);
-      }
     } catch (error) {
       console.error("Failed to fetch job details:", error);
     } finally {
@@ -164,22 +154,8 @@ export default function JobDetailReport() {
     }
   };
 
-  const handleApplyRouteData = async () => {
-    if (!routeMatch) return;
-    setIsApplyingRoute(true);
-    try {
-      await settlementService.process({
-        bookingId: id,
-        assignmentId: assignment?._id,
-        totalDistance: routeMatch.distance,
-        cashAllocation: routeMatch.allocationMoney,
-        tollAmount: routeMatch.tollAmount,
-        councilLevy: routeMatch.councilLevy,
-      });
-      await loadData();
-    } catch {
-      alert("Failed to apply route data.");
-    } finally {
+  const _unused = async () => {
+    try { } finally {
       setIsApplyingRoute(false);
     }
   };
@@ -644,35 +620,6 @@ export default function JobDetailReport() {
             ))}
           </div>
 
-          {/* Route Match Banner */}
-          {routeMatch && (
-            <div className="bg-indigo-50 border border-indigo-200 rounded-2xl px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-start gap-4">
-                <div className="w-9 h-9 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center shrink-0">
-                  <MapPin className="w-4.5 h-4.5 text-indigo-600" />
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold text-indigo-700 uppercase tracking-widest mb-1">Route Master Match Found</p>
-                  <p className="text-[13px] font-semibold text-slate-800">
-                    {routeMatch.pickupCity} → {routeMatch.dropoffCity}
-                  </p>
-                  <div className="flex flex-wrap gap-4 mt-2">
-                    <span className="text-[11px] font-bold text-slate-600">📏 {routeMatch.distance} km</span>
-                    <span className="text-[11px] font-bold text-slate-600">🏛 {routeMatch.tollCount} tolls · K{routeMatch.tollAmount.toLocaleString()}</span>
-                    <span className="text-[11px] font-bold text-amber-700">💰 Allocation: K{routeMatch.allocationMoney.toLocaleString()}</span>
-                    <span className="text-[11px] font-bold text-slate-600">🏛 Council Levy: K{routeMatch.councilLevy.toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={handleApplyRouteData}
-                disabled={isApplyingRoute}
-                className="shrink-0 px-5 py-2.5 bg-indigo-600 text-white text-[11px] font-bold uppercase tracking-widest rounded-xl hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-md shadow-indigo-200"
-              >
-                {isApplyingRoute ? "Applying..." : "Apply to Settlement"}
-              </button>
-            </div>
-          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">

@@ -3,6 +3,7 @@ import { Sora, DM_Sans, Geist } from "next/font/google";
 import "./globals.css";
 import PwaInstallPrompt from "@/components/PwaInstallPrompt";
 import { cn } from "@/lib/utils";
+import { NotificationProvider } from "@/context/NotificationContext";
 
 const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
@@ -49,10 +50,12 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col relative">
         <div className="africa-pattern" />
-        <main className="relative z-10 flex-1 flex flex-col">
-          {children}
-        </main>
-        <PwaInstallPrompt />
+        <NotificationProvider>
+          <main className="relative z-10 flex-1 flex flex-col">
+            {children}
+          </main>
+          <PwaInstallPrompt />
+        </NotificationProvider>
       </body>
     </html>
   );

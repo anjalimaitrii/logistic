@@ -7,8 +7,6 @@ import AdminNotifPanel from "./AdminNotifPanel";
 import PinModal from "./PinModal";
 import { motion } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import { NotificationProvider } from "@/context/NotificationContext";
-
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -21,7 +19,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const toggleNotif = () => setNotifOpen(!isNotifOpen);
 
   return (
-    <NotificationProvider>
       <div className="flex min-h-screen bg-neutral-50 text-neutral-900 font-sans overflow-x-hidden transition-colors duration-500">
         {isSidebarOpen && (
           <div
@@ -72,6 +69,5 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           onClose={() => setShowPinModal(false)}
         />
       </div>
-    </NotificationProvider>
   );
 }

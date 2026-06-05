@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { driverService } from "@/services/driverService";
 import { assignmentService } from "@/services/assignmentService";
+import { useNotifications } from "@/context/NotificationContext";
 
 interface OperationAssignmentDrawerProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ interface OperationAssignmentDrawerProps {
 }
 
 export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubmit }: OperationAssignmentDrawerProps) {
+  const { addNotification } = useNotifications();
   const [step, setStep] = useState(1);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
@@ -135,6 +137,18 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
       alert("Please select a fleet unit");
       return;
     }
+
+    const tripId = job?.tripId || `#${job?._id?.slice(-6).toUpperCase()}`;
+    const pickup = job?.pickupLocations?.[0]?.address?.city || "—";
+    const dropoff = job?.dropoffLocations?.[job?.dropoffLocations?.length - 1]?.address?.city || "—";
+    const isQueued = formData.driverStatus === "on_trip";
+
+    addNotification(
+      "🚛",
+      `Driver Assigned — ${tripId}`,
+      `${formData.driver} · ${formData.truckNumber} · ${pickup} → ${dropoff}${isQueued ? " (Queued)" : ""}`
+    );
+
     onSubmit(formData);
     onClose();
   };

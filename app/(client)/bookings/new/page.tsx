@@ -455,7 +455,7 @@ export default function NewBookingPage() {
    }, [user]);
 
    const [formData, setFormData] = useState({
-      goodsType: "",
+      goodsType: [] as string[],
       weight: "",
       scheduleDate: new Date().toISOString().split('T')[0],
       pickupLocations: [emptyLocation()],
@@ -525,7 +525,7 @@ export default function NewBookingPage() {
       const hasValidPickup = formData.pickupLocations.some(l => l.city && l.contact);
       const hasValidDropoff = formData.dropoffLocations.some(l => l.city && l.contact);
 
-      if (!formData.goodsType || !hasValidPickup || !hasValidDropoff) {
+      if (formData.goodsType.length === 0 || !hasValidPickup || !hasValidDropoff) {
          alert("Please fill in Goods Type and at least one complete pickup & dropoff location (City + Contact Number).");
          return;
       }
@@ -584,17 +584,34 @@ export default function NewBookingPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 px-2 gap-4">
                <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest ml-1">Type of Goods <span className="text-red-500">*</span></label>
-                  <div className="relative">
-                     <Package className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 pointer-events-none" />
-                     <select
-                        value={formData.goodsType}
-                        onChange={(e) => setFormData(prev => ({ ...prev, goodsType: e.target.value }))}
-                        className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-primary/20 outline-none transition-all appearance-none cursor-pointer"
-                     >
-                        <option value="">Select goods type...</option>
-                        {goodsTypes.map(g => <option key={g._id} value={g.name}>{g.name}</option>)}
-                     </select>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                     {goodsTypes.map(g => {
+                        const selected = formData.goodsType.includes(g.name);
+                        return (
+                           <button
+                              key={g._id}
+                              type="button"
+                              onClick={() => setFormData(prev => ({
+                                 ...prev,
+                                 goodsType: selected
+                                    ? prev.goodsType.filter(t => t !== g.name)
+                                    : [...prev.goodsType, g.name],
+                              }))}
+                              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
+                                 selected
+                                    ? "bg-primary text-white border-primary shadow-sm shadow-primary/20"
+                                    : "bg-slate-50 text-slate-500 border-slate-200 hover:border-primary/40"
+                              }`}
+                           >
+                              {selected && <span className="mr-1">✓</span>}{g.name}
+                           </button>
+                        );
+                     })}
+                     {goodsTypes.length === 0 && <p className="text-[11px] text-slate-400 italic">No goods types available</p>}
                   </div>
+                  {formData.goodsType.length > 0 && (
+                     <p className="text-[10px] text-primary font-bold ml-1 mt-1">{formData.goodsType.length} selected</p>
+                  )}
                </div>
                <div className="space-y-1">
                   <label className="text-[9px] font-semibold text-slate-300 uppercase tracking-widest ml-1">Approx Weight (kg) <span className="text-red-500">*</span></label>
