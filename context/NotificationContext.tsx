@@ -53,42 +53,51 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       .catch(() => {});
   }, []);
 
+  // Shared helper — saves to DB and adds to state with fallback
+  const saveNotif = async (payload: { icon: string; title: string; body: string; link?: string }) => {
+    try {
+      const saved = await notificationService.create(payload);
+      setNotifications(prev => [{
+        id: saved._id,
+        icon: saved.icon,
+        title: saved.title,
+        body: saved.body,
+        link: saved.link || undefined,
+        time: new Date(saved.createdAt),
+        unread: true,
+      }, ...prev]);
+    } catch {
+      // DB unavailable — still show in bell
+      setNotifications(prev => [{
+        id: `${Date.now()}-${Math.random()}`,
+        ...payload,
+        time: new Date(),
+        unread: true,
+      }, ...prev]);
+    }
+    playBeep();
+  };
+
   // Socket listeners
   useEffect(() => {
     const socket = getSocket();
 
-    // New job notification
     const handleNewJob = (data: { tripId: string; pickup: string; dropoff: string; goods: string; createdAt: string }) => {
-      const payload = {
+      saveNotif({
         icon: "📦",
         title: `New Job: ${data.tripId}`,
         body: `${Array.isArray(data.goods) ? data.goods.join(", ") : data.goods} · ${data.pickup} → ${data.dropoff}`,
         link: "/admin/requests",
-      };
-      notificationService.create(payload).then(saved => {
-        setNotifications(prev => [{
-          id: saved._id, ...payload,
-          time: new Date(saved.createdAt), unread: true,
-        }, ...prev]);
-        playBeep();
-      }).catch(() => {});
+      });
     };
 
-    // Global chat notification — fires when any client sends a message
     const handleChatNotif = (data: { roomId: string; senderName: string; message: string }) => {
-      const payload = {
+      saveNotif({
         icon: "💬",
         title: `New Message — ${data.senderName}`,
         body: data.message,
         link: `/admin/requests?openChat=${data.roomId}`,
-      };
-      notificationService.create(payload).then(saved => {
-        setNotifications(prev => [{
-          id: saved._id, ...payload,
-          time: new Date(saved.createdAt), unread: true,
-        }, ...prev]);
-        playBeep();
-      }).catch(() => {});
+      });
     };
 
     socket.on("new_job", handleNewJob);
@@ -116,22 +125,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   };
 
   const addNotification = (icon: string, title: string, body: string, link?: string) => {
-    notificationService.create({ icon, title, body, link })
-      .then(saved => {
-        setNotifications(prev => [{
-          id: saved._id, icon, title, body,
-          link: saved.link || undefined,
-          time: new Date(saved.createdAt), unread: true,
-        }, ...prev]);
-        playBeep();
-      })
-      .catch(() => {
-        setNotifications(prev => [{
-          id: `${Date.now()}-${Math.random()}`,
-          icon, title, body, link,
-          time: new Date(), unread: true,
-        }, ...prev]);
-      });
+    saveNotif({ icon, title, body, link });
   };
 
   const unreadCount = notifications.filter(n => n.unread).length;
