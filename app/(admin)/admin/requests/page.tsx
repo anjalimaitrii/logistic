@@ -9,14 +9,13 @@ import { MessageSquare, CheckCircle, ChevronRight, Package, Search } from "lucid
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
 import StatCard from "@/components/admin/StatCard";
 import { bookingService } from "@/services/bookingService";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import CreateBookingDrawer from "@/components/admin/CreateBookingDrawer";
 
 type RequestStatus = "Active" | "Finalized";
 
 export default function BookingRequestsPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const [requests, setRequests] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
@@ -35,8 +34,10 @@ export default function BookingRequestsPage() {
 
   // Auto-open chat when navigated from notification (?openChat=<clientId/roomId>)
   useEffect(() => {
-    const openChatId = searchParams.get("openChat");
-    if (!openChatId || requests.length === 0) return;
+    if (requests.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const openChatId = params.get("openChat");
+    if (!openChatId) return;
     const match = requests.find(r =>
       r.clientId?._id === openChatId ||
       r.clientId === openChatId ||
@@ -45,9 +46,9 @@ export default function BookingRequestsPage() {
     if (match) {
       setSelectedRequest(match);
       setIsChatOpen(true);
-      router.replace("/admin/requests"); // clean URL
+      router.replace("/admin/requests");
     }
-  }, [searchParams, requests]);
+  }, [requests]);
 
   const loadRequests = async () => {
     try {
