@@ -5,6 +5,7 @@ export interface DBNotification {
   icon: string;
   title: string;
   body: string;
+  link: string;
   unread: boolean;
   createdAt: string;
 }
@@ -12,7 +13,7 @@ export interface DBNotification {
 export const notificationService = {
   getAll: (): Promise<DBNotification[]> => fetchApi("/api/notifications"),
 
-  create: (data: { icon: string; title: string; body: string }): Promise<DBNotification> =>
+  create: (data: { icon: string; title: string; body: string; link?: string }): Promise<DBNotification> =>
     fetchApi("/api/notifications", { method: "POST", body: JSON.stringify(data) }),
 
   markAllRead: (): Promise<void> =>

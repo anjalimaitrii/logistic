@@ -2,6 +2,7 @@
 
 import { useNotifications } from "@/context/NotificationContext";
 import { formatDistanceToNow } from "date-fns";
+import { useRouter } from "next/navigation";
 
 interface AdminNotifPanelProps {
   isOpen: boolean;
@@ -10,9 +11,16 @@ interface AdminNotifPanelProps {
 
 export default function AdminNotifPanel({ isOpen, onClose }: AdminNotifPanelProps) {
   const { notifications, unreadCount, markAllRead, clearAll } = useNotifications();
+  const router = useRouter();
 
   const handleOpen = () => {
     if (unreadCount > 0) markAllRead();
+  };
+
+  const handleClick = (link?: string) => {
+    if (!link) return;
+    onClose();
+    router.push(link);
   };
 
   return (
@@ -57,13 +65,16 @@ export default function AdminNotifPanel({ isOpen, onClose }: AdminNotifPanelProp
           <div className="flex flex-col items-center justify-center h-full py-16 text-center">
             <div className="text-4xl mb-3">🔕</div>
             <p className="text-[12px] font-bold text-neutral-400">No notifications yet</p>
-            <p className="text-[10px] text-neutral-300 mt-1">New jobs will appear here in real-time</p>
+            <p className="text-[10px] text-neutral-300 mt-1">Messages and job updates appear here</p>
           </div>
         ) : (
           notifications.map((notif) => (
             <div
               key={notif.id}
-              className={`p-4 rounded-xl flex gap-3 border transition-all cursor-pointer ${
+              onClick={() => handleClick(notif.link)}
+              className={`p-4 rounded-xl flex gap-3 border transition-all ${
+                notif.link ? "cursor-pointer hover:shadow-md hover:border-primary/20" : "cursor-default"
+              } ${
                 notif.unread
                   ? "bg-white border-primary/10 shadow-sm"
                   : "bg-transparent border-transparent hover:bg-white hover:border-neutral-200"
@@ -74,9 +85,16 @@ export default function AdminNotifPanel({ isOpen, onClose }: AdminNotifPanelProp
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[13px] font-bold text-neutral-900">{notif.title}</div>
-                <div className="text-[11.5px] text-neutral-500 leading-tight mt-1 truncate">{notif.body}</div>
-                <div className="text-[10px] font-bold text-neutral-400 mt-2 uppercase tracking-wider">
-                  {formatDistanceToNow(new Date(notif.time), { addSuffix: true })}
+                <div className="text-[11.5px] text-neutral-500 leading-tight mt-1 line-clamp-2">{notif.body}</div>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                    {formatDistanceToNow(new Date(notif.time), { addSuffix: true })}
+                  </span>
+                  {notif.link && (
+                    <span className="text-[9px] font-bold text-primary uppercase tracking-widest">
+                      Tap to open →
+                    </span>
+                  )}
                 </div>
               </div>
               {notif.unread && (

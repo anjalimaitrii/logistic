@@ -9,6 +9,7 @@ export interface AppNotification {
   icon: string;
   title: string;
   body: string;
+  link?: string;
   time: Date;
   unread: boolean;
 }
@@ -16,7 +17,7 @@ export interface AppNotification {
 interface NotificationContextValue {
   notifications: AppNotification[];
   unreadCount: number;
-  addNotification: (icon: string, title: string, body: string) => void;
+  addNotification: (icon: string, title: string, body: string, link?: string) => void;
   markAllRead: () => void;
   clearAll: () => void;
 }
@@ -44,37 +45,59 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           icon: n.icon,
           title: n.title,
           body: n.body,
+          link: n.link || undefined,
           time: new Date(n.createdAt),
           unread: n.unread,
         })));
       })
-      .catch(() => {/* silent */});
+      .catch(() => {});
   }, []);
 
-  // Socket listener for new jobs
+  // Socket listeners
   useEffect(() => {
     const socket = getSocket();
 
+    // New job notification
     const handleNewJob = (data: { tripId: string; pickup: string; dropoff: string; goods: string; createdAt: string }) => {
       const payload = {
         icon: "📦",
         title: `New Job: ${data.tripId}`,
-        body: `${data.goods} · ${data.pickup} → ${data.dropoff}`,
+        body: `${Array.isArray(data.goods) ? data.goods.join(", ") : data.goods} · ${data.pickup} → ${data.dropoff}`,
+        link: "/admin/requests",
       };
       notificationService.create(payload).then(saved => {
-        const notif: AppNotification = {
-          id: saved._id,
-          ...payload,
-          time: new Date(saved.createdAt),
-          unread: true,
-        };
-        setNotifications(prev => [notif, ...prev]);
+        setNotifications(prev => [{
+          id: saved._id, ...payload,
+          time: new Date(saved.createdAt), unread: true,
+        }, ...prev]);
+        playBeep();
+      }).catch(() => {});
+    };
+
+    // Chat message notification — only when client sends (admin is recipient)
+    const handleReceiveMessage = (data: { roomId: string; sender: "admin" | "client"; senderName: string; message: string }) => {
+      if (data.sender !== "client") return;
+      const payload = {
+        icon: "💬",
+        title: `New Message — ${data.senderName}`,
+        body: data.message,
+        link: `/admin/requests?openChat=${data.roomId}`,
+      };
+      notificationService.create(payload).then(saved => {
+        setNotifications(prev => [{
+          id: saved._id, ...payload,
+          time: new Date(saved.createdAt), unread: true,
+        }, ...prev]);
         playBeep();
       }).catch(() => {});
     };
 
     socket.on("new_job", handleNewJob);
-    return () => { socket.off("new_job", handleNewJob); };
+    socket.on("receive_message", handleReceiveMessage);
+    return () => {
+      socket.off("new_job", handleNewJob);
+      socket.off("receive_message", handleReceiveMessage);
+    };
   }, []);
 
   const playBeep = () => {
@@ -93,30 +116,22 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     } catch { /* silent */ }
   };
 
-  const addNotification = (icon: string, title: string, body: string) => {
-    // Save to DB, then add to state
-    notificationService.create({ icon, title, body })
+  const addNotification = (icon: string, title: string, body: string, link?: string) => {
+    notificationService.create({ icon, title, body, link })
       .then(saved => {
-        const notif: AppNotification = {
-          id: saved._id,
-          icon,
-          title,
-          body,
-          time: new Date(saved.createdAt),
-          unread: true,
-        };
-        setNotifications(prev => [notif, ...prev]);
+        setNotifications(prev => [{
+          id: saved._id, icon, title, body,
+          link: saved.link || undefined,
+          time: new Date(saved.createdAt), unread: true,
+        }, ...prev]);
         playBeep();
       })
       .catch(() => {
-        // Fallback: add to state only
-        const notif: AppNotification = {
+        setNotifications(prev => [{
           id: `${Date.now()}-${Math.random()}`,
-          icon, title, body,
-          time: new Date(),
-          unread: true,
-        };
-        setNotifications(prev => [notif, ...prev]);
+          icon, title, body, link,
+          time: new Date(), unread: true,
+        }, ...prev]);
       });
   };
 
