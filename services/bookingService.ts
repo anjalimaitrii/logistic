@@ -18,7 +18,7 @@ export interface LocationStop {
 export interface BookingPayload {
   clientId?: string;
   cargoDetails: {
-    goodsType: string;
+    goodsType: string[];
     weight: number;
     loadingDate: string;
   };
