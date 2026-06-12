@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { getSocket } from "@/lib/socket";
+import { chatService } from "@/services/chatService";
 import { notificationService } from "@/services/notificationService";
 
 export interface AppNotification {
@@ -91,20 +92,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       });
     };
 
-    const handleChatNotif = (data: { roomId: string; senderName: string; message: string }) => {
+    // Use chatService socket for chat_notification (same connection as chat panels)
+    chatService.onChatNotification((data) => {
       saveNotif({
         icon: "💬",
         title: `New Message — ${data.senderName}`,
         body: data.message,
         link: `/admin/requests?openChat=${data.roomId}`,
       });
-    };
+    });
 
     socket.on("new_job", handleNewJob);
-    socket.on("chat_notification", handleChatNotif);
     return () => {
       socket.off("new_job", handleNewJob);
-      socket.off("chat_notification", handleChatNotif);
+      chatService.offChatNotification();
     };
   }, []);
 

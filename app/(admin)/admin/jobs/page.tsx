@@ -17,6 +17,7 @@ import {
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
+import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
 
 export default function AdminJobsPage() {
@@ -29,6 +30,7 @@ export default function AdminJobsPage() {
   const [clientFilter, setClientFilter] = useState("all");
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
+  const [gpsStatusMap, setGpsStatusMap] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadBookings();
@@ -60,6 +62,16 @@ export default function AdminJobsPage() {
 
       setBookings(visibleJobs);
       setAssignments(assignments);
+
+      // Fetch live GPS status (non-blocking — failures silently ignored)
+      fetchLiveVehicles().then(vehicles => {
+        const map: Record<string, string> = {};
+        vehicles.forEach(v => {
+          const id = v.Vehicle_No || v.Vehicle_Name;
+          if (id) map[String(id).toUpperCase()] = v.Status; // RUNNING | IDLE | STOP
+        });
+        setGpsStatusMap(map);
+      }).catch(() => {});
     } catch (error) {
       console.error("Failed to fetch bookings:", error);
     } finally {
@@ -124,6 +136,10 @@ export default function AdminJobsPage() {
     const allLocs = [...pickupLocs, ...dropoffLocs];
     const route = allLocs.map((l: any) => l.address?.city).filter(Boolean) as string[];
     const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
+    const truckNo = String(assignment?.truckNumber || "").toUpperCase();
+    const gpsStatus = truckNo ? (gpsStatusMap[truckNo] || null) : null;
+    const tripStatus = (b?.tripStatus || b?.status || "").toLowerCase();
+    const isComplete = tripStatus === "delivered" || tripStatus === "completed";
     return {
       id: b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
       client: (b?.clientId as any)?.name || "Direct Client",
@@ -131,6 +147,8 @@ export default function AdminJobsPage() {
       status: getStatusType(b?.tripStatus || b?.status),
       driver: assignment?.driverName || "Assign Driver",
       route,
+      gpsStatus,
+      isComplete,
       raw: b
     };
   });
@@ -139,7 +157,26 @@ export default function AdminJobsPage() {
     {
       label: "TRIP ID",
       key: "id",
-      render: (val: string) => <span className="text-[12px] font-bold text-orange-500 tracking-tight">{val}</span>
+      render: (val: string, row: any) => {
+        const s = row.gpsStatus;
+        const dotClass = row.isComplete
+          ? "bg-slate-400"
+          : s === "RUNNING" ? "bg-emerald-500 animate-pulse"
+          : s === "IDLE"    ? "bg-amber-400"
+          : s === "STOP"    ? "bg-rose-500"
+          : "bg-slate-200";
+        const tip = row.isComplete ? "Trip Completed"
+          : s === "RUNNING" ? "Truck Running"
+          : s === "IDLE"    ? "Truck Idle"
+          : s === "STOP"    ? "Truck Stopped"
+          : "No GPS Signal";
+        return (
+          <div className="flex items-center gap-2">
+            <span title={tip} className={`w-2 h-2 rounded-full shrink-0 ${dotClass}`} />
+            <span className="text-[12px] font-bold text-orange-500 tracking-tight">{val}</span>
+          </div>
+        );
+      }
     },
     {
       label: "CLIENT",
@@ -336,6 +373,14 @@ export default function AdminJobsPage() {
               <div className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-emerald-100 flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 {filteredBookings.length} Result{filteredBookings.length !== 1 ? 's' : ''}
+              </div>
+              {/* GPS legend */}
+              <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl">
+                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Driver dot:</span>
+                <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />Running</span>
+                <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-amber-400" />Idle</span>
+                <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-rose-500" />Stopped</span>
+                <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-slate-400" />Done</span>
               </div>
             </div>
           }

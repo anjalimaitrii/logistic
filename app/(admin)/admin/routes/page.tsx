@@ -3,10 +3,11 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { routeService, RouteEntry } from "@/services/routeService";
+import { mileageService, MileageConfig } from "@/services/mileageService";
 import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES } from "@/lib/africaLocations";
 import {
   Plus, MapPin, Ruler, Landmark, Wallet, Receipt,
-  Pencil, Trash2, X, ChevronRight, CheckCircle2, ArrowRight,
+  Pencil, Trash2, X, ChevronRight, CheckCircle2, ArrowRight, Gauge,
 } from "lucide-react";
 
 const emptyForm = (): Omit<RouteEntry, "_id"> => ({
@@ -35,7 +36,25 @@ export default function RoutesMasterPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => { load(); }, []);
+  // Global mileage config
+  const [mileageModal, setMileageModal] = useState(false);
+  const [mileage, setMileage] = useState<MileageConfig>({ loadedMileage: 0, unloadedMileage: 0 });
+  const [isSavingMileage, setIsSavingMileage] = useState(false);
+
+  useEffect(() => {
+    load();
+    mileageService.get().then(setMileage).catch(() => {});
+  }, []);
+
+  const handleSaveMileage = async () => {
+    setIsSavingMileage(true);
+    try {
+      const saved = await mileageService.save(mileage);
+      setMileage(saved);
+      setMileageModal(false);
+    } catch { alert("Failed to save mileage."); }
+    finally { setIsSavingMileage(false); }
+  };
 
   const load = async () => {
     try {
@@ -115,12 +134,21 @@ export default function RoutesMasterPage() {
               Pre-configure city routes · distances · tolls · financials
             </p>
           </div>
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-slate-800 active:scale-[0.98] transition-all shadow-sm"
-          >
-            <Plus className="w-4 h-4" /> Add Route
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setMileageModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-slate-50 active:scale-[0.98] transition-all shadow-sm"
+            >
+              <Gauge className="w-4 h-4 text-emerald-500" />
+              {mileage.loadedMileage ? `${mileage.loadedMileage} / ${mileage.unloadedMileage} km/L` : "Add Mileage"}
+            </button>
+            <button
+              onClick={openAdd}
+              className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-slate-800 active:scale-[0.98] transition-all shadow-sm"
+            >
+              <Plus className="w-4 h-4" /> Add Route
+            </button>
+          </div>
         </div>
 
         {/* Stats strip */}
@@ -460,6 +488,71 @@ export default function RoutesMasterPage() {
           </div>
         </div>
       </div>
+      {/* ── Mileage Modal ──────────────────────────────────────────────────────── */}
+      {mileageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={() => setMileageModal(false)} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm">
+            <div className="px-6 pt-6 pb-4 border-b border-neutral-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center">
+                  <Gauge className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div>
+                  <h2 className="text-[15px] font-bold text-slate-900">Mileage Configuration</h2>
+                  <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-widest">Global — applies to all routes</p>
+                </div>
+              </div>
+              <button onClick={() => setMileageModal(false)} className="p-2 rounded-xl hover:bg-neutral-50 text-neutral-400">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest flex items-center gap-1.5">
+                  <Gauge className="w-3.5 h-3.5" /> Loaded Mileage (km/L)
+                </label>
+                <p className="text-[9px] text-neutral-400">Truck maal lekar jaa rha ho tab</p>
+                <input
+                  type="number" min="0" step="0.1"
+                  value={mileage.loadedMileage || ""}
+                  onChange={e => setMileage(m => ({ ...m, loadedMileage: parseFloat(e.target.value) || 0 }))}
+                  placeholder="e.g. 3.5"
+                  className={inputCls}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-blue-600 uppercase tracking-widest flex items-center gap-1.5">
+                  <Gauge className="w-3.5 h-3.5" /> Unloaded Mileage (km/L)
+                </label>
+                <p className="text-[9px] text-neutral-400">Truck khali wapas aa rha ho tab (return)</p>
+                <input
+                  type="number" min="0" step="0.1"
+                  value={mileage.unloadedMileage || ""}
+                  onChange={e => setMileage(m => ({ ...m, unloadedMileage: parseFloat(e.target.value) || 0 }))}
+                  placeholder="e.g. 5.0"
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            <div className="px-6 pb-6 pt-2 flex gap-3">
+              <button onClick={() => setMileageModal(false)} className="flex-1 py-3 border border-neutral-100 rounded-2xl text-[11px] font-bold text-neutral-400 uppercase tracking-widest hover:bg-neutral-50">
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveMileage}
+                disabled={isSavingMileage}
+                className="flex-1 py-3 bg-slate-900 text-white rounded-2xl text-[11px] font-bold uppercase tracking-widest hover:bg-slate-800 active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                {isSavingMileage ? "Saving..." : "Save Mileage"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

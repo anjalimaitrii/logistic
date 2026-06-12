@@ -15,6 +15,7 @@ import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
 import { routeService } from "@/services/routeService";
+import { mileageService } from "@/services/mileageService";
 import { useNotifications } from "@/context/NotificationContext";
 
 export default function AccountantJobDetail() {
@@ -33,6 +34,7 @@ export default function AccountantJobDetail() {
   ]);
   const [fuelRate, setFuelRate] = useState("0");
   const [allocationMoney, setAllocationMoney] = useState("0");
+  const [councilLevy, setCouncilLevy] = useState("0");
 
   // Route Master original values — to detect manual overrides
   const [routeDefaults, setRouteDefaults] = useState<{ km: number; allocationMoney: number } | null>(null);
@@ -134,51 +136,57 @@ export default function AccountantJobDetail() {
 
       if (routeMatch) {
         setRouteDefaults({ km: routeMatch.distance, allocationMoney: routeMatch.allocationMoney });
+        setCouncilLevy(routeMatch.councilLevy?.toString() || "0");
       }
+
+      // Always fetch global mileage config
+      const mileageConfig = await mileageService.get().catch(() => ({ loadedMileage: 0, unloadedMileage: 0 }));
+      const loadedMil = mileageConfig.loadedMileage?.toString() ?? "0";
+      const unloadedMil = mileageConfig.unloadedMileage?.toString() ?? "0";
 
       if (settlement) {
         setIsApproved(true);
 
         const legs = settlement.fuelDetails?.legs
-          ? settlement.fuelDetails.legs.map((l: any) => ({ km: l.km.toString(), mileage: l.mileage.toString() }))
+          ? settlement.fuelDetails.legs.map((l: any, i: number) => ({
+              km: l.km.toString(),
+              // Always apply global mileage — forward=loaded, last=unloaded
+              mileage: i === (settlement.fuelDetails.legs.length - 1) ? unloadedMil : loadedMil,
+            }))
           : Array.from({ length: totalLegs }, (_, i) => ({
               km: i === 0 ? settlement.fuelDetails.pickupKm?.toString() || "0" : settlement.fuelDetails.dropoffKm?.toString() || "0",
-              mileage: i === 0 ? settlement.fuelDetails.pickupMileage?.toString() || "0" : settlement.fuelDetails.dropoffMileage?.toString() || "0",
+              mileage: i === totalLegs - 1 ? unloadedMil : loadedMil,
             }));
 
         setLegData(legs);
         setFuelRate(settlement.fuelDetails.fuelRate?.toString() || "0");
         const savedAllocation = settlement.financials.cashAllocation?.toString() || "";
         setAllocationMoney(savedAllocation);
+        if (settlement.financials.councilLevy) {
+          setCouncilLevy(settlement.financials.councilLevy.toString());
+        }
 
         // Notify if saved values differ from Route Master
         if (routeMatch) {
           const tripId = data.tripId || `#${data._id?.slice(-4).toUpperCase()}`;
           const savedKm = parseFloat(legs[0]?.km || "0");
           const savedAlloc = parseFloat(savedAllocation) || 0;
-
           if (savedKm > 0 && savedKm !== routeMatch.distance) {
-            addNotification(
-              "⚠️",
-              `Distance Changed — ${tripId}`,
-              `Route Master: ${routeMatch.distance} km → Trip: ${savedKm} km`
-            );
+            addNotification("⚠️", `Distance Changed — ${tripId}`,
+              `Route Master: ${routeMatch.distance} km → Trip: ${savedKm} km`);
           }
           if (savedAlloc > 0 && savedAlloc !== routeMatch.allocationMoney) {
-            addNotification(
-              "💰",
-              `Allocation Changed — ${tripId}`,
-              `Route Master: K${routeMatch.allocationMoney.toLocaleString()} → Trip: K${savedAlloc.toLocaleString()}`
-            );
+            addNotification("💰", `Allocation Changed — ${tripId}`,
+              `Route Master: K${routeMatch.allocationMoney.toLocaleString()} → Trip: K${savedAlloc.toLocaleString()}`);
           }
         }
       } else {
         const routeKm = routeMatch?.distance.toString() ?? "0";
         const routeAllocation = routeMatch?.allocationMoney.toString() ?? (data.advancePaid?.toString() || "0");
 
-        setLegData(Array.from({ length: totalLegs }, () => ({
+        setLegData(Array.from({ length: totalLegs }, (_, i) => ({
           km: routeKm,
-          mileage: "0",
+          mileage: i === totalLegs - 1 ? unloadedMil : loadedMil,
         })));
         setAllocationMoney(routeAllocation);
       }
@@ -229,6 +237,7 @@ export default function AccountantJobDetail() {
         financials: {
           cashAllocation: Number(allocationMoney),
           fuelTotal: calculations.fuelTotal,
+          councilLevy: Number(councilLevy) || 0,
         },
       };
 
@@ -297,15 +306,21 @@ export default function AccountantJobDetail() {
   const statCards = [
     {
       label: "Est. Fuel Cost",
-      value: `₦${calculations.fuelTotal.toLocaleString()}`,
+      value: `K${calculations.fuelTotal.toLocaleString()}`,
       icon: <Fuel className="w-4 h-4 text-amber-500" />,
       color: "border-amber-500",
     },
     {
       label: "Cash Allocation",
-      value: allocationMoney ? `₦${parseFloat(allocationMoney).toLocaleString()}` : "---",
+      value: allocationMoney ? `K${parseFloat(allocationMoney).toLocaleString()}` : "---",
       icon: <DollarSign className="w-4 h-4 text-blue-500" />,
       color: "border-blue-500",
+    },
+    {
+      label: "Council Levy",
+      value: councilLevy && parseFloat(councilLevy) > 0 ? `K${parseFloat(councilLevy).toLocaleString()}` : "---",
+      icon: <DollarSign className="w-4 h-4 text-emerald-500" />,
+      color: "border-emerald-500",
     },
   ];
 
@@ -511,6 +526,25 @@ export default function AccountantJobDetail() {
                     onBlur={(e) => handleAllocationBlur(e.target.value)}
                     placeholder="0.00"
                     className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-400 focus:bg-white transition-all placeholder:text-neutral-300"
+                  />
+                </div>
+
+                {/* Council Levy */}
+                <div className="space-y-2 mt-4 pt-4 border-t border-neutral-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="p-1 px-1.5 rounded-lg bg-emerald-50 text-emerald-600"><DollarSign className="w-3.5 h-3.5" /></div>
+                    <div>
+                      <h3 className="text-xs font-semibold text-slate-950">Council Levy</h3>
+                      <p className="text-[8px] font-normal text-neutral-400 uppercase tracking-widest">Route Master value</p>
+                    </div>
+                  </div>
+                  <label className="text-[9px] font-bold text-slate-600 uppercase tracking-widest font-sans ml-1">Council Levy Amount (K)</label>
+                  <input
+                    type="number"
+                    value={councilLevy}
+                    onChange={(e) => setCouncilLevy(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-emerald-50/40 border border-emerald-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-emerald-400 focus:bg-white transition-all placeholder:text-neutral-300"
                   />
                 </div>
               </div>

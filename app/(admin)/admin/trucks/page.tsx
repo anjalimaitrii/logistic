@@ -7,7 +7,7 @@ import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateTruckModal from "@/components/admin/CreateTruckModal";
 import TruckComplianceDrawer from "@/components/admin/TruckComplianceDrawer";
-import { ChevronRight, Eye, Settings, Plus, Package, X, Trash2 } from "lucide-react";
+import { ChevronRight, Eye, Settings, Plus, Package, X, Trash2, RefreshCw } from "lucide-react";
 import { truckService } from "@/services/truckService";
 import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import { driverService } from "@/services/driverService";
@@ -67,6 +67,15 @@ export default function AdminTrucks() {
       setColForm({ name: "", description: "", quantity: "1" });
     } catch { alert("Failed to add collection item."); }
     finally { setColSaving(false); }
+  };
+
+  const handleRenewCollection = async (colId: string) => {
+    if (!collectionTruck) return;
+    try {
+      const updated = await truckService.renewCollection(collectionTruck._id, colId);
+      setCollectionTruck(updated);
+      setTrucks(prev => prev.map(t => t._id === updated._id ? updated : t));
+    } catch { alert("Failed to renew item."); }
   };
 
   const handleRemoveCollection = async (colId: string) => {
@@ -279,7 +288,7 @@ export default function AdminTrucks() {
             <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Manage Trucks</h1>
             <p className="text-[11px] text-neutral-400 mt-0.5">Inventory and health monitoring of all fleet units.</p>
           </div>
-          <button
+          {/* <button
             onClick={() => setModalOpen(true)}
             className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-semibold text-[10px] uppercase tracking-widest shadow-xl shadow-slate-200 hover:brightness-110 transition-all w-fit flex items-center gap-2"
           >
@@ -287,7 +296,7 @@ export default function AdminTrucks() {
               <Plus className="w-3 h-3" />
             </div>
             Add New Truck
-          </button>
+          </button> */}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -398,13 +407,28 @@ export default function AdminTrucks() {
                       <div className="text-[12px] font-semibold text-slate-900">{col.name}</div>
                       {col.description && <div className="text-[11px] text-neutral-400 mt-0.5">{col.description}</div>}
                       <div className="text-[10px] font-bold text-orange-500 mt-1 uppercase tracking-widest">Qty: {col.quantity}</div>
+                      {col.renewedAt && (
+                        <div className="text-[10px] text-emerald-500 font-medium mt-0.5">
+                          Renewed: {new Date(col.renewedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                        </div>
+                      )}
                     </div>
-                    <button
-                      onClick={() => handleRemoveCollection(col._id)}
-                      className="p-1.5 text-neutral-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => handleRenewCollection(col._id)}
+                        title="Renew"
+                        className="p-1.5 text-neutral-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleRemoveCollection(col._id)}
+                        title="Remove"
+                        className="p-1.5 text-neutral-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

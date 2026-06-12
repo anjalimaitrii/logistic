@@ -250,7 +250,7 @@ export default function AdminDrivers() {
             <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Manage Personnel</h1>
             <p className="text-[11px] text-neutral-400 mt-0.5">Oversee driver performance, assignments and compliance.</p>
           </div>
-          <button
+          {/* <button
             onClick={() => {
               setSelectedDriver(null);
               setModalOpen(true);
@@ -261,7 +261,7 @@ export default function AdminDrivers() {
               <Plus className="w-3 h-3" />
             </div>
             Add New Driver
-          </button>
+          </button> */}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

@@ -48,6 +48,16 @@ export const chatService = {
     socket?.on("history", callback);
   },
 
+  onChatNotification(callback: (data: { roomId: string; senderName: string; message: string }) => void) {
+    this.connect();
+    socket?.off("chat_notification");
+    socket?.on("chat_notification", callback);
+  },
+
+  offChatNotification() {
+    socket?.off("chat_notification");
+  },
+
   offAll() {
     socket?.off("receive_message");
     socket?.off("history");
