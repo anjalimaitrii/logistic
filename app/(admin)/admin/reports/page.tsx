@@ -21,55 +21,84 @@ const shortId = (id: any) => (typeof id === "string" ? id : id?._id ?? "")?.slic
 const cleanName = (n: any) =>
   String(n || "").replace(/\bnull\b/gi, "").replace(/\s+/g, " ").trim() || "-";
 
+// ── Excel helpers ─────────────────────────────────────────────────────────────
+function xlCell(val: string | number, type: "String" | "Number" = "String", bold = false, bg = "") {
+  const style = (bold || bg)
+    ? ` ss:StyleID="${bold && bg ? "hb" : bold ? "h" : "bg"}"`
+    : "";
+  const t = type === "Number" && !isNaN(Number(val)) ? "Number" : "String";
+  return `<Cell${style}><Data ss:Type="${t}">${String(val ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</Data></Cell>`;
+}
+function xlRow(...cells: string[]) { return `<Row>${cells.join("")}</Row>`; }
+function xlBlank(cols = 2) { return `<Row>${Array(cols).fill('<Cell><Data ss:Type="String"></Data></Cell>').join("")}</Row>`; }
+function xlSheet(name: string, rows: string[]) {
+  return `<Worksheet ss:Name="${name}"><Table>${rows.join("")}</Table></Worksheet>`;
+}
+
 function exportReport(
   from: string, to: string, stats: any,
-  filteredSettlements: any[], filteredInspections: any[],
+  filteredBookings: any[], filteredSettlements: any[], filteredInspections: any[],
   driverByBooking: Record<string, string>,
 ) {
-  // Build CSV rows — amounts as plain integers (no currency symbol)
-  const rows: string[][] = [];
-  const push = (...cols: (string | number)[]) => rows.push(cols.map(c => String(c ?? "")));
-  const gap = () => rows.push([]);
-  const hdr = (...cols: string[]) => rows.push(cols);   // header labels (same as data, styled in post-processing by Excel)
+  const S = (v: string | number) => xlCell(v, "String");
+  const N2 = (v: number) => xlCell(v, "Number");
+  const H = (v: string) => xlCell(v, "String", true, "#1e293b");   // bold header (dark)
+  const SH = (v: string | number, bold = false) => xlCell(v, "String", bold);
 
-  push(`Operations Report: ${from} to ${to}`);
-  gap();
+  // ── Sheet 1: Summary ────────────────────────────────────────────────────────
+  const summaryRows = [
+    xlRow(xlCell(`Operations Report: ${from} to ${to}`, "String", true)),
+    xlBlank(),
+    xlRow(H("Metric"), H("Amount (NGN)")),
+    xlRow(S("Net P&L"),          N2(Math.round(stats.netPnL))),
+    xlRow(S("Total Revenue"),    N2(Math.round(stats.totalRevenue))),
+    xlRow(S("Total Costs"),      N2(Math.round(stats.totalCosts))),
+    xlRow(S("Advance Received"), N2(Math.round(stats.advancePaid))),
+    xlRow(S("Pending Revenue"),  N2(Math.round(stats.pendingRevenue))),
+    xlRow(S("Completed Trips"),  N2(stats.completedTrips)),
+    xlRow(S("Total Bookings"),   N2(stats.totalBookings)),
+    xlBlank(),
+    xlRow(H("Cost Item"), H("Amount (NGN)")),
+    xlRow(S("Driver Allocation"), N2(Math.round(stats.allocationCost))),
+    xlRow(S("Fuel Cost"),         N2(Math.round(stats.fuelCost))),
+    xlRow(S("Toll Charges"),      N2(Math.round(stats.tollAmount))),
+    xlRow(S("Damages"),           N2(Math.round(stats.totalDamages))),
+    xlRow(S("Council Levy"),      N2(Math.round(stats.councilLevy))),
+    xlRow(S("Other Expenses"),    N2(Math.round(stats.otherExpenses))),
+    xlRow(SH("TOTAL COSTS", true), N2(Math.round(stats.totalCosts))),
+  ];
+  if (Object.keys(stats.categoryTotals).length) {
+    summaryRows.push(xlBlank(), xlRow(H("Expense Category"), H("Amount (NGN)")));
+    Object.entries(stats.categoryTotals).sort(([, a], [, b]) => (b as number) - (a as number))
+      .forEach(([cat, v]) => summaryRows.push(xlRow(S(cat), N2(Math.round(v as number)))));
+  }
 
-  hdr("SUMMARY", "Amount (NGN)");
-  push("Net P&L",          Math.round(stats.netPnL));
-  push("Total Revenue",    Math.round(stats.totalRevenue));
-  push("Total Costs",      Math.round(stats.totalCosts));
-  push("Advance Received", Math.round(stats.advancePaid));
-  push("Pending Revenue",  Math.round(stats.pendingRevenue));
-  push("Completed Trips",  stats.completedTrips);
-  push("Total Bookings",   stats.totalBookings);
-  gap();
+  // ── Sheet 2: Revenue ────────────────────────────────────────────────────────
+  const revRows = [xlRow(H("Trip ID"), H("Driver"), H("Route"), H("Loading Date"), H("Final Amount (NGN)"), H("Advance Paid (NGN)"), H("Balance (NGN)"), H("Status"))];
+  filteredBookings.filter(b => N(b.finalAmount) > 0).forEach(b => {
+    const bId = b._id ?? "";
+    const tripLabel = b.tripId || bId.slice(-7).toUpperCase();
+    const driver = cleanName(driverByBooking[bId]);
+    const pickup  = Array.isArray(b.pickupLocations)  ? b.pickupLocations[0]  : b.pickupLocation  || "-";
+    const dropoff = Array.isArray(b.dropoffLocations) ? b.dropoffLocations[0] : b.dropoffLocation || "-";
+    const balance = Math.round(N(b.finalAmount) - N(b.advancePaid));
+    const status  = b.tripStatus || b.status || "-";
+    revRows.push(xlRow(S(tripLabel), S(driver), S(`${pickup} → ${dropoff}`), S(fmtDate(b.cargoDetails?.loadingDate || b.createdAt)), N2(Math.round(N(b.finalAmount))), N2(Math.round(N(b.advancePaid))), N2(balance), S(status)));
+  });
+  revRows.push(xlBlank(8), xlRow(SH(""), SH(""), SH(""), SH(""), SH("TOTAL REVENUE", true), N2(Math.round(stats.totalRevenue)), N2(Math.round(stats.advancePaid)), SH("")));
 
-  hdr("COST BREAKDOWN", "Amount (NGN)");
-  push("Driver Allocation", Math.round(stats.allocationCost));
-  push("Fuel Cost",         Math.round(stats.fuelCost));
-  push("Toll Charges",      Math.round(stats.tollAmount));
-  push("Damages",           Math.round(stats.totalDamages));
-  push("Council Levy",      Math.round(stats.councilLevy));
-  push("Other Expenses",    Math.round(stats.otherExpenses));
-  push("TOTAL COSTS",       Math.round(stats.totalCosts));
-  gap();
-
-  // ── Driver Allocation ──
-  hdr("DRIVER ALLOCATION DETAILS");
-  hdr("Booking Ref", "Driver", "Date", "Cash Allocation (NGN)");
+  // ── Sheet 3: Driver Allocation ───────────────────────────────────────────────
+  const allocRows = [xlRow(H("Booking Ref"), H("Driver"), H("Date"), H("Cash Allocation (NGN)"))];
   filteredSettlements.forEach(st => {
     const bId = typeof st.bookingId === "string" ? st.bookingId : st.bookingId?._id;
     const alloc = N(st.financials?.cashAllocation);
     if (!alloc) return;
-    push(bId ? bId.slice(-8).toUpperCase() : "-", cleanName(driverByBooking[bId]), fmtDate(st.createdAt), Math.round(alloc));
+    allocRows.push(xlRow(S(bId ? bId.slice(-8).toUpperCase() : "-"), S(cleanName(driverByBooking[bId])), S(fmtDate(st.createdAt)), N2(Math.round(alloc))));
   });
-  push("", "", "TOTAL", Math.round(stats.allocationCost));
-  gap();
+  allocRows.push(xlBlank(4), xlRow(SH(""), SH(""), SH("TOTAL", true), N2(Math.round(stats.allocationCost))));
 
-  // ── Fuel Details ──
-  hdr("FUEL COST DETAILS");
-  hdr("Booking Ref", "Driver", "Date", "From", "To", "KM", "Liters", "Rate (NGN/L)", "Amount (NGN)");
+  // ── Sheet 4: Fuel ────────────────────────────────────────────────────────────
+  const fuelRows = [xlRow(H("Booking Ref"), H("Driver"), H("Date"), H("From"), H("To"), H("KM"), H("Liters"), H("Rate (NGN/L)"), H("Amount (NGN)"))];
   filteredSettlements.forEach(st => {
     if (!N(st.financials?.fuelTotal)) return;
     const bId = typeof st.bookingId === "string" ? st.bookingId : st.bookingId?._id;
@@ -77,58 +106,57 @@ function exportReport(
     const driver = cleanName(driverByBooking[bId]);
     const legs: any[] = Array.isArray(st.fuelDetails?.legs) ? st.fuelDetails.legs : [];
     if (legs.length) {
-      legs.forEach((leg: any) => push(bRef, driver, fmtDate(st.createdAt), leg.from ?? "-", leg.to ?? "-", leg.km ?? "-", leg.liters != null ? Number(leg.liters).toFixed(1) : "-", leg.mileage ?? "-", Math.round(N(leg.amount))));
+      legs.forEach((leg: any) => fuelRows.push(xlRow(S(bRef), S(driver), S(fmtDate(st.createdAt)), S(leg.from ?? "-"), S(leg.to ?? "-"), N2(Number(leg.km ?? 0)), N2(Number(leg.liters ?? 0)), N2(Number(leg.mileage ?? 0)), N2(Math.round(N(leg.amount))))));
     } else {
-      push(bRef, driver, fmtDate(st.createdAt), "-", "-", "-", "-", "-", Math.round(N(st.financials?.fuelTotal)));
+      fuelRows.push(xlRow(S(bRef), S(driver), S(fmtDate(st.createdAt)), S("-"), S("-"), N2(0), N2(0), N2(0), N2(Math.round(N(st.financials?.fuelTotal)))));
     }
   });
-  push("", "", "", "", "", "", "", "TOTAL", Math.round(stats.fuelCost));
-  gap();
+  fuelRows.push(xlBlank(9), xlRow(SH(""), SH(""), SH(""), SH(""), SH(""), SH(""), SH(""), SH("TOTAL", true), N2(Math.round(stats.fuelCost))));
 
-  // ── Council Levy ──
-  hdr("COUNCIL LEVY DETAILS");
-  hdr("Booking Ref", "Driver", "Date", "Council Levy (NGN)");
+  // ── Sheet 5: Council Levy ────────────────────────────────────────────────────
+  const levyRows = [xlRow(H("Booking Ref"), H("Driver"), H("Date"), H("Council Levy (NGN)"))];
   filteredSettlements.forEach(st => {
     const bId = typeof st.bookingId === "string" ? st.bookingId : st.bookingId?._id;
     const levy = N(st.financials?.councilLevy);
     if (!levy) return;
-    push(bId ? bId.slice(-8).toUpperCase() : "-", cleanName(driverByBooking[bId]), fmtDate(st.createdAt), Math.round(levy));
+    levyRows.push(xlRow(S(bId ? bId.slice(-8).toUpperCase() : "-"), S(cleanName(driverByBooking[bId])), S(fmtDate(st.createdAt)), N2(Math.round(levy))));
   });
-  push("", "", "TOTAL", Math.round(stats.councilLevy));
-  gap();
+  levyRows.push(xlBlank(4), xlRow(SH(""), SH(""), SH("TOTAL", true), N2(Math.round(stats.councilLevy))));
 
-  // ── Damages ──
-  hdr("DAMAGE INCIDENTS");
-  hdr("Driver", "Truck", "Date", "Item", "Quantity", "Amount (NGN)");
+  // ── Sheet 6: Damages ─────────────────────────────────────────────────────────
+  const dmgRows = [xlRow(H("Driver"), H("Truck"), H("Date"), H("Damage Item"), H("Quantity"), H("Amount (NGN)"))];
   filteredInspections.filter(i => Array.isArray(i.damages) && i.damages.length > 0).forEach(insp => {
-    (insp.damages as any[]).forEach((d: any) => push(
-      cleanName(insp.driverId?.name),
-      insp.truckId?.truckId || insp.truckId || "-",
-      fmtDate(insp.createdAt),
-      d.description || "-", d.quantity ?? "-", Math.round(N(d.amount)),
-    ));
+    (insp.damages as any[]).forEach((d: any) => dmgRows.push(xlRow(
+      S(cleanName(insp.driverId?.name)), S(insp.truckId?.truckId || insp.truckId || "-"),
+      S(fmtDate(insp.createdAt)), S(d.description || "-"), N2(Number(d.quantity ?? 0)), N2(Math.round(N(d.amount))),
+    )));
   });
-  push("", "", "", "", "TOTAL", Math.round(stats.totalDamages));
-  gap();
+  dmgRows.push(xlBlank(6), xlRow(SH(""), SH(""), SH(""), SH(""), SH("TOTAL", true), N2(Math.round(stats.totalDamages))));
 
-  // ── Expense Categories ──
-  if (Object.keys(stats.categoryTotals).length) {
-    hdr("EXPENSE CATEGORIES");
-    hdr("Category", "Amount (NGN)");
-    Object.entries(stats.categoryTotals)
-      .sort(([, a], [, b]) => (b as number) - (a as number))
-      .forEach(([cat, v]) => push(cat, Math.round(v as number)));
-    push("TOTAL", Math.round(stats.otherExpenses));
-  }
+  // ── Build workbook XML ───────────────────────────────────────────────────────
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:x="urn:schemas-microsoft-com:office:excel">
+ <Styles>
+  <Style ss:ID="Default"><Font ss:FontName="Calibri" ss:Size="11"/></Style>
+  <Style ss:ID="h"><Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#1e293b" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="hb"><Font ss:FontName="Calibri" ss:Size="11" ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#1e293b" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="bg"><Font ss:FontName="Calibri" ss:Size="11"/><Interior ss:Color="#f1f5f9" ss:Pattern="Solid"/></Style>
+ </Styles>
+ ${xlSheet("Summary",           summaryRows)}
+ ${xlSheet("Revenue",           revRows)}
+ ${xlSheet("Driver Allocation", allocRows)}
+ ${xlSheet("Fuel",              fuelRows)}
+ ${xlSheet("Council Levy",      levyRows)}
+ ${xlSheet("Damages",           dmgRows)}
+</Workbook>`;
 
-  // Serialise to CSV — quote every cell, escape internal quotes
-  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\r\n");
-
-  // UTF-8 BOM — makes Excel auto-detect encoding correctly (no garbled chars)
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+  const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `report_${from}_to_${to}.csv`;
+  a.download = `report_${from}_to_${to}.xls`;
   a.click();
 }
 
@@ -141,7 +169,7 @@ function inPeriod(dateStr: string | undefined, from: string, to: string) {
 }
 
 // ── types ─────────────────────────────────────────────────────────────────────
-type DetailType = "allocation" | "fuel" | "levy" | "damages" | null;
+type DetailType = "allocation" | "fuel" | "levy" | "damages" | "revenue" | "advance" | "pending" | null;
 
 // ── accent map ────────────────────────────────────────────────────────────────
 const AM: Record<string, { text: string; border: string; iconBg: string }> = {
@@ -263,7 +291,8 @@ export default function ReportsPage() {
     const totalRevenue   = filteredBookings.reduce((s, b) => s + N(b.finalAmount), 0);
     const advancePaid    = filteredBookings.reduce((s, b) => s + N(b.advancePaid), 0);
     const completedTrips = filteredBookings.filter(b => b.status === "Completed" || b.tripStatus === "delivered").length;
-    const pendingRevenue = filteredBookings.filter(b => b.status !== "Completed" && b.tripStatus !== "delivered").reduce((s, b) => s + N(b.finalAmount), 0);
+    // Pending = Total − Advance (aggregate), guarantees Total = Advance + Pending always
+    const pendingRevenue = Math.max(0, totalRevenue - advancePaid);
 
     const allocationCost = filteredSettlements.reduce((s, st) => s + N(st.financials?.cashAllocation), 0);
     const fuelCost       = filteredSettlements.reduce((s, st) => s + N(st.financials?.fuelTotal), 0);
@@ -306,10 +335,13 @@ export default function ReportsPage() {
 
   // ── drawer title map ──────────────────────────────────────────────────────────
   const drawerMeta: Record<NonNullable<DetailType>, { title: string; sub: string; accent: string }> = {
-    allocation: { title: "Driver Allocation Details", sub: "Cash allocated per trip settlement", accent: "text-blue-600" },
-    fuel:       { title: "Fuel Cost Details",         sub: "Fuel legs & consumption per trip",   accent: "text-amber-600" },
-    levy:       { title: "Council Levy Details",      sub: "Council levy charged per trip",       accent: "text-violet-600" },
-    damages:    { title: "Damage Details by Driver",  sub: "Per-driver damage items & amounts",   accent: "text-rose-600" },
+    allocation: { title: "Driver Allocation Details", sub: "Cash allocated per trip settlement",      accent: "text-blue-600" },
+    fuel:       { title: "Fuel Cost Details",         sub: "Fuel legs & consumption per trip",        accent: "text-amber-600" },
+    levy:       { title: "Council Levy Details",      sub: "Council levy charged per trip",            accent: "text-violet-600" },
+    damages:    { title: "Damage Details by Driver",  sub: "Per-driver damage items & amounts",        accent: "text-rose-600" },
+    revenue:    { title: "Revenue Breakdown",         sub: "Final amount per booking in this period",  accent: "text-emerald-700" },
+    advance:    { title: "Advance Received",          sub: "Advance paid per booking in this period",  accent: "text-blue-600" },
+    pending:    { title: "Pending Revenue",           sub: "Balance still owed per booking (Final − Advance)", accent: "text-amber-600" },
   };
 
   return (
@@ -330,12 +362,12 @@ export default function ReportsPage() {
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
               <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">From</label>
-              <input type="date" value={from} onChange={e => setFrom(e.target.value)}
+              <input type="date" value={from} max={to} onChange={e => setFrom(e.target.value)}
                 className="border border-neutral-200 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary bg-white" />
             </div>
             <div className="space-y-1">
               <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">To</label>
-              <input type="date" value={to} onChange={e => setTo(e.target.value)}
+              <input type="date" value={to} min={from} max={new Date().toISOString().slice(0, 10)} onChange={e => setTo(e.target.value)}
                 className="border border-neutral-200 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary bg-white" />
             </div>
             <button onClick={loadAll} disabled={isLoading}
@@ -344,12 +376,12 @@ export default function ReportsPage() {
               Refresh
             </button>
             <button
-              onClick={() => exportReport(from, to, stats, filteredSettlements, filteredInspections, driverByBooking)}
-              disabled={isLoading || (!filteredSettlements.length && !filteredInspections.length)}
+              onClick={() => exportReport(from, to, stats, filteredBookings, filteredSettlements, filteredInspections, driverByBooking)}
+              disabled={isLoading || (!filteredBookings.length && !filteredSettlements.length && !filteredInspections.length)}
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-40"
             >
               <Download className="w-3.5 h-3.5" />
-              Export CSV
+              Export Excel
             </button>
           </div>
         </div>
@@ -405,9 +437,9 @@ export default function ReportsPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Revenue
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <SummaryCard label="Total Revenue"    value={naira(stats.totalRevenue)}   sub={`${stats.totalBookings} bookings`}           icon={<TrendingUp className="w-5 h-5" />} accent="emerald" />
-                <SummaryCard label="Advance Received" value={naira(stats.advancePaid)}    sub="Cash collected from clients"                  icon={<Wallet className="w-5 h-5" />}     accent="blue" />
-                <SummaryCard label="Pending Revenue"  value={naira(stats.pendingRevenue)} sub="Active / unconfirmed bookings"                icon={<ReceiptText className="w-5 h-5" />} accent="amber" />
+                <SummaryCard label="Total Revenue"    value={naira(stats.totalRevenue)}   sub={`${stats.totalBookings} bookings`}           icon={<TrendingUp className="w-5 h-5" />} accent="emerald" onClick={() => setDetail("revenue")} />
+                <SummaryCard label="Advance Received" value={naira(stats.advancePaid)}    sub="Cash collected from clients"                  icon={<Wallet className="w-5 h-5" />}     accent="blue"    onClick={() => setDetail("advance")} />
+                <SummaryCard label="Pending Revenue"  value={naira(stats.pendingRevenue)} sub="Balance still owed (Total − Advance)"       icon={<ReceiptText className="w-5 h-5" />} accent="amber"   onClick={() => setDetail("pending")} />
                 <SummaryCard label="Completed Trips"  value={stats.completedTrips.toString()} sub={`of ${stats.totalBookings} total bookings`} icon={<Truck className="w-5 h-5" />}   accent="indigo" />
               </div>
             </div>
@@ -531,7 +563,7 @@ export default function ReportsPage() {
             </div>
 
             {/* body */}
-            <div className="flex-1 overflow-y-auto p-6">
+            <div className="flex-1 overflow-y-auto p-6 pb-4">
 
               {/* ── ALLOCATION ── */}
               {detail === "allocation" && (
@@ -649,6 +681,138 @@ export default function ReportsPage() {
                 </table>
               )}
 
+              {/* ── REVENUE ── */}
+              {detail === "revenue" && (() => {
+                const rows = filteredBookings.filter(b => N(b.finalAmount) > 0);
+                const pickup  = (b: any) => Array.isArray(b.pickupLocations)  ? b.pickupLocations[0]  : b.pickupLocation  || "—";
+                const dropoff = (b: any) => Array.isArray(b.dropoffLocations) ? b.dropoffLocations[0] : b.dropoffLocation || "—";
+                return (
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-neutral-100">
+                        <Th>Trip ID</Th><Th>Driver</Th><Th>Route</Th><Th>Date</Th>
+                        <th className="pb-2.5 text-right text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Final Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-50">
+                      {rows.length === 0 && (
+                        <tr><td colSpan={5} className="py-8 text-center text-[11px] text-neutral-300">No revenue bookings in this period</td></tr>
+                      )}
+                      {rows.map((b, i) => {
+                        const bId = b._id ?? "";
+                        const tripLabel = b.tripId || `#${bId.slice(-7).toUpperCase()}`;
+                        const driver = driverByBooking[bId] || "—";
+                        const isCompleted = b.status === "Completed" || b.tripStatus === "delivered";
+                        return (
+                          <tr key={i}>
+                            <Td><span className="font-mono text-[10px] text-slate-500">{tripLabel}</span></Td>
+                            <Td><span className="font-semibold text-slate-900">{driver}</span></Td>
+                            <Td><span className="text-[10px]">{pickup(b)} → {dropoff(b)}</span></Td>
+                            <Td>{fmtDate(b.cargoDetails?.loadingDate || b.createdAt)}</Td>
+                            <td className="py-2.5 text-right font-bold text-emerald-600 text-[12px]">
+                              {naira(N(b.finalAmount))}
+                              {isCompleted && <span className="ml-1 text-[9px] font-bold text-emerald-400 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">DONE</span>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-neutral-100">
+                        <td colSpan={4} className="pt-3 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Total Revenue</td>
+                        <td className="pt-3 text-right text-[14px] font-bold text-emerald-600">{naira(stats.totalRevenue)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                );
+              })()}
+
+              {/* ── ADVANCE ── */}
+              {detail === "advance" && (() => {
+                const rows = filteredBookings.filter(b => N(b.advancePaid) > 0);
+                return (
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-neutral-100">
+                        <Th>Trip ID</Th><Th>Driver</Th><Th>Date</Th><Th>Final Amount</Th>
+                        <th className="pb-2.5 text-right text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Advance Paid</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-50">
+                      {rows.length === 0 && (
+                        <tr><td colSpan={5} className="py-8 text-center text-[11px] text-neutral-300">No advance payments in this period</td></tr>
+                      )}
+                      {rows.map((b, i) => {
+                        const bId = b._id ?? "";
+                        const tripLabel = b.tripId || `#${bId.slice(-7).toUpperCase()}`;
+                        const driver = driverByBooking[bId] || "—";
+                        const balance = N(b.finalAmount) - N(b.advancePaid);
+                        return (
+                          <tr key={i}>
+                            <Td><span className="font-mono text-[10px] text-slate-500">{tripLabel}</span></Td>
+                            <Td><span className="font-semibold text-slate-900">{driver}</span></Td>
+                            <Td>{fmtDate(b.cargoDetails?.loadingDate || b.createdAt)}</Td>
+                            <Td>{naira(N(b.finalAmount))}</Td>
+                            <td className="py-2.5 text-right font-bold text-blue-600 text-[12px]">
+                              {naira(N(b.advancePaid))}
+                              {balance > 0 && <div className="text-[9px] font-semibold text-amber-500 mt-0.5">Bal: {naira(balance)}</div>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-neutral-100">
+                        <td colSpan={4} className="pt-3 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Total Advance</td>
+                        <td className="pt-3 text-right text-[14px] font-bold text-blue-600">{naira(stats.advancePaid)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                );
+              })()}
+
+              {/* ── PENDING ── */}
+              {detail === "pending" && (() => {
+                const rows = filteredBookings.filter(b => N(b.finalAmount) - N(b.advancePaid) > 0);
+                return (
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-neutral-100">
+                        <Th>Trip ID</Th><Th>Driver</Th><Th>Date</Th><Th>Final Amt</Th><Th>Advance</Th>
+                        <th className="pb-2.5 text-right text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Balance Due</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-neutral-50">
+                      {rows.length === 0 && (
+                        <tr><td colSpan={6} className="py-8 text-center text-[11px] text-neutral-300">No balance due in this period</td></tr>
+                      )}
+                      {rows.map((b, i) => {
+                        const bId = b._id ?? "";
+                        const tripLabel = b.tripId || `#${bId.slice(-7).toUpperCase()}`;
+                        const driver = driverByBooking[bId] || "—";
+                        const balance = N(b.finalAmount) - N(b.advancePaid);
+                        return (
+                          <tr key={i}>
+                            <Td><span className="font-mono text-[10px] text-slate-500">{tripLabel}</span></Td>
+                            <Td><span className="font-semibold text-slate-900">{driver}</span></Td>
+                            <Td>{fmtDate(b.cargoDetails?.loadingDate || b.createdAt)}</Td>
+                            <Td>{naira(N(b.finalAmount))}</Td>
+                            <Td><span className="text-emerald-600">{naira(N(b.advancePaid))}</span></Td>
+                            <td className="py-2.5 text-right font-bold text-amber-600 text-[12px]">{naira(balance)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t border-neutral-100">
+                        <td colSpan={5} className="pt-3 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Total Balance Due</td>
+                        <td className="pt-3 text-right text-[14px] font-bold text-amber-600">{naira(stats.pendingRevenue)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                );
+              })()}
+
               {/* ── DAMAGES ── */}
               {detail === "damages" && (
                 <div className="space-y-4">
@@ -698,6 +862,8 @@ export default function ReportsPage() {
               )}
 
             </div>
+
+
           </div>
         </div>
       )}

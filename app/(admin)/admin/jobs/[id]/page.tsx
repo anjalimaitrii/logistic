@@ -22,7 +22,11 @@ import {
   ArrowDownCircle,
   Coffee,
   Flag,
-  RotateCcw
+  RotateCcw,
+  Navigation,
+  Timer,
+  Gauge,
+  Route
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
@@ -60,6 +64,8 @@ export default function JobDetailReport() {
   const [assignment, setAssignment] = useState<any>(null);
   const [settlement, setSettlement] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [gpsStats, setGpsStats] = useState<any>(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
 
   // Trip Expense Tracker State
   const [tripExpenses, setTripExpenses] = useState<any[]>([]);
@@ -147,10 +153,41 @@ export default function JobDetailReport() {
         setTripExpenses(settlementData.expenses);
       }
 
+      // Fetch GPS stats if trip has started
+      if (bookingData?.tripStatus && assignmentData?.truckNumber) {
+        fetchGpsStats(bookingData, assignmentData.truckNumber);
+      }
+
     } catch (error) {
       console.error("Failed to fetch job details:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchGpsStats = async (bookingData: any, truckNumber: string) => {
+    const from = bookingData?.tripStartedAt || bookingData?.cargoDetails?.loadingDate;
+    if (!from || !truckNumber || truckNumber === "N/A") return;
+    setGpsLoading(true);
+    try {
+      const tripStatus = (bookingData?.tripStatus || "").toLowerCase();
+      const isDone = tripStatus === "completed" || tripStatus === "delivered";
+      const toDate = isDone && bookingData?.tripEndedAt
+        ? bookingData.tripEndedAt
+        : new Date().toISOString();
+
+      const params = new URLSearchParams({
+        truck: truckNumber,
+        from: String(from),
+        to: toDate,
+      });
+      const res = await fetch(`/api/trip-stats?${params}`);
+      const json = await res.json();
+      if (json.success && json.data) setGpsStats(json.data);
+    } catch {
+      // non-critical
+    } finally {
+      setGpsLoading(false);
     }
   };
 
@@ -253,7 +290,32 @@ export default function JobDetailReport() {
       return;
     }
     try {
-      await bookingService.updateTripStatus(id, newStatus.toLowerCase());
+      if (newStatus === "STARTED" && assignment?.truckNumber) {
+        // Capture truck GPS coordinates at the moment of trip start
+        let tripStartCoords: { lat: number; lng: number; location?: string } | undefined;
+        try {
+          const liveRes = await fetch("/api/livetrack");
+          const liveData = await liveRes.json();
+          const normalized = String(assignment.truckNumber).trim().toUpperCase();
+          const vehicle = (liveData.vehicles || []).find(
+            (v: any) =>
+              String(v.Vehicle_No || "").trim().toUpperCase() === normalized ||
+              String(v.Vehicle_Name || "").trim().toUpperCase() === normalized
+          );
+          if (vehicle?.Latitude && vehicle?.Longitude) {
+            tripStartCoords = {
+              lat: parseFloat(vehicle.Latitude),
+              lng: parseFloat(vehicle.Longitude),
+              location: vehicle.Location || undefined,
+            };
+          }
+        } catch {
+          // non-critical — status update still proceeds
+        }
+        await bookingService.updateTripStatus(id, newStatus.toLowerCase(), { tripStartCoords });
+      } else {
+        await bookingService.updateTripStatus(id, newStatus.toLowerCase());
+      }
       await loadData();
     } catch (error) {
       console.error("Status update failed:", error);
@@ -614,6 +676,115 @@ export default function JobDetailReport() {
             ))}
           </div>
 
+
+          {/* GPS Trip Stats Card */}
+          {(gpsLoading || gpsStats) && (
+            <div className="bg-white rounded-[24px] p-6 shadow-sm border border-slate-100">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                    <Navigation className="w-5 h-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900 uppercase tracking-widest">GPS Trip Stats</h2>
+                    <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-0.5">
+                      {gpsStats ? `${gpsStats.dateRange?.from?.slice(0,10)} → ${gpsStats.dateRange?.to?.slice(0,10)}` : "Loading from Trakzee…"}
+                    </p>
+                  </div>
+                </div>
+                {gpsLoading && (
+                  <div className="w-4 h-4 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin" />
+                )}
+              </div>
+
+              {gpsStats && (
+                <>
+                  {/* Main stats row */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-100 flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Timer className="w-3.5 h-3.5 text-emerald-500" />
+                        <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest">Running</span>
+                      </div>
+                      <span className="text-[18px] font-bold text-slate-900 leading-tight">{gpsStats.runningDuration}</span>
+                      <span className="text-[9px] font-medium text-slate-400">hrs</span>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-amber-50/60 border border-amber-100 flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Coffee className="w-3.5 h-3.5 text-amber-500" />
+                        <span className="text-[9px] font-bold text-amber-600 uppercase tracking-widest">Idle</span>
+                      </div>
+                      <span className="text-[18px] font-bold text-slate-900 leading-tight">{gpsStats.idleDuration}</span>
+                      <span className="text-[9px] font-medium text-slate-400">hrs</span>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-100 flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Clock className="w-3.5 h-3.5 text-rose-500" />
+                        <span className="text-[9px] font-bold text-rose-600 uppercase tracking-widest">Stopped</span>
+                      </div>
+                      <span className="text-[18px] font-bold text-slate-900 leading-tight">{gpsStats.stopDuration}</span>
+                      <span className="text-[9px] font-medium text-slate-400">hrs</span>
+                    </div>
+                    <div className="p-4 rounded-2xl bg-blue-50/60 border border-blue-100 flex flex-col gap-1">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Route className="w-3.5 h-3.5 text-blue-500" />
+                        <span className="text-[9px] font-bold text-blue-600 uppercase tracking-widest">Distance</span>
+                      </div>
+                      <span className="text-[18px] font-bold text-slate-900 leading-tight">{gpsStats.runningKm}</span>
+                      <span className="text-[9px] font-medium text-slate-400">km</span>
+                    </div>
+                  </div>
+
+                  {/* Speed + days row */}
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Gauge className="w-3 h-3 text-slate-400" />
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Max Speed</span>
+                      </div>
+                      <span className="text-[15px] font-bold text-slate-800">{gpsStats.maxSpeed} <span className="text-[9px] font-medium text-slate-400">km/h</span></span>
+                    </div>
+                    <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Activity className="w-3 h-3 text-slate-400" />
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Avg Speed</span>
+                      </div>
+                      <span className="text-[15px] font-bold text-slate-800">{gpsStats.avgSpeed} <span className="text-[9px] font-medium text-slate-400">km/h</span></span>
+                    </div>
+                    <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Work Days</span>
+                      </div>
+                      <span className="text-[15px] font-bold text-slate-800">{gpsStats.workingDays} <span className="text-[9px] font-medium text-slate-400">days</span></span>
+                    </div>
+                  </div>
+
+                  {/* Start → End location */}
+                  {(() => {
+                    const ts = (booking?.tripStatus || "").toLowerCase();
+                    const isDone = ts === "completed" || ts === "delivered";
+                    return (
+                      <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-100 flex items-start gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Start Location</div>
+                          <div className="text-[11px] font-semibold text-slate-700">{gpsStats.startLocation}</div>
+                        </div>
+                        <div className="text-slate-200 font-bold text-lg self-center">→</div>
+                        <div className="flex-1 min-w-0 text-right">
+                          <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">End Location</div>
+                          {isDone
+                            ? <div className="text-[11px] font-semibold text-slate-700">{gpsStats.endLocation}</div>
+                            : <div className="text-[10px] font-bold text-amber-500 italic">Trip in progress…</div>
+                          }
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">

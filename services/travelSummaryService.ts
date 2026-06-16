@@ -25,8 +25,7 @@ export async function fetchTravelSummary(
     cache: "no-store",
     body: JSON.stringify({ start_date_time, end_date_time, imei_nos }),
   });
-  if (!res.ok) throw new Error("Failed to fetch travel summary");
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || "Unknown error");
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok || !json.success) throw new Error(json.error || "Failed to fetch travel summary");
   return json.data ?? [];
 }

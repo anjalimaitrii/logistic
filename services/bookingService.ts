@@ -59,10 +59,10 @@ export const bookingService = {
     });
   },
   
-  updateTripStatus: async (id: string, tripStatus: string) => {
+  updateTripStatus: async (id: string, tripStatus: string, extra: Record<string, any> = {}) => {
     return await fetchApi(`/api/bookings/${id}/status`, {
       method: 'PATCH',
-      body: JSON.stringify({ tripStatus }),
+      body: JSON.stringify({ tripStatus, ...extra }),
     });
   },
 

@@ -10,6 +10,7 @@ import { ChevronRight, Eye, Check, X, MessageSquare, Package } from "lucide-reac
 import { bookingService } from "@/services/bookingService";
 import { settlementService } from "@/services/settlementService";
 import { fetchLiveVehicles, getVehicleStatus } from "@/services/liveTrackingService";
+import BookingChatPanel from "@/components/admin/BookingChatPanel";
 import { useRouter } from "next/navigation";
 
 const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniMap"), {
@@ -28,6 +29,8 @@ export default function AdminDashboard() {
    const [isLoading, setIsLoading] = useState(true);
    const [settlements, setSettlements] = useState<any[]>([]);
    const [fleetCounts, setFleetCounts] = useState({ total: 0, moving: 0, stopped: 0, parked: 0, inactive: 0 });
+   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+   const [isChatOpen, setIsChatOpen] = useState(false);
 
    useEffect(() => {
       loadData();
@@ -126,14 +129,21 @@ export default function AdminDashboard() {
       },
    ];
 
+   const getRoute = (b: any) => {
+      const pickup = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "N/A";
+      const dropoff = b.dropoffLocations?.[b.dropoffLocations?.length - 1]?.address?.city || b.dropoff?.address?.city || "N/A";
+      return `${pickup} → ${dropoff}`;
+   };
+
    const recentJobsData = bookings.slice(0, 5).map(b => ({
-      id: `#FL-${b?._id?.substring(b._id.length - 7).toUpperCase() || "NEW"}`,
+      id: b?.tripId || `#FL-${b?._id?.substring(b._id.length - 7).toUpperCase() || "NEW"}`,
       status: b?.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : "Unknown",
       driver: "TBD",
-      route: `${b?.pickup?.address?.city || "N/A"} → ${b?.dropoff?.address?.city || "N/A"}`,
-      eta: b?.status === 'delivered' ? 'Done' : 'Calculating...',
+      route: getRoute(b),
+      proposed: b?.finalAmount ? `₦${Number(b.finalAmount).toLocaleString()}` : "TBD",
       type: getStatusType(b?.status || ""),
-      rawId: b?._id
+      rawId: b?._id,
+      raw: b,
    }));
 
    const columns = [
@@ -160,12 +170,12 @@ export default function AdminDashboard() {
       },
       { label: "Driver", key: "driver", render: (val: string) => <span className="font-medium text-slate-700">{val}</span> },
       { label: "Route", key: "route", render: (val: string) => <span className="text-neutral-500">{val}</span> },
-      { label: "ETA", key: "eta", render: (val: string) => <span className="font-semibold text-slate-900">{val}</span> },
+      { label: "Proposed", key: "proposed", render: (val: string) => <span className="font-semibold text-slate-900">{val}</span> },
       {
          label: "Actions",
          key: "actions",
          align: "center" as const,
-         render: (val: any, row: any) => (
+         render: (_: any, row: any) => (
             <div className="flex gap-2 justify-center">
                <button 
                   onClick={() => router.push(`/admin/jobs/${row.rawId}`)}
@@ -192,7 +202,14 @@ export default function AdminDashboard() {
                      </button>
                   </>
                ) : (
-                  <button className="px-4 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-all flex items-center gap-1.5">
+                  <button
+                     onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedRequest(row.raw);
+                        setIsChatOpen(true);
+                     }}
+                     className="px-4 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-all flex items-center gap-1.5"
+                  >
                      <MessageSquare className="w-3 h-3" />
                      Chat
                   </button>
@@ -202,7 +219,7 @@ export default function AdminDashboard() {
       },
    ];
 
-   const handleCreateJob = (data: any) => {
+   const handleCreateJob = (_data: any) => {
       alert("Job created successfully!");
       setCreateJobOpen(false);
    };
@@ -333,6 +350,22 @@ export default function AdminDashboard() {
             isOpen={isCreateJobOpen}
             onClose={() => setCreateJobOpen(false)}
             onSubmit={handleCreateJob}
+         />
+
+         <BookingChatPanel
+            isOpen={isChatOpen}
+            onClose={() => setIsChatOpen(false)}
+            clientId={(selectedRequest?.clientId as any)?._id || (selectedRequest?.clientId as any)?.id || ""}
+            request={selectedRequest ? {
+               id: selectedRequest.tripId || `#FL-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
+               customer: (selectedRequest.clientId as any)?.name || "Direct Client",
+               route: [getRoute(selectedRequest)],
+               cargo: selectedRequest.cargoDetails?.goodsType,
+               price: selectedRequest.finalAmount ? `₦${selectedRequest.finalAmount}` : "TBD",
+               date: new Date(selectedRequest.createdAt || Date.now()).toLocaleDateString(),
+               status: "Active" as any,
+            } : null}
+            onFinalize={() => setIsChatOpen(false)}
          />
       </AdminLayout >
    );
