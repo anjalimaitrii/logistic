@@ -2,9 +2,46 @@
 
 import { useState, useEffect, useCallback } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
-import { ChevronRight, Search, Play, Loader2, MapPin, Clock, Gauge, Route } from "lucide-react";
+import { ChevronRight, Search, Play, Loader2, MapPin, Clock, Gauge, Route, DatabaseZap } from "lucide-react";
 import { fetchLiveVehicles, LiveVehicle } from "@/services/liveTrackingService";
 import { fetchTravelSummary, TravelSummaryRecord } from "@/services/travelSummaryService";
+
+// ── localStorage cache ────────────────────────────────────────────────────────
+const CACHE_KEY    = "travelSummaryCache";
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+interface SummaryCache {
+  start: string;
+  end: string;
+  fetchedAt: number;
+  data: TravelSummaryRecord[];
+}
+
+function readCache(): SummaryCache | null {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    return raw ? (JSON.parse(raw) as SummaryCache) : null;
+  } catch { return null; }
+}
+
+function writeCache(cache: SummaryCache) {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(cache)); } catch {}
+}
+
+function isCacheValid(start: string, end: string): boolean {
+  const c = readCache();
+  if (!c) return false;
+  if (c.start !== start || c.end !== end) return false;
+  return Date.now() - c.fetchedAt < CACHE_TTL_MS;
+}
+
+function cacheAge(): string {
+  const c = readCache();
+  if (!c) return "";
+  const secs = Math.floor((Date.now() - c.fetchedAt) / 1000);
+  if (secs < 60) return `${secs}s ago`;
+  return `${Math.floor(secs / 60)}m ago`;
+}
 
 function formatDuration(val: string | number | undefined): string {
   if (!val || val === "--") return "--";
@@ -57,6 +94,8 @@ export default function TravelSummaryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fetched, setFetched] = useState(false);
+  const [fromCache, setFromCache] = useState(false);
+  const [cacheAgeLabel, setCacheAgeLabel] = useState("");
 
   // Load live vehicles to get IMEI list
   useEffect(() => {
@@ -101,20 +140,44 @@ export default function TravelSummaryPage() {
       setError("Select at least one vehicle.");
       return;
     }
-    setLoading(true);
     setError(null);
+
+    const apiStart = toApiDateTime(startDT);
+    const apiEnd   = toApiDateTime(endDT);
+
+    // ── Serve from cache if valid ─────────────────────────────────────────────
+    if (isCacheValid(apiStart, apiEnd)) {
+      const cached = readCache()!;
+      const filtered = cached.data.filter(r => r.imei_no && selectedImeis.has(r.imei_no));
+      setResults(filtered);
+      setFetched(true);
+      setFromCache(true);
+      setCacheAgeLabel(cacheAge());
+      return;
+    }
+
+    // ── Fresh fetch — all trucks at once ──────────────────────────────────────
+    setLoading(true);
+    setFromCache(false);
     setFetched(false);
     try {
-      const imei_nos = Array.from(selectedImeis).join(",");
-      const data = await fetchTravelSummary(
-        toApiDateTime(startDT),
-        toApiDateTime(endDT),
-        imei_nos
-      );
-      setResults(data);
+      const allImeis = vehicles.map(v => v.Imeino).filter(Boolean).join(",");
+      const allData  = await fetchTravelSummary(apiStart, apiEnd, allImeis);
+
+      // Store in localStorage
+      writeCache({ start: apiStart, end: apiEnd, fetchedAt: Date.now(), data: allData });
+
+      // Filter to selected trucks for display
+      const filtered = allData.filter(r => r.imei_no && selectedImeis.has(r.imei_no));
+      setResults(filtered);
       setFetched(true);
     } catch (e: any) {
-      setError(e.message);
+      const msg: string = e.message || "";
+      if (msg.toLowerCase().includes("frequent") || msg.toLowerCase().includes("rate") || msg.toLowerCase().includes("not allow")) {
+        setError("API rate limit reached — please wait 30–60 seconds before generating a new report.");
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -265,7 +328,7 @@ export default function TravelSummaryPage() {
             ) : (
               <Play className="w-3.5 h-3.5" />
             )}
-            Generate Report
+            {loading ? "Fetching..." : "Generate Report"}
           </button>
         </div>
 
@@ -277,6 +340,12 @@ export default function TravelSummaryPage() {
                 <h2 className="text-[13px] font-bold text-slate-900">Results</h2>
                 <p className="text-[10px] text-neutral-400 mt-0.5">{results.length} vehicle{results.length !== 1 ? "s" : ""} found</p>
               </div>
+              {fromCache && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-blue-50 border border-blue-100 rounded-full">
+                  <DatabaseZap className="w-3 h-3 text-blue-500" />
+                  <span className="text-[9px] font-bold text-blue-500 uppercase tracking-widest">Cached · {cacheAgeLabel}</span>
+                </div>
+              )}
             </div>
 
             {results.length === 0 ? (
