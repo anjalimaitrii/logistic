@@ -79,8 +79,9 @@ function exportReport(
     const bId = b._id ?? "";
     const tripLabel = b.tripId || bId.slice(-7).toUpperCase();
     const driver = cleanName(driverByBooking[bId]);
-    const pickup  = Array.isArray(b.pickupLocations)  ? b.pickupLocations[0]  : b.pickupLocation  || "-";
-    const dropoff = Array.isArray(b.dropoffLocations) ? b.dropoffLocations[0] : b.dropoffLocation || "-";
+    const locStr  = (v: any): string => { if (!v) return "-"; if (typeof v === "string") return v; return v?.address || [v?.plotNo, v?.street, v?.city].filter(Boolean).join(", ") || "-"; };
+    const pickup  = locStr(Array.isArray(b.pickupLocations)  ? b.pickupLocations[0]  : (b.pickupLocations  || b.pickupLocation));
+    const dropoff = locStr(Array.isArray(b.dropoffLocations) ? b.dropoffLocations[0] : (b.dropoffLocations || b.dropoffLocation));
     const balance = Math.round(N(b.finalAmount) - N(b.advancePaid));
     const status  = b.tripStatus || b.status || "-";
     revRows.push(xlRow(S(tripLabel), S(driver), S(`${pickup} → ${dropoff}`), S(fmtDate(b.cargoDetails?.loadingDate || b.createdAt)), N2(Math.round(N(b.finalAmount))), N2(Math.round(N(b.advancePaid))), N2(balance), S(status)));
@@ -684,8 +685,20 @@ export default function ReportsPage() {
               {/* ── REVENUE ── */}
               {detail === "revenue" && (() => {
                 const rows = filteredBookings.filter(b => N(b.finalAmount) > 0);
-                const pickup  = (b: any) => Array.isArray(b.pickupLocations)  ? b.pickupLocations[0]  : b.pickupLocation  || "—";
-                const dropoff = (b: any) => Array.isArray(b.dropoffLocations) ? b.dropoffLocations[0] : b.dropoffLocation || "—";
+                const locStr = (v: any): string => {
+                  if (!v) return "—";
+                  if (typeof v === "string") return v.trim() || "—";
+                  if (typeof v === "number") return String(v);
+                  const candidates = [
+                    v?.address, v?.name, v?.location,
+                    v?.city, v?.state, v?.street, v?.plotNo, v?.country,
+                  ].filter((p: any) => p && typeof p === "string" && p.trim());
+                  return candidates.length ? candidates[0] : "—";
+                };
+                const getFirst = (arr: any, fallback: any) =>
+                  Array.isArray(arr) ? arr[0] : (arr ?? fallback);
+                const pickup  = (b: any) => locStr(getFirst(b.pickupLocations,  b.pickupLocation));
+                const dropoff = (b: any) => locStr(getFirst(b.dropoffLocations, b.dropoffLocation));
                 return (
                   <table className="w-full text-left">
                     <thead>
@@ -701,12 +714,12 @@ export default function ReportsPage() {
                       {rows.map((b, i) => {
                         const bId = b._id ?? "";
                         const tripLabel = b.tripId || `#${bId.slice(-7).toUpperCase()}`;
-                        const driver = driverByBooking[bId] || "—";
+                        const driver = cleanName(driverByBooking[bId]) || "—";
                         const isCompleted = b.status === "Completed" || b.tripStatus === "delivered";
                         return (
                           <tr key={i}>
-                            <Td><span className="font-mono text-[10px] text-slate-500">{tripLabel}</span></Td>
-                            <Td><span className="font-semibold text-slate-900">{driver}</span></Td>
+                            <Td><span className="font-mono text-[10px] text-slate-500">{String(tripLabel)}</span></Td>
+                            <Td><span className="font-semibold text-slate-900">{String(driver)}</span></Td>
                             <Td><span className="text-[10px]">{pickup(b)} → {dropoff(b)}</span></Td>
                             <Td>{fmtDate(b.cargoDetails?.loadingDate || b.createdAt)}</Td>
                             <td className="py-2.5 text-right font-bold text-emerald-600 text-[12px]">
@@ -745,7 +758,7 @@ export default function ReportsPage() {
                       {rows.map((b, i) => {
                         const bId = b._id ?? "";
                         const tripLabel = b.tripId || `#${bId.slice(-7).toUpperCase()}`;
-                        const driver = driverByBooking[bId] || "—";
+                        const driver = cleanName(driverByBooking[bId]) || "—";
                         const balance = N(b.finalAmount) - N(b.advancePaid);
                         return (
                           <tr key={i}>
@@ -789,7 +802,7 @@ export default function ReportsPage() {
                       {rows.map((b, i) => {
                         const bId = b._id ?? "";
                         const tripLabel = b.tripId || `#${bId.slice(-7).toUpperCase()}`;
-                        const driver = driverByBooking[bId] || "—";
+                        const driver = cleanName(driverByBooking[bId]) || "—";
                         const balance = N(b.finalAmount) - N(b.advancePaid);
                         return (
                           <tr key={i}>
