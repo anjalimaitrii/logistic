@@ -47,9 +47,10 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           script: |
             set -e
+            pm2 update 2>/dev/null || true
             cd /root/fleet/fleet-frontend
             npm install -g pnpm 2>/dev/null || true
-            pnpm install --prod --frozen-lockfile
+            pnpm install --prod --frozen-lockfile --ignore-scripts
             pm2 reload ecosystem.config.cjs --env production 2>/dev/null || pm2 start ecosystem.config.cjs --env production
             pm2 save
             echo "✅ fleet-frontend deployed via PM2"
