@@ -29,9 +29,10 @@ export default function AccountantJobDetail() {
   const [jobSettlement, setJobSettlement] = useState<any>(null);
 
   // One entry per leg (stop-to-stop)
-  const [legData, setLegData] = useState<{ km: string; mileage: string }[]>([
-    { km: "0", mileage: "0" },
+  const [legData, setLegData] = useState<{ km: string; mileage: string; loadType: "loaded" | "unloaded" }[]>([
+    { km: "0", mileage: "0", loadType: "loaded" },
   ]);
+  const [mileageRates, setMileageRates] = useState<{ loaded: string; unloaded: string }>({ loaded: "0", unloaded: "0" });
   const [fuelRate, setFuelRate] = useState("0");
   const [allocationMoney, setAllocationMoney] = useState("0");
   const [councilLevy, setCouncilLevy] = useState("0");
@@ -143,20 +144,20 @@ export default function AccountantJobDetail() {
       const mileageConfig = await mileageService.get().catch(() => ({ loadedMileage: 0, unloadedMileage: 0 }));
       const loadedMil = mileageConfig.loadedMileage?.toString() ?? "0";
       const unloadedMil = mileageConfig.unloadedMileage?.toString() ?? "0";
+      setMileageRates({ loaded: loadedMil, unloaded: unloadedMil });
 
       if (settlement) {
         setIsApproved(true);
 
         const legs = settlement.fuelDetails?.legs
-          ? settlement.fuelDetails.legs.map((l: any, i: number) => ({
-              km: l.km.toString(),
-              // Always apply global mileage — forward=loaded, last=unloaded
-              mileage: i === (settlement.fuelDetails.legs.length - 1) ? unloadedMil : loadedMil,
-            }))
-          : Array.from({ length: totalLegs }, (_, i) => ({
-              km: i === 0 ? settlement.fuelDetails.pickupKm?.toString() || "0" : settlement.fuelDetails.dropoffKm?.toString() || "0",
-              mileage: i === totalLegs - 1 ? unloadedMil : loadedMil,
-            }));
+          ? settlement.fuelDetails.legs.map((l: any, i: number) => {
+              const isLast = i === settlement.fuelDetails.legs.length - 1;
+              return { km: l.km.toString(), loadType: isLast ? "unloaded" as const : "loaded" as const, mileage: isLast ? unloadedMil : loadedMil };
+            })
+          : Array.from({ length: totalLegs }, (_, i) => {
+              const isLast = i === totalLegs - 1;
+              return { km: i === 0 ? settlement.fuelDetails.pickupKm?.toString() || "0" : settlement.fuelDetails.dropoffKm?.toString() || "0", loadType: isLast ? "unloaded" as const : "loaded" as const, mileage: isLast ? unloadedMil : loadedMil };
+            });
 
         setLegData(legs);
         setFuelRate(settlement.fuelDetails.fuelRate?.toString() || "0");
@@ -184,10 +185,10 @@ export default function AccountantJobDetail() {
         const routeKm = routeMatch?.distance.toString() ?? "0";
         const routeAllocation = routeMatch?.allocationMoney.toString() ?? (data.advancePaid?.toString() || "0");
 
-        setLegData(Array.from({ length: totalLegs }, (_, i) => ({
-          km: routeKm,
-          mileage: i === totalLegs - 1 ? unloadedMil : loadedMil,
-        })));
+        setLegData(Array.from({ length: totalLegs }, (_, i) => {
+          const isLast = i === totalLegs - 1;
+          return { km: routeKm, loadType: isLast ? "unloaded" as const : "loaded" as const, mileage: isLast ? unloadedMil : loadedMil };
+        }));
         setAllocationMoney(routeAllocation);
       }
     } catch (error) {
@@ -425,7 +426,7 @@ export default function AccountantJobDetail() {
                         </div>
                         <div className="flex-1 min-w-0 pt-1">
                           <div className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mb-0.5">Pickup Stop</div>
-                          <div className="text-sm font-semibold text-slate-900 leading-tight">{loc.address?.city || "—"}</div>
+                          <div className="text-sm font-semibold text-slate-900 leading-tight">{[loc.address?.city, loc.address?.country].filter(Boolean).join(", ") || "—"}</div>
                           {(loc.address?.plotNo || loc.address?.street) && (
                             <div className="text-[11px] text-neutral-500 mt-0.5">
                               {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}
@@ -463,7 +464,7 @@ export default function AccountantJobDetail() {
                             <div className="text-[9px] font-bold text-rose-500 uppercase tracking-widest mb-0.5">
                               {isLast ? "Final Destination" : "Drop-off Stop"}
                             </div>
-                            <div className="text-sm font-semibold text-slate-900 leading-tight">{loc.address?.city || "—"}</div>
+                            <div className="text-sm font-semibold text-slate-900 leading-tight">{[loc.address?.city, loc.address?.country].filter(Boolean).join(", ") || "—"}</div>
                             {(loc.address?.plotNo || loc.address?.street) && (
                               <div className="text-[11px] text-neutral-500 mt-0.5">
                                 {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}
@@ -615,7 +616,7 @@ export default function AccountantJobDetail() {
                       <div key={i} className={`p-4 rounded-xl border space-y-3 ${colorMap[color]}`}>
                         {/* From stop */}
                         <div className="flex items-start gap-2">
-                          <div className={`w-5 h-5 rounded-full ${labelBg[color]} text-white flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5`}>
+                          <div className={`w-7 h-7 rounded-full ${labelBg[color]} text-white flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5`}>
                             {fromLabel}
                           </div>
                           <div>
@@ -630,7 +631,7 @@ export default function AccountantJobDetail() {
                         </div>
                         {/* To stop */}
                         <div className="flex items-start gap-2">
-                          <div className={`w-5 h-5 rounded-full ${labelBg[color]} text-white flex items-center justify-center text-[9px] font-bold shrink-0 mt-0.5`}>
+                          <div className={`w-7 h-7 rounded-full ${labelBg[color]} text-white flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5`}>
                             {toLabel}
                           </div>
                           <div className="flex-1">
@@ -643,7 +644,7 @@ export default function AccountantJobDetail() {
                           </div>
                         </div>
                         {/* Inputs */}
-                        <div className="grid grid-cols-2 gap-2 pt-1">
+                        <div className="grid grid-cols-2 gap-2 pt-1  items-start">
                           <div className="space-y-1">
                             <div className="flex items-center justify-between ml-1">
                               <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest">Distance (KM)</label>
@@ -666,17 +667,20 @@ export default function AccountantJobDetail() {
                             />
                           </div>
                           <div className="space-y-1">
-                            <label className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest ml-1">Mileage (KM/L)</label>
-                            <input
-                              type="number"
-                              value={leg.mileage}
+                            <label className="text-[8px] flex font-medium text-neutral-400 uppercase tracking-widest ml-1">Load Type</label>
+                            <select
+                              value={leg.loadType}
                               onChange={(e) => {
+                                const type = e.target.value as "loaded" | "unloaded";
                                 const updated = [...legData];
-                                updated[i] = { ...updated[i], mileage: e.target.value };
+                                updated[i] = { ...updated[i], loadType: type, mileage: type === "loaded" ? mileageRates.loaded : mileageRates.unloaded };
                                 setLegData(updated);
                               }}
-                              className="w-full bg-white border border-neutral-200 rounded-lg py-1.5 px-3 text-[11px] font-semibold text-slate-900 outline-none"
-                            />
+                              className="w-full bg-white border border-neutral-200 rounded-lg py-1.5 px-3 text-[11px] font-semibold text-slate-900 outline-none appearance-none cursor-pointer"
+                            >
+                              <option value="loaded">Loaded ({mileageRates.loaded} km/L)</option>
+                              <option value="unloaded">Unloaded ({mileageRates.unloaded} km/L)</option>
+                            </select>
                           </div>
                         </div>
                       </div>

@@ -25,26 +25,28 @@ import { bookingService } from "@/services/bookingService";
 
 const getStatusStyles = (type: string) => {
    switch (type?.toLowerCase()) {
-      case "transit": return "bg-blue-50 text-blue-600 border-blue-100";
-      case "active": return "bg-indigo-50 text-indigo-600 border-indigo-100";
-      case "accepted": return "bg-indigo-50 text-indigo-600 border-indigo-100";
-      case "delivered": return "bg-emerald-50 text-emerald-600 border-emerald-100";
-      case "completed": return "bg-emerald-50 text-emerald-600 border-emerald-100";
-      case "pending": return "bg-amber-50 text-amber-600 border-amber-100";
-      case "rejected": return "bg-rose-50 text-rose-600 border-rose-100";
-      default: return "bg-slate-50 text-slate-500 border-slate-100";
+      case "transit":
+      case "active":     return "bg-indigo-50 text-indigo-600 border-indigo-100";
+      case "accepted":   return "bg-blue-50 text-blue-600 border-blue-100";
+      case "finalized":  return "bg-violet-50 text-violet-600 border-violet-100";
+      case "delivered":
+      case "completed":  return "bg-emerald-50 text-emerald-600 border-emerald-100";
+      case "pending":    return "bg-amber-50 text-amber-600 border-amber-100";
+      case "rejected":   return "bg-rose-50 text-rose-600 border-rose-100";
+      default:           return "bg-slate-50 text-slate-500 border-slate-100";
    }
 };
 
 const getDotColor = (type: string) => {
    switch (type?.toLowerCase()) {
-      case "transit": return "bg-blue-500 animate-pulse";
-      case "active":
-      case "accepted": return "bg-indigo-500";
+      case "transit":
+      case "active":    return "bg-indigo-500 animate-pulse";
+      case "accepted":  return "bg-blue-500";
+      case "finalized": return "bg-violet-500";
       case "delivered":
       case "completed": return "bg-emerald-500";
-      case "pending": return "bg-amber-500";
-      default: return "bg-rose-500";
+      case "pending":   return "bg-amber-500";
+      default:          return "bg-rose-500";
    }
 };
 
@@ -70,13 +72,8 @@ function BookingDetailModal({ booking, onClose }: ModalProps) {
             className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
          >
             {/* Header */}
-            <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
-               <div>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-1">Trip Details</p>
-                  <h2 className="text-[15px] font-semibold text-slate-900 tracking-tight">
-                     {booking.tripId || `#${booking._id?.slice(-7).toUpperCase()}`}
-                  </h2>
-               </div>
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+               <h2 className="text-[14px] font-semibold text-slate-900 uppercase tracking-widest">Trip Details</h2>
                <button
                   onClick={onClose}
                   className="p-2 rounded-full bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
@@ -85,7 +82,7 @@ function BookingDetailModal({ booking, onClose }: ModalProps) {
                </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
+            <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar">
 
                {/* Status + Vehicle */}
                <div className="grid grid-cols-2 gap-3">
@@ -148,7 +145,7 @@ function BookingDetailModal({ booking, onClose }: ModalProps) {
                               {loc.address?.city && (
                                  <p className="text-slate-600 col-span-2">
                                     <span className="text-slate-400">Address:</span>{" "}
-                                    {[loc.address.plotNo, loc.address.street, loc.address.city].filter(Boolean).join(", ")}
+                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.country].filter(Boolean).join(", ")}
                                  </p>
                               )}
                            </div>
@@ -188,7 +185,7 @@ function BookingDetailModal({ booking, onClose }: ModalProps) {
                               {loc.address?.city && (
                                  <p className="text-slate-600 col-span-2">
                                     <span className="text-slate-400">Address:</span>{" "}
-                                    {[loc.address.plotNo, loc.address.street, loc.address.city].filter(Boolean).join(", ")}
+                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.country].filter(Boolean).join(", ")}
                                  </p>
                               )}
                            </div>
@@ -242,16 +239,15 @@ export default function JobsPage() {
       if (storedUser) {
          const parsedUser = JSON.parse(storedUser);
          setUser(parsedUser);
-         loadBookings(parsedUser._id || parsedUser.id);
-      } else {
-         loadBookings();
       }
+      loadBookings();
    }, []);
 
-   const loadBookings = async (clientId?: string) => {
+   const loadBookings = async () => {
       try {
          setIsLoading(true);
-         const data = await bookingService.getAll(clientId);
+         // Fetch all bookings — personal/company filtering done client-side
+         const data = await bookingService.getAll();
          setBookings(Array.isArray(data) ? data : (data?.bookings || []));
       } catch (error) {
          console.error("Failed to fetch bookings:", error);
@@ -265,8 +261,7 @@ export default function JobsPage() {
       setCancellingId(bookingId);
       try {
          await bookingService.updateStatus(bookingId, "cancelled");
-         const clientId = user?._id || user?.id;
-         await loadBookings(clientId);
+         await loadBookings();
       } catch {
          alert("Failed to cancel booking. Please try again.");
       } finally {
@@ -276,22 +271,30 @@ export default function JobsPage() {
 
    // ── Filter by personal / company ──
    const currentViewBookings = bookings.filter(b => {
-      const currentUserId = user?._id || user?.id;
+      const currentUserId = String(user?._id || user?.id || "");
+      const bookingClientId = String(b.clientId?._id || b.clientId || "");
+
       if (viewMode === "personal") {
-         return String(b.clientId?._id || b.clientId) === String(currentUserId);
+         return bookingClientId === currentUserId;
       }
+
+      // Company view: match by company ID if available
       const userCompanyId = String(user?.company?._id || user?.company || user?.companyId || "");
-      const bookingCompanyId = String(b.clientId?.company?._id || b.clientId?.company || "");
-      if (userCompanyId && bookingCompanyId && userCompanyId !== "undefined") {
+      const bookingCompanyId = String(
+         b.clientId?.company?._id || b.clientId?.company ||
+         b.clientId?.companyId   || b.companyId || ""
+      );
+      if (userCompanyId && userCompanyId !== "undefined" && bookingCompanyId && bookingCompanyId !== "undefined") {
          return userCompanyId === bookingCompanyId;
       }
-      return String(b.clientId?._id || b.clientId) === String(currentUserId);
+      // Fallback: show all bookings when company info isn't in the response
+      return true;
    });
 
    const dynamicStats = [
-      { label: "Total Jobs", value: currentViewBookings.filter(b => b.status !== "pending").length, icon: Package, color: "text-primary", bg: "bg-primary/10" },
-      { label: "In Transit", value: currentViewBookings.filter(b => b.status === "transit").length, icon: TrendingUp, color: "text-blue-600", bg: "bg-blue-50" },
-      { label: "Completed", value: currentViewBookings.filter(b => b.status === "completed" || b.status === "delivered").length, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
+      { label: "Total Jobs",  value: currentViewBookings.length, icon: Package, color: "text-primary", bg: "bg-primary/10" },
+      { label: "Finalized",   value: currentViewBookings.filter(b => b.status?.toLowerCase() === "finalized").length, icon: TrendingUp, color: "text-violet-600", bg: "bg-violet-50" },
+      { label: "Completed",   value: currentViewBookings.filter(b => ["completed", "delivered"].includes(b.tripStatus?.toLowerCase())).length, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
    ];
 
    // ── Date range filter ──
@@ -305,19 +308,18 @@ export default function JobsPage() {
 
    // ── Map bookings to display rows (new multi-location structure) ──
    const displayJobs = dateFilteredBookings.filter(b => b.status !== "cancelled").map(b => {
-      const firstPickup = (b.pickupLocations || [])[0];
-      const lastDropoff = (b.dropoffLocations || [])[(b.dropoffLocations?.length || 1) - 1];
-      const pickupCount = b.pickupLocations?.length || 0;
-      const dropoffCount = b.dropoffLocations?.length || 0;
+      const allCities = [
+         ...(b.pickupLocations || []).map((p: any) => p?.address?.city).filter(Boolean),
+         ...(b.dropoffLocations || []).map((d: any) => d?.address?.city).filter(Boolean),
+      ] as string[];
       return {
          raw: b,
          tripId: b.tripId || `#${b._id?.slice(-7).toUpperCase()}`,
-         origin: firstPickup?.address?.city || "—",
-         destination: lastDropoff?.address?.city || "—",
-         extraStops: pickupCount + dropoffCount - 2,
+         cities: allCities.length ? allCities : ["—"],
          cargo: b.cargoDetails?.goodsType || "Cargo",
          weight: b.cargoDetails?.weight || 0,
-         status: b.status || "pending",
+         status: b.tripStatus || b.status || "pending",
+         jobStatus: b.status || "",
          date: b.cargoDetails?.loadingDate
             ? new Date(b.cargoDetails.loadingDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
             : "N/A",
@@ -485,7 +487,7 @@ export default function JobsPage() {
                      <table className="w-full text-left border-collapse min-w-200">
                         <thead>
                            <tr className="bg-slate-50/50 border-b border-slate-50">
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Trip ID</th>
+                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sr. No.</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Route</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cargo</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Amount</th>
@@ -507,21 +509,22 @@ export default function JobsPage() {
                               displayJobs.map((job, i) => (
                                  <tr key={i} className="hover:bg-slate-50/80 transition-colors group">
                                     <td className="px-6 py-4">
-                                       <span className="text-[13px] font-bold text-slate-900 font-mono">{job.tripId}</span>
+                                       <span className="text-[13px] font-bold text-slate-900">{i + 1}</span>
                                        <p className="text-[10px] text-slate-400 mt-0.5">{job.date}</p>
                                     </td>
                                     <td className="px-6 py-4">
-                                       <div className="flex items-center gap-2">
-                                          <span className="text-[12px] font-bold text-emerald-700">{job.origin}</span>
-                                          {job.extraStops > 0 && (
-                                             <span className="text-[8px] text-slate-400 font-medium">+{job.extraStops} stops</span>
+                                       <div className="relative group inline-flex items-center gap-1">
+                                          <span className="text-[11px] font-medium text-slate-600 italic">{job.cities[0]}</span>
+                                          {job.cities.length > 1 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+                                          {job.cities.length > 2 && <span className="text-[11px] text-slate-400 italic">...</span>}
+                                          {job.cities.length > 2 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+                                          {job.cities.length > 1 && <span className="text-[11px] font-medium text-slate-600 italic">{job.cities[job.cities.length - 1]}</span>}
+                                          {job.cities.length > 2 && (
+                                             <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-50 bg-slate-900 text-white text-[10px] font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl pointer-events-none">
+                                                {job.cities.join(" → ")}
+                                                <div className="absolute top-full left-3 border-4 border-transparent border-t-slate-900" />
+                                             </div>
                                           )}
-                                          <div className="flex items-center gap-0.5">
-                                             <div className="w-1.5 h-1.5 rounded-full border-2 border-primary" />
-                                             <div className="w-6 h-px bg-slate-200" />
-                                             <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
-                                          </div>
-                                          <span className="text-[12px] font-bold text-rose-700">{job.destination}</span>
                                        </div>
                                     </td>
                                     <td className="px-6 py-4">
@@ -538,10 +541,17 @@ export default function JobsPage() {
                                        )}
                                     </td>
                                     <td className="px-6 py-4">
-                                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(job.status)}`}>
-                                          <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${getDotColor(job.status)}`} />
-                                          {job.status}
-                                       </span>
+                                       <div className="flex flex-col gap-1 items-start">
+                                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(job.status)}`}>
+                                             <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${getDotColor(job.status)}`} />
+                                             {job.status}
+                                          </span>
+                                          {job.jobStatus && job.jobStatus !== job.status && (
+                                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest border ${getStatusStyles(job.jobStatus)}`}>
+                                                {job.jobStatus}
+                                             </span>
+                                          )}
+                                       </div>
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                        <div className="flex justify-end gap-2">
@@ -595,24 +605,32 @@ export default function JobsPage() {
                            <div key={i} className="p-5 space-y-4 hover:bg-slate-50/50 transition-colors">
                               <div className="flex items-center justify-between">
                                  <div>
-                                    <span className="text-[12px] font-bold text-slate-900 font-mono">{job.tripId}</span>
+                                    <span className="text-[12px] font-bold text-slate-900">{i + 1}</span>
                                     <p className="text-[10px] text-slate-400">{job.date}</p>
                                  </div>
-                                 <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(job.status)}`}>
-                                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${getDotColor(job.status)}`} />
-                                    {job.status}
-                                 </span>
+                                 <div className="flex flex-col gap-1 items-end">
+                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(job.status)}`}>
+                                       <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${getDotColor(job.status)}`} />
+                                       {job.status}
+                                    </span>
+                                    {job.jobStatus && job.jobStatus !== job.status && (
+                                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest border ${getStatusStyles(job.jobStatus)}`}>
+                                          {job.jobStatus}
+                                       </span>
+                                    )}
+                                 </div>
                               </div>
-                              <div className="flex items-center gap-4 bg-slate-50/80 p-3 rounded-xl border border-slate-100">
-                                 <div className="flex-1">
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">From</p>
-                                    <p className="text-[12px] font-bold text-emerald-700 truncate">{job.origin}</p>
+                              <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100">
+                                 <div className="inline-flex items-center gap-1 flex-wrap">
+                                    <span className="text-[12px] font-medium text-slate-600 italic">{job.cities[0]}</span>
+                                    {job.cities.length > 1 && <span className="text-slate-300 text-[11px] font-bold">→</span>}
+                                    {job.cities.length > 2 && <span className="text-[12px] text-slate-400 italic">...</span>}
+                                    {job.cities.length > 2 && <span className="text-slate-300 text-[11px] font-bold">→</span>}
+                                    {job.cities.length > 1 && <span className="text-[12px] font-medium text-slate-600 italic">{job.cities[job.cities.length - 1]}</span>}
                                  </div>
-                                 <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
-                                 <div className="flex-1 text-right">
-                                    <p className="text-[9px] font-bold text-slate-400 uppercase mb-0.5">To</p>
-                                    <p className="text-[12px] font-bold text-rose-700 truncate">{job.destination}</p>
-                                 </div>
+                                 {job.cities.length > 2 && (
+                                    <p className="text-[9px] text-slate-400 mt-1">{job.cities.join(" → ")}</p>
+                                 )}
                               </div>
                               <div className="flex items-center justify-between pt-1">
                                  <div>

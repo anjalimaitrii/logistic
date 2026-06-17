@@ -219,7 +219,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                             {String.fromCharCode(65 + idx)}
                           </div>
                           <div className="flex-1">
-                            <div className="text-[12px] font-semibold text-neutral-900">{loc.address?.city || "—"}</div>
+                            <div className="text-[12px] font-semibold text-neutral-900">{[loc.address?.city, loc.address?.country].filter(Boolean).join(", ") || "—"}</div>
                             {(loc.address?.plotNo || loc.address?.street) && (
                               <div className="text-[11px] text-neutral-500 mt-0.5">
                                 {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}
@@ -247,7 +247,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                             {String.fromCharCode(65 + (job?.pickupLocations?.length || 0) + idx)}
                           </div>
                           <div className="flex-1">
-                            <div className="text-[12px] font-semibold text-neutral-900">{loc.address?.city || "—"}</div>
+                            <div className="text-[12px] font-semibold text-neutral-900">{[loc.address?.city, loc.address?.country].filter(Boolean).join(", ") || "—"}</div>
                             {(loc.address?.plotNo || loc.address?.street) && (
                               <div className="text-[11px] text-neutral-500 mt-0.5">
                                 {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}

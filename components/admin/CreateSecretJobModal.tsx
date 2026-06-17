@@ -4,31 +4,25 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, ChevronRight, MapPin, Package, Calendar,
-  CheckCircle2, ArrowLeft, Users, Plus, Trash2, UserPlus
+  CheckCircle2, ArrowLeft, Users, Plus, Trash2, UserPlus, Phone, Navigation, Loader2
 } from "lucide-react";
-
-const NIGERIAN_STATES = [
-  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno",
-  "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT (Abuja)", "Gombe",
-  "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", "Lagos",
-  "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", "Rivers", "Sokoto",
-  "Taraba", "Yobe", "Zamfara",
-];
-
-const NIGERIAN_CITIES = [
-  "Abuja", "Abeokuta", "Ado-Ekiti", "Akure", "Asaba", "Awka",
-  "Bauchi", "Benin City", "Birnin Kebbi", "Calabar",
-  "Damaturu", "Delta", "Dutse", "Effurun",
-  "Enugu", "Gombe", "Gusau", "Ibadan", "Ikeja", "Ilorin",
-  "Jalingo", "Jos", "Kaduna", "Kano", "Katsina",
-  "Lagos", "Lafia", "Lekki", "Lokoja", "Maiduguri",
-  "Makurdi", "Minna", "Onitsha", "Osogbo", "Owerri",
-  "Oyo", "Port Harcourt", "Sapele", "Sokoto", "Surulere",
-  "Umuahia", "Uyo", "Victoria Island", "Warri", "Yenagoa", "Yola", "Zaria",
-];
 import { clientService } from "@/services/clientService";
 import { bookingService } from "@/services/bookingService";
 import { goodsTypeService } from "@/services/goodsTypeService";
+import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES, CITY_TO_STATE } from "@/lib/africaLocations";
+
+const DIAL_CODES = [
+  { code: "+260", label: "ZM +260", maxLen: 9 },
+  { code: "+263", label: "ZW +263", maxLen: 9 },
+  { code: "+243", label: "CD +243", maxLen: 9 },
+  { code: "+265", label: "MW +265", maxLen: 9 },
+  { code: "+255", label: "TZ +255", maxLen: 9 },
+  { code: "+258", label: "MZ +258", maxLen: 9 },
+  { code: "+267", label: "BW +267", maxLen: 8 },
+  { code: "+264", label: "NA +264", maxLen: 9 },
+  { code: "+27",  label: "ZA +27",  maxLen: 9 },
+  { code: "+244", label: "AO +244", maxLen: 9 },
+];
 
 interface CreateSecretJobModalProps {
   isOpen: boolean;
@@ -36,7 +30,7 @@ interface CreateSecretJobModalProps {
   onSubmit: (data: any) => void;
 }
 
-const emptyLocation = () => ({ contactPerson: "", contact: "", contactPerson2: "", contact2: "", plotNo: "", street: "", city: "", state: "" });
+const emptyLocation = () => ({ contactPerson: "", contactCode: "+260", contact: "", contactPerson2: "", contact2Code: "+260", contact2: "", plotNo: "", street: "", country: "", state: "", city: "" });
 
 export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: CreateSecretJobModalProps) {
   const [step, setStep] = useState(1);
@@ -47,6 +41,8 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
   const [showGoodsManager, setShowGoodsManager] = useState(false);
   const [newGoodsInput, setNewGoodsInput] = useState("");
   const [showContact2, setShowContact2] = useState<{ pickup: boolean[]; dropoff: boolean[] }>({ pickup: [false], dropoff: [false] });
+  const [gpsLoading, setGpsLoading] = useState<{ type: "pickup" | "dropoff"; idx: number } | null>(null);
+  const [clientSuggestions, setClientSuggestions] = useState<ReturnType<typeof emptyLocation>[]>([]);
 
   const [formData, setFormData] = useState({
     clientId: "",
@@ -61,6 +57,28 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
   useEffect(() => {
     if (isOpen) { loadClients(); loadGoodsTypes(); }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!formData.clientId) { setClientSuggestions([]); return; }
+    (async () => {
+      try {
+        const bookings = await bookingService.getAll(formData.clientId);
+        const seen = new Set<string>();
+        const locs: ReturnType<typeof emptyLocation>[] = [];
+        for (const booking of bookings || []) {
+          const stops = [...(booking.pickupLocations || []), ...(booking.dropoffLocations || [])];
+          for (const stop of stops) {
+            const key = `${stop.address?.city}|${stop.address?.street}|${stop.address?.plotNo}`;
+            if (!seen.has(key) && stop.address?.city) {
+              seen.add(key);
+              locs.push({ contactPerson: stop.contactPerson || "", contactCode: "+260", contact: stop.contactNumber || "", contactPerson2: "", contact2Code: "+260", contact2: "", plotNo: stop.address?.plotNo || "", street: stop.address?.street || "", country: stop.address?.country || "", state: stop.address?.state || "", city: stop.address?.city || "" });
+            }
+          }
+        }
+        setClientSuggestions(locs);
+      } catch { setClientSuggestions([]); }
+    })();
+  }, [formData.clientId]);
 
   const loadClients = async () => {
     try {
@@ -97,13 +115,57 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
     } catch { }
   };
 
+  const matchList = (raw: string, list: string[]) => {
+    if (!raw) return "";
+    const q = raw.toLowerCase();
+    return list.find(l => l.toLowerCase() === q) || list.find(l => q.includes(l.toLowerCase()) || l.toLowerCase().includes(q)) || "";
+  };
+  const matchCountry = (raw: string) => {
+    if (!raw) return "";
+    const q = raw.toLowerCase();
+    if (q.includes("congo") || q.includes("drc")) return "DRC (Congo)";
+    return matchList(raw, AFRICAN_COUNTRIES);
+  };
+
+  const fetchGpsAddress = (type: "pickup" | "dropoff", idx: number) => {
+    if (!navigator.geolocation) { alert("Geolocation not supported."); return; }
+    setGpsLoading({ type, idx });
+    const update = type === "pickup" ? updatePickup : updateDropoff;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const { latitude, longitude } = pos.coords;
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+            { headers: { "Accept-Language": "en" } }
+          );
+          const data = await res.json();
+          const addr = data.address || {};
+          const rawCountry = addr.country || "";
+          const rawState = addr.state || addr.state_district || addr.county || "";
+          const rawCity = addr.city || addr.town || addr.village || "";
+          const country = matchCountry(rawCountry);
+          const state = country ? matchList(rawState, AFRICAN_STATES[country] || []) : "";
+          const city = country ? matchList(rawCity, AFRICAN_CITIES[country] || []) : "";
+          if (!country && rawCountry) alert(`GPS detected "${rawCountry}" which is outside the supported region. Please select Country, State & City manually.`);
+          update(idx, "country", country);
+          update(idx, "state", state);
+          update(idx, "city", city);
+          update(idx, "street", addr.road || addr.suburb || "");
+        } catch { alert("Failed to fetch address."); }
+        finally { setGpsLoading(null); }
+      },
+      () => { alert("Location access denied."); setGpsLoading(null); },
+      { timeout: 10000 }
+    );
+  };
+
   const lbl = (pCount: number, dCount: number, isPick: boolean, idx: number) =>
     String.fromCharCode(65 + (isPick ? idx : pCount + idx));
 
   const isStep1Valid =
     !!formData.clientId &&
     formData.goodsType.length > 0 &&
-    !!formData.weight &&
     !!formData.scheduleDate;
 
   const isStep2Valid =
@@ -112,9 +174,10 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
 
   const isNextDisabled = step === 1 ? !isStep1Valid : step === 2 ? !isStep2Valid : false;
 
-  const sanitize = (key: string, val: string) => {
+  const sanitize = (key: string, val: string, loc?: any) => {
     if (key === "contactPerson" || key === "contactPerson2") return val.replace(/[0-9]/g, "");
-    if (key === "contact" || key === "contact2") return val.replace(/\D/g, "").slice(0, 10);
+    if (key === "contact") { const max = DIAL_CODES.find(d => d.code === loc?.contactCode)?.maxLen ?? 10; return val.replace(/\D/g, "").slice(0, max); }
+    if (key === "contact2") { const max = DIAL_CODES.find(d => d.code === loc?.contact2Code)?.maxLen ?? 10; return val.replace(/\D/g, "").slice(0, max); }
     return val;
   };
 
@@ -128,13 +191,25 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
 
   const updatePickup = (idx: number, key: string, val: string) => {
     const locs = [...formData.pickupLocations];
-    (locs[idx] as any)[key] = sanitize(key, val);
+    (locs[idx] as any)[key] = sanitize(key, val, locs[idx]);
     setFormData({ ...formData, pickupLocations: locs });
   };
 
   const updateDropoff = (idx: number, key: string, val: string) => {
     const locs = [...formData.dropoffLocations];
-    (locs[idx] as any)[key] = sanitize(key, val);
+    (locs[idx] as any)[key] = sanitize(key, val, locs[idx]);
+    setFormData({ ...formData, dropoffLocations: locs });
+  };
+
+  const fillPickup = (idx: number, addr: ReturnType<typeof emptyLocation>) => {
+    const locs = [...formData.pickupLocations];
+    locs[idx] = { ...addr };
+    setFormData({ ...formData, pickupLocations: locs });
+  };
+
+  const fillDropoff = (idx: number, addr: ReturnType<typeof emptyLocation>) => {
+    const locs = [...formData.dropoffLocations];
+    locs[idx] = { ...addr };
     setFormData({ ...formData, dropoffLocations: locs });
   };
 
@@ -161,17 +236,17 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
         pickupLocations: formData.pickupLocations.map((l, i) => ({
           sequence: i + 1,
           contactPerson: l.contactPerson,
-          contactNumber: l.contact,
-          ...(l.contactPerson2.trim() && { contactPerson2: l.contactPerson2, contactNumber2: l.contact2 }),
-          address: { plotNo: l.plotNo, street: l.street, city: l.city, state: l.state },
+          contactNumber: l.contactCode ? `${l.contactCode}${l.contact}` : l.contact,
+          ...(l.contactPerson2.trim() && { contactPerson2: l.contactPerson2, contactNumber2: l.contact2Code ? `${l.contact2Code}${l.contact2}` : l.contact2 }),
+          address: { plotNo: l.plotNo, street: l.street, country: l.country, state: l.state, city: l.city },
           gpsEnabled: false,
         })),
         dropoffLocations: formData.dropoffLocations.map((l, i) => ({
           sequence: i + 1,
           contactPerson: l.contactPerson,
-          contactNumber: l.contact,
-          ...(l.contactPerson2.trim() && { contactPerson2: l.contactPerson2, contactNumber2: l.contact2 }),
-          address: { plotNo: l.plotNo, street: l.street, city: l.city, state: l.state },
+          contactNumber: l.contactCode ? `${l.contactCode}${l.contact}` : l.contact,
+          ...(l.contactPerson2.trim() && { contactPerson2: l.contactPerson2, contactNumber2: l.contact2Code ? `${l.contact2Code}${l.contact2}` : l.contact2 }),
+          address: { plotNo: l.plotNo, street: l.street, country: l.country, state: l.state, city: l.city },
           gpsEnabled: false,
         })),
         requirement: { bodyType: formData.truckType },
@@ -332,7 +407,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                       )}
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Weight (kg) <span className="text-red-500">*</span></label>
+                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Weight (kg)</label>
                       <input type="number" value={formData.weight} onChange={(e) => setFormData({ ...formData, weight: e.target.value })} placeholder="0" className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 px-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm" />
                     </div>
                   </div>
@@ -341,14 +416,14 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                     <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Schedule Date <span className="text-red-500">*</span></label>
                     <div className="relative">
                       <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
-                      <input type="date" value={formData.scheduleDate} onChange={(e) => setFormData({ ...formData, scheduleDate: e.target.value })} className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm" />
+                      <input type="date" value={formData.scheduleDate} min={new Date().toISOString().split("T")[0]} onChange={(e) => setFormData({ ...formData, scheduleDate: e.target.value })} className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm" />
                     </div>
                   </div>
 
                   <div className="space-y-3 pt-2">
                     <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Requirement</label>
                     <div className="grid grid-cols-2 gap-3">
-                      {[{ name: "Flat Bed", icon: "🚜" }, { name: "Side Drop", icon: "🚛" }].map((truck) => (
+                      {[{ name: "Flat Bed", icon: "🚛" }, { name: "Side Drop", icon: "🚚" }].map((truck) => (
                         <button
                           key={truck.name}
                           onClick={() => setFormData({ ...formData, truckType: truck.name })}
@@ -384,38 +459,75 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                           </div>
                           <span className="text-[10px] font-semibold text-emerald-700">Pickup Stop</span>
                         </div>
-                        {formData.pickupLocations.length > 1 && (
-                          <button onClick={() => { setFormData({ ...formData, pickupLocations: formData.pickupLocations.filter((_, i) => i !== idx) }); setShowContact2(prev => ({ ...prev, pickup: prev.pickup.filter((_, i) => i !== idx) })); }} className="text-[10px] font-semibold text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors">Remove</button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={() => fetchGpsAddress("pickup", idx)} disabled={!!gpsLoading} className="flex items-center gap-1 px-2 py-1 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-600 text-[9px] font-bold uppercase tracking-wider hover:bg-emerald-100 transition-colors disabled:opacity-50">
+                            {gpsLoading?.type === "pickup" && gpsLoading.idx === idx ? <Loader2 className="w-3 h-3 animate-spin" /> : <Navigation className="w-3 h-3" />}
+                            GPS
+                          </button>
+                          {formData.pickupLocations.length > 1 && (
+                            <button onClick={() => { setFormData({ ...formData, pickupLocations: formData.pickupLocations.filter((_, i) => i !== idx) }); setShowContact2(prev => ({ ...prev, pickup: prev.pickup.filter((_, i) => i !== idx) })); }} className="text-[10px] font-semibold text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors">Remove</button>
+                          )}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3">
                         <input placeholder="Contact Person *" value={loc.contactPerson} onChange={(e) => updatePickup(idx, "contactPerson", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
-                        <input placeholder="Contact Number *" value={loc.contact} inputMode="numeric" maxLength={10} onChange={(e) => updatePickup(idx, "contact", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <div className="flex items-center bg-white border border-neutral-100 rounded-lg focus-within:border-neutral-300 transition-colors">
+                          <Phone className="ml-3 w-3.5 h-3.5 text-neutral-300 shrink-0" />
+                          <select value={loc.contactCode} onChange={(e) => updatePickup(idx, "contactCode", e.target.value)} className="bg-transparent py-2 pl-2 pr-1 text-[11px] font-semibold text-neutral-500 outline-none appearance-none cursor-pointer border-r border-neutral-100 shrink-0">
+                            <option value="">+</option>
+                            {DIAL_CODES.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+                          </select>
+                          <input type="tel" placeholder="Contact Number *" value={loc.contact} maxLength={DIAL_CODES.find(d => d.code === loc.contactCode)?.maxLen ?? 10} onChange={(e) => updatePickup(idx, "contact", e.target.value)} className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0" />
+                        </div>
                       </div>
                       <button type="button" onClick={() => toggleContact2("pickup", idx)} className={`flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest transition-colors ${showContact2.pickup[idx] ? "text-emerald-600" : "text-neutral-400 hover:text-neutral-600"}`}>
                         <UserPlus className="w-3 h-3" />
                         {showContact2.pickup[idx] ? "Remove 2nd Contact" : "+ Add 2nd Contact (Optional)"}
                       </button>
                       {showContact2.pickup[idx] && (
-                        <div className="grid grid-cols-2 gap-3 pt-1 border-t border-dashed border-neutral-100">
+                        <div className="grid grid-cols-1 gap-3 pt-1 border-t border-dashed border-neutral-100">
                           <input placeholder="2nd Contact Person" value={loc.contactPerson2} onChange={(e) => updatePickup(idx, "contactPerson2", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
-                          <input placeholder="2nd Contact Number" value={loc.contact2} inputMode="numeric" maxLength={10} onChange={(e) => updatePickup(idx, "contact2", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                          <div className="flex items-center bg-white border border-neutral-100 rounded-lg focus-within:border-neutral-300 transition-colors">
+                            <Phone className="ml-3 w-3.5 h-3.5 text-neutral-300 shrink-0" />
+                            <select value={loc.contact2Code} onChange={(e) => updatePickup(idx, "contact2Code", e.target.value)} className="bg-transparent py-2 pl-2 pr-1 text-[11px] font-semibold text-neutral-500 outline-none appearance-none cursor-pointer border-r border-neutral-100 shrink-0">
+                              <option value="">+</option>
+                              {DIAL_CODES.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+                            </select>
+                            <input type="tel" placeholder="2nd Contact Number" value={loc.contact2} maxLength={DIAL_CODES.find(d => d.code === loc.contact2Code)?.maxLen ?? 10} onChange={(e) => updatePickup(idx, "contact2", e.target.value)} className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0" />
+                          </div>
                         </div>
                       )}
                       <div className="grid grid-cols-2 gap-3">
                         <input placeholder="Plot/Shop No" value={loc.plotNo} onChange={(e) => updatePickup(idx, "plotNo", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                         <input placeholder="Street/Building" value={loc.street} onChange={(e) => updatePickup(idx, "street", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
+                      <select value={loc.country} onChange={(e) => { updatePickup(idx, "country", e.target.value); updatePickup(idx, "state", ""); updatePickup(idx, "city", ""); }} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
+                        <option value="">Country *</option>
+                        {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
                       <div className="grid grid-cols-2 gap-3">
-                        <select value={loc.city} onChange={(e) => updatePickup(idx, "city", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
-                          <option value="">City *</option>
-                          {NIGERIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        <select value={loc.state} onChange={(e) => { updatePickup(idx, "state", e.target.value); updatePickup(idx, "city", ""); }} disabled={!loc.country} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer disabled:opacity-50">
+                          <option value="">State / Province</option>
+                          {(AFRICAN_STATES[loc.country] || []).map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
-                        <select value={loc.state} onChange={(e) => updatePickup(idx, "state", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
-                          <option value="">State</option>
-                          {NIGERIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                        <select value={loc.city} onChange={(e) => { const c = e.target.value; updatePickup(idx, "city", c); const st = loc.country ? (CITY_TO_STATE[loc.country]?.[c] || "") : ""; if (st) updatePickup(idx, "state", st); }} disabled={!loc.country} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer disabled:opacity-50">
+                          <option value="">City *</option>
+                          {(AFRICAN_CITIES[loc.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
+                      {clientSuggestions.length > 0 && (
+                        <div className="pt-2 border-t border-dashed border-neutral-100">
+                          <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2">Previous Addresses</p>
+                          <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto">
+                            {clientSuggestions.map((s, i) => (
+                              <button key={i} type="button" onClick={() => fillPickup(idx, s)} className="text-left px-3 py-2 rounded-lg bg-white border border-neutral-100 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all">
+                                <div className="text-[11px] font-semibold text-slate-700 truncate">{[s.plotNo, s.street, s.city, s.country].filter(Boolean).join(", ")}</div>
+                                {s.contactPerson && <div className="text-[10px] text-neutral-400 mt-0.5">{s.contactPerson} · {s.contact}</div>}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                   <button onClick={() => { setFormData({ ...formData, pickupLocations: [...formData.pickupLocations, emptyLocation()] }); setShowContact2(prev => ({ ...prev, pickup: [...prev.pickup, false] })); }} className="w-full py-2.5 border border-dashed border-emerald-300 rounded-lg text-[11px] font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors">
@@ -438,38 +550,75 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                           </div>
                           <span className="text-[10px] font-semibold text-rose-700">Dropoff Stop</span>
                         </div>
-                        {formData.dropoffLocations.length > 1 && (
-                          <button onClick={() => { setFormData({ ...formData, dropoffLocations: formData.dropoffLocations.filter((_, i) => i !== idx) }); setShowContact2(prev => ({ ...prev, dropoff: prev.dropoff.filter((_, i) => i !== idx) })); }} className="text-[10px] font-semibold text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors">Remove</button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          <button type="button" onClick={() => fetchGpsAddress("dropoff", idx)} disabled={!!gpsLoading} className="flex items-center gap-1 px-2 py-1 rounded-lg border border-rose-200 bg-rose-50 text-rose-600 text-[9px] font-bold uppercase tracking-wider hover:bg-rose-100 transition-colors disabled:opacity-50">
+                            {gpsLoading?.type === "dropoff" && gpsLoading.idx === idx ? <Loader2 className="w-3 h-3 animate-spin" /> : <Navigation className="w-3 h-3" />}
+                            GPS
+                          </button>
+                          {formData.dropoffLocations.length > 1 && (
+                            <button onClick={() => { setFormData({ ...formData, dropoffLocations: formData.dropoffLocations.filter((_, i) => i !== idx) }); setShowContact2(prev => ({ ...prev, dropoff: prev.dropoff.filter((_, i) => i !== idx) })); }} className="text-[10px] font-semibold text-red-600 hover:bg-red-50 px-2 py-1 rounded transition-colors">Remove</button>
+                          )}
+                        </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 gap-3">
                         <input placeholder="Contact Person *" value={loc.contactPerson} onChange={(e) => updateDropoff(idx, "contactPerson", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
-                        <input placeholder="Contact Number *" value={loc.contact} inputMode="numeric" maxLength={10} onChange={(e) => updateDropoff(idx, "contact", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <div className="flex items-center bg-white border border-neutral-100 rounded-lg focus-within:border-neutral-300 transition-colors">
+                          <Phone className="ml-3 w-3.5 h-3.5 text-neutral-300 shrink-0" />
+                          <select value={loc.contactCode} onChange={(e) => updateDropoff(idx, "contactCode", e.target.value)} className="bg-transparent py-2 pl-2 pr-1 text-[11px] font-semibold text-neutral-500 outline-none appearance-none cursor-pointer border-r border-neutral-100 shrink-0">
+                            <option value="">+</option>
+                            {DIAL_CODES.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+                          </select>
+                          <input type="tel" placeholder="Contact Number *" value={loc.contact} maxLength={DIAL_CODES.find(d => d.code === loc.contactCode)?.maxLen ?? 10} onChange={(e) => updateDropoff(idx, "contact", e.target.value)} className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0" />
+                        </div>
                       </div>
                       <button type="button" onClick={() => toggleContact2("dropoff", idx)} className={`flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest transition-colors ${showContact2.dropoff[idx] ? "text-rose-600" : "text-neutral-400 hover:text-neutral-600"}`}>
                         <UserPlus className="w-3 h-3" />
                         {showContact2.dropoff[idx] ? "Remove 2nd Contact" : "+ Add 2nd Contact (Optional)"}
                       </button>
                       {showContact2.dropoff[idx] && (
-                        <div className="grid grid-cols-2 gap-3 pt-1 border-t border-dashed border-neutral-100">
+                        <div className="grid grid-cols-1 gap-3 pt-1 border-t border-dashed border-neutral-100">
                           <input placeholder="2nd Contact Person" value={loc.contactPerson2} onChange={(e) => updateDropoff(idx, "contactPerson2", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
-                          <input placeholder="2nd Contact Number" value={loc.contact2} inputMode="numeric" maxLength={10} onChange={(e) => updateDropoff(idx, "contact2", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                          <div className="flex items-center bg-white border border-neutral-100 rounded-lg focus-within:border-neutral-300 transition-colors">
+                            <Phone className="ml-3 w-3.5 h-3.5 text-neutral-300 shrink-0" />
+                            <select value={loc.contact2Code} onChange={(e) => updateDropoff(idx, "contact2Code", e.target.value)} className="bg-transparent py-2 pl-2 pr-1 text-[11px] font-semibold text-neutral-500 outline-none appearance-none cursor-pointer border-r border-neutral-100 shrink-0">
+                              <option value="">+</option>
+                              {DIAL_CODES.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+                            </select>
+                            <input type="tel" placeholder="2nd Contact Number" value={loc.contact2} maxLength={DIAL_CODES.find(d => d.code === loc.contact2Code)?.maxLen ?? 10} onChange={(e) => updateDropoff(idx, "contact2", e.target.value)} className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0" />
+                          </div>
                         </div>
                       )}
                       <div className="grid grid-cols-2 gap-3">
                         <input placeholder="Plot/Shop No" value={loc.plotNo} onChange={(e) => updateDropoff(idx, "plotNo", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                         <input placeholder="Street/Building" value={loc.street} onChange={(e) => updateDropoff(idx, "street", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
+                      <select value={loc.country} onChange={(e) => { updateDropoff(idx, "country", e.target.value); updateDropoff(idx, "state", ""); updateDropoff(idx, "city", ""); }} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
+                        <option value="">Country *</option>
+                        {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
                       <div className="grid grid-cols-2 gap-3">
-                        <select value={loc.city} onChange={(e) => updateDropoff(idx, "city", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
-                          <option value="">City *</option>
-                          {NIGERIAN_CITIES.map(c => <option key={c} value={c}>{c}</option>)}
+                        <select value={loc.state} onChange={(e) => { updateDropoff(idx, "state", e.target.value); updateDropoff(idx, "city", ""); }} disabled={!loc.country} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer disabled:opacity-50">
+                          <option value="">State / Province</option>
+                          {(AFRICAN_STATES[loc.country] || []).map(s => <option key={s} value={s}>{s}</option>)}
                         </select>
-                        <select value={loc.state} onChange={(e) => updateDropoff(idx, "state", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
-                          <option value="">State</option>
-                          {NIGERIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                        <select value={loc.city} onChange={(e) => { const c = e.target.value; updateDropoff(idx, "city", c); const st = loc.country ? (CITY_TO_STATE[loc.country]?.[c] || "") : ""; if (st) updateDropoff(idx, "state", st); }} disabled={!loc.country} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer disabled:opacity-50">
+                          <option value="">City *</option>
+                          {(AFRICAN_CITIES[loc.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
+                      {clientSuggestions.length > 0 && (
+                        <div className="pt-2 border-t border-dashed border-neutral-100">
+                          <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2">Previous Addresses</p>
+                          <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto">
+                            {clientSuggestions.map((s, i) => (
+                              <button key={i} type="button" onClick={() => fillDropoff(idx, s)} className="text-left px-3 py-2 rounded-lg bg-white border border-neutral-100 hover:border-rose-300 hover:bg-rose-50/50 transition-all">
+                                <div className="text-[11px] font-semibold text-slate-700 truncate">{[s.plotNo, s.street, s.city, s.country].filter(Boolean).join(", ")}</div>
+                                {s.contactPerson && <div className="text-[10px] text-neutral-400 mt-0.5">{s.contactPerson} · {s.contact}</div>}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                   <button onClick={() => { setFormData({ ...formData, dropoffLocations: [...formData.dropoffLocations, emptyLocation()] }); setShowContact2(prev => ({ ...prev, dropoff: [...prev.dropoff, false] })); }} className="w-full py-2.5 border border-dashed border-rose-300 rounded-lg text-[11px] font-semibold text-rose-600 hover:bg-rose-50 transition-colors">

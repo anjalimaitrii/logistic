@@ -4,12 +4,12 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, ChevronRight, MapPin, Package, Calendar, CheckCircle2,
-  ArrowLeft, Users, Navigation, Loader2, Trash2, Plus, UserPlus,
+  ArrowLeft, Users, Navigation, Loader2, Trash2, Plus, UserPlus, Phone,
 } from "lucide-react";
 import { clientService } from "@/services/clientService";
 import { bookingService } from "@/services/bookingService";
 import { goodsTypeService } from "@/services/goodsTypeService";
-import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES } from "@/lib/africaLocations";
+import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES, CITY_TO_STATE } from "@/lib/africaLocations";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CreateBookingDrawerProps {
@@ -20,8 +20,10 @@ interface CreateBookingDrawerProps {
 
 interface LocationEntry {
   contactPerson: string;
+  contactCode: string;
   contact: string;
   contactPerson2: string;
+  contact2Code: string;
   contact2: string;
   plotNo: string;
   street: string;
@@ -30,10 +32,36 @@ interface LocationEntry {
   city: string;
 }
 
-// Data imported from lib/africaLocations.ts
+const DIAL_CODES = [
+  { code: "+260", label: "ZM +260", maxLen: 9 },
+  { code: "+263", label: "ZW +263", maxLen: 9 },
+  { code: "+243", label: "CD +243", maxLen: 9 },
+  { code: "+265", label: "MW +265", maxLen: 9 },
+  { code: "+255", label: "TZ +255", maxLen: 9 },
+  { code: "+258", label: "MZ +258", maxLen: 9 },
+  { code: "+267", label: "BW +267", maxLen: 8 },
+  { code: "+264", label: "NA +264", maxLen: 9 },
+  { code: "+27",  label: "ZA +27",  maxLen: 9 },
+  { code: "+244", label: "AO +244", maxLen: 9 },
+];
+
+function matchList(raw: string, list: string[]): string {
+  if (!raw) return "";
+  const q = raw.toLowerCase();
+  return list.find(l => l.toLowerCase() === q)
+    || list.find(l => q.includes(l.toLowerCase()) || l.toLowerCase().includes(q))
+    || "";
+}
+function matchCountry(raw: string): string {
+  if (!raw) return "";
+  const q = raw.toLowerCase();
+  if (q.includes("congo") || q.includes("drc")) return "DRC (Congo)";
+  return matchList(raw, AFRICAN_COUNTRIES);
+}
 
 const emptyLocation = (): LocationEntry => ({
-  contactPerson: "", contact: "", contactPerson2: "", contact2: "",
+  contactPerson: "", contactCode: "+260", contact: "",
+  contactPerson2: "", contact2Code: "+260", contact2: "",
   plotNo: "", street: "", country: "", state: "", city: "",
 });
 
@@ -47,15 +75,17 @@ interface LocationCardProps {
   show2: boolean;
   canRemove: boolean;
   gpsLoading: { type: "pickup" | "dropoff"; idx: number } | null;
+  suggestions: LocationEntry[];
   onUpdate: (field: keyof LocationEntry, value: string) => void;
   onToggle2: () => void;
   onRemove: () => void;
   onGps: () => void;
+  onFill: (addr: LocationEntry) => void;
 }
 
 function LocationCard({
   type, location, idx, color, label, show2, canRemove,
-  gpsLoading, onUpdate, onToggle2, onRemove, onGps,
+  gpsLoading, suggestions, onUpdate, onToggle2, onRemove, onGps, onFill,
 }: LocationCardProps) {
   const isPickup = type === "pickup";
   const inputCls = `w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none focus:border-${color}-200 transition-colors`;
@@ -97,21 +127,32 @@ function LocationCard({
       </div>
 
       {/* Primary contact */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3">
         <input
           placeholder="Contact Person *"
           value={location.contactPerson}
           onChange={e => onUpdate("contactPerson", e.target.value.replace(/[0-9]/g, ""))}
           className={inputCls}
         />
-        <input
-          placeholder="Contact Number *"
-          value={location.contact}
-          inputMode="numeric"
-          maxLength={15}
-          onChange={e => onUpdate("contact", e.target.value.replace(/\D/g, "").slice(0, 15))}
-          className={inputCls}
-        />
+        <div className="flex items-center bg-white border border-neutral-100 rounded-lg focus-within:border-neutral-300 transition-colors">
+          <Phone className="ml-3 w-3.5 h-3.5 text-neutral-300 shrink-0" />
+          <select
+            value={location.contactCode}
+            onChange={e => onUpdate("contactCode", e.target.value)}
+            className="bg-transparent py-2 pl-2 pr-1 text-[11px] font-semibold text-neutral-500 outline-none appearance-none cursor-pointer border-r border-neutral-100 shrink-0"
+          >
+            <option value="">+</option>
+            {DIAL_CODES.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+          </select>
+          <input
+            type="tel"
+            placeholder="Contact Number *"
+            value={location.contact}
+            maxLength={DIAL_CODES.find(d => d.code === location.contactCode)?.maxLen ?? 10}
+            onChange={e => { const max = DIAL_CODES.find(d => d.code === location.contactCode)?.maxLen ?? 10; onUpdate("contact", e.target.value.replace(/\D/g, "").slice(0, max)); }}
+            className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0"
+          />
+        </div>
       </div>
 
       {/* 2nd contact toggle */}
@@ -125,21 +166,32 @@ function LocationCard({
       </button>
 
       {show2 && (
-        <div className="grid grid-cols-2 gap-3 pt-1 border-t border-dashed border-neutral-100">
+        <div className="grid grid-cols-1 gap-3 pt-1 border-t border-dashed border-neutral-100">
           <input
             placeholder="2nd Contact Person"
             value={location.contactPerson2}
             onChange={e => onUpdate("contactPerson2", e.target.value.replace(/[0-9]/g, ""))}
             className={inputCls}
           />
-          <input
-            placeholder="2nd Contact Number"
-            value={location.contact2}
-            inputMode="numeric"
-            maxLength={15}
-            onChange={e => onUpdate("contact2", e.target.value.replace(/\D/g, "").slice(0, 15))}
-            className={inputCls}
-          />
+          <div className="flex items-center bg-white border border-neutral-100 rounded-lg focus-within:border-neutral-300 transition-colors">
+            <Phone className="ml-3 w-3.5 h-3.5 text-neutral-300 shrink-0" />
+            <select
+              value={location.contact2Code}
+              onChange={e => onUpdate("contact2Code", e.target.value)}
+              className="bg-transparent py-2 pl-2 pr-1 text-[11px] font-semibold text-neutral-500 outline-none appearance-none cursor-pointer border-r border-neutral-100 shrink-0"
+            >
+              <option value="">+</option>
+              {DIAL_CODES.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+            </select>
+            <input
+              type="tel"
+              placeholder="2nd Contact Number"
+              value={location.contact2}
+              maxLength={DIAL_CODES.find(d => d.code === location.contact2Code)?.maxLen ?? 10}
+              onChange={e => { const max = DIAL_CODES.find(d => d.code === location.contact2Code)?.maxLen ?? 10; onUpdate("contact2", e.target.value.replace(/\D/g, "").slice(0, max)); }}
+              className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0"
+            />
+          </div>
         </div>
       )}
 
@@ -183,7 +235,12 @@ function LocationCard({
           </select>
           <select
             value={location.city}
-            onChange={e => onUpdate("city", e.target.value)}
+            onChange={e => {
+              const selectedCity = e.target.value;
+              onUpdate("city", selectedCity);
+              const autoState = location.country ? (CITY_TO_STATE[location.country]?.[selectedCity] || "") : "";
+              if (autoState) onUpdate("state", autoState);
+            }}
             className={`${inputCls} appearance-none cursor-pointer`}
             disabled={!location.country}
           >
@@ -194,6 +251,30 @@ function LocationCard({
           </select>
         </div>
       </div>
+
+      {/* Previous address suggestions */}
+      {suggestions.length > 0 && (
+        <div className="pt-2 border-t border-dashed border-neutral-100">
+          <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2">Previous Addresses</p>
+          <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto">
+            {suggestions.map((s, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => onFill(s)}
+                className={`text-left px-3 py-2 rounded-lg bg-white border border-neutral-100 hover:border-${color}-300 hover:bg-${color}-50/50 transition-all`}
+              >
+                <div className="text-[11px] font-semibold text-slate-700 truncate">
+                  {[s.plotNo, s.street, s.city, s.country].filter(Boolean).join(", ")}
+                </div>
+                {s.contactPerson && (
+                  <div className="text-[10px] text-neutral-400 mt-0.5">{s.contactPerson} · {s.contact}</div>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -204,6 +285,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
   const [clients, setClients] = useState<any[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
   const [gpsLoading, setGpsLoading] = useState<{ type: "pickup" | "dropoff"; idx: number } | null>(null);
+  const [clientSuggestions, setClientSuggestions] = useState<LocationEntry[]>([]);
   const [goodsTypes, setGoodsTypes] = useState<{ _id: string; name: string }[]>([]);
   const [showGoodsManager, setShowGoodsManager] = useState(false);
   const [newGoodsInput, setNewGoodsInput] = useState("");
@@ -223,6 +305,40 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
   useEffect(() => {
     if (isOpen) { loadClients(); loadGoodsTypes(); }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!formData.clientId) { setClientSuggestions([]); return; }
+    (async () => {
+      try {
+        const bookings = await bookingService.getAll(formData.clientId);
+        const seen = new Set<string>();
+        const locs: LocationEntry[] = [];
+        for (const booking of bookings || []) {
+          const stops = [...(booking.pickupLocations || []), ...(booking.dropoffLocations || [])];
+          for (const stop of stops) {
+            const key = `${stop.address?.city}|${stop.address?.street}|${stop.address?.plotNo}`;
+            if (!seen.has(key) && stop.address?.city) {
+              seen.add(key);
+              locs.push({
+                contactPerson: stop.contactPerson || "",
+                contactCode: "+260",
+                contact: stop.contactNumber || "",
+                contactPerson2: "",
+                contact2Code: "+260",
+                contact2: "",
+                plotNo: stop.address?.plotNo || "",
+                street: stop.address?.street || "",
+                country: stop.address?.country || "",
+                state: stop.address?.state || "",
+                city: stop.address?.city || "",
+              });
+            }
+          }
+        }
+        setClientSuggestions(locs);
+      } catch { setClientSuggestions([]); }
+    })();
+  }, [formData.clientId]);
 
   const loadGoodsTypes = async () => {
     try { setGoodsTypes((await goodsTypeService.getAll()) || []); } catch { /* silent */ }
@@ -266,8 +382,16 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
           );
           const data = await res.json();
           const addr = data.address || {};
-          updateLoc(type, idx, "city",   addr.city || addr.town || addr.village || "");
-          updateLoc(type, idx, "state",  addr.state || addr.county || "");
+          const rawCountry = addr.country || "";
+          const rawState = addr.state || addr.state_district || addr.county || "";
+          const rawCity = addr.city || addr.town || addr.village || "";
+          const country = matchCountry(rawCountry);
+          const state = country ? matchList(rawState, AFRICAN_STATES[country] || []) : "";
+          const city = country ? matchList(rawCity, AFRICAN_CITIES[country] || []) : "";
+          if (!country && rawCountry) alert(`GPS detected "${rawCountry}" which is outside the supported region. Please select Country, State & City manually.`);
+          updateLoc(type, idx, "country", country);
+          updateLoc(type, idx, "state", state);
+          updateLoc(type, idx, "city", city);
           updateLoc(type, idx, "street", addr.road || addr.suburb || "");
         } catch { alert("Failed to fetch address."); }
         finally { setGpsLoading(null); }
@@ -286,6 +410,11 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
       ...prev,
       [key]: prev[key].map((loc, i) => i === idx ? { ...loc, [field]: value } : loc),
     }));
+  };
+
+  const fillLocation = (type: "pickup" | "dropoff", idx: number, addr: LocationEntry) => {
+    const key = type === "pickup" ? "pickupLocations" : "dropoffLocations";
+    setFormData(prev => ({ ...prev, [key]: prev[key].map((loc, i) => i === idx ? { ...addr } : loc) }));
   };
 
   const addLocation = (type: "pickup" | "dropoff") => {
@@ -308,7 +437,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
     });
   };
 
-  const isStep1Valid = !!formData.clientId && formData.goodsType.length > 0 && !!formData.weight && !!formData.scheduleDate;
+  const isStep1Valid = !!formData.clientId && formData.goodsType.length > 0 && !!formData.scheduleDate;
   const isStep2Valid =
     formData.pickupLocations.some(l => l.contactPerson.trim() && l.contact.trim() && l.city.trim()) &&
     formData.dropoffLocations.some(l => l.contactPerson.trim() && l.contact.trim() && l.city.trim());
@@ -320,8 +449,8 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
       const mapLoc = (loc: LocationEntry, i: number) => ({
         sequence: i + 1,
         contactPerson: loc.contactPerson,
-        contactNumber: loc.contact,
-        ...(loc.contactPerson2.trim() && { contactPerson2: loc.contactPerson2, contactNumber2: loc.contact2 }),
+        contactNumber: loc.contactCode ? `${loc.contactCode}${loc.contact}` : loc.contact,
+        ...(loc.contactPerson2.trim() && { contactPerson2: loc.contactPerson2, contactNumber2: loc.contact2Code ? `${loc.contact2Code}${loc.contact2}` : loc.contact2 }),
         address: { plotNo: loc.plotNo, street: loc.street, country: loc.country, state: loc.state, city: loc.city },
         gpsEnabled: false,
       });
@@ -466,7 +595,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Weight (Tons) <span className="text-red-500">*</span></label>
+                  <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Weight (kg)</label>
                   <input
                     type="number" value={formData.weight}
                     onChange={e => setFormData(f => ({ ...f, weight: e.target.value }))}
@@ -481,6 +610,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
                     <input
                       type="date" value={formData.scheduleDate}
+                      min={new Date().toISOString().split("T")[0]}
                       onChange={e => setFormData(f => ({ ...f, scheduleDate: e.target.value }))}
                       className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm"
                     />
@@ -490,7 +620,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                 <div className="space-y-3 pt-1">
                   <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Truck Type</label>
                   <div className="grid grid-cols-2 gap-3">
-                    {[{ name: "Flat Bed", icon: "🚜" }, { name: "Side Drop", icon: "🚛" }].map(truck => (
+                    {[{ name: "Flat Bed", icon: "🚛" }, { name: "Side Drop", icon: "🚚" }].map(truck => (
                       <button
                         key={truck.name}
                         onClick={() => setFormData(f => ({ ...f, truckType: truck.name }))}
@@ -527,6 +657,8 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                       onToggle2={() => toggleContact2("pickup", idx)}
                       onRemove={() => removeLocation("pickup", idx)}
                       onGps={() => fetchGpsAddress("pickup", idx)}
+                      suggestions={clientSuggestions}
+                      onFill={(addr) => fillLocation("pickup", idx, addr)}
                     />
                   ))}
                   <button onClick={() => addLocation("pickup")} className="w-full py-2.5 border border-dashed border-emerald-300 rounded-lg text-[11px] font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors">
@@ -551,6 +683,8 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                       onToggle2={() => toggleContact2("dropoff", idx)}
                       onRemove={() => removeLocation("dropoff", idx)}
                       onGps={() => fetchGpsAddress("dropoff", idx)}
+                      suggestions={clientSuggestions}
+                      onFill={(addr) => fillLocation("dropoff", idx, addr)}
                     />
                   ))}
                   <button onClick={() => addLocation("dropoff")} className="w-full py-2.5 border border-dashed border-rose-300 rounded-lg text-[11px] font-semibold text-rose-600 hover:bg-rose-50 transition-colors">

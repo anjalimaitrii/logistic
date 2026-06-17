@@ -26,7 +26,7 @@ export default function ClientLedgerPage() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState("finalized");
+  const [statusFilter, setStatusFilter] = useState("all");
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
   useEffect(() => {
@@ -43,11 +43,8 @@ export default function ClientLedgerPage() {
   const loadData = async (clientId?: string) => {
     try {
       setIsLoading(true);
-      const data = await bookingService.getAll();
-      const filtered = clientId
-        ? data.filter((b: any) => (b.clientId?._id || b.clientId) === clientId)
-        : data;
-      setBookings(filtered || []);
+      const data = await bookingService.getAll(clientId);
+      setBookings(Array.isArray(data) ? data : (data?.bookings || []));
     } catch (error) {
       console.error("Ledger load error:", error);
     } finally {
@@ -55,20 +52,26 @@ export default function ClientLedgerPage() {
     }
   };
 
-  // Financial Stats
+  // Financial Stats — across all bookings
   const stats = {
-    totalSpent: bookings.filter(b => b.status?.toLowerCase() === 'finalized').reduce((sum, b) => sum + (b.finalAmount || 0), 0),
-    advancePaid: bookings.filter(b => b.status?.toLowerCase() === 'finalized').reduce((sum, b) => sum + (b.advancePaid || 0), 0),
-    completedJobs: bookings.filter(b => b.status?.toLowerCase() === 'finalized').length,
-    outstandingBalance: bookings.filter(b => b.status?.toLowerCase() === 'finalized').reduce((sum, b) => sum + ((b.finalAmount || 0) - (b.advancePaid || 0)), 0)
+    totalSpent:         bookings.reduce((sum, b) => sum + (b.finalAmount  || 0), 0),
+    advancePaid:        bookings.reduce((sum, b) => sum + (b.advancePaid  || 0), 0),
+    completedJobs:      bookings.filter(b => ["completed", "delivered", "finalized"].includes(b.status?.toLowerCase())).length,
+    outstandingBalance: bookings.reduce((sum, b) => sum + Math.max(0, (b.finalAmount || 0) - (b.advancePaid || 0)), 0),
   };
 
   const filteredBookings = bookings.filter(b => {
-    const matchesSearch = 
-      b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.pickup?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.dropoff?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || b.status?.toLowerCase() === statusFilter.toLowerCase();
+    const q = searchQuery.toLowerCase();
+    const allCities = [
+      ...(b.pickupLocations || []).map((p: any) => p?.address?.city || ""),
+      ...(b.dropoffLocations || []).map((d: any) => d?.address?.city || ""),
+    ].join(" ").toLowerCase();
+    const matchesSearch = !q || b.tripId?.toLowerCase().includes(q) || allCities.includes(q);
+    const bal = (b.finalAmount || 0) - (b.advancePaid || 0);
+    const hasAmount = (b.finalAmount || 0) > 0;
+    const matchesStatus = statusFilter === "all"
+      || (statusFilter === "due"     && hasAmount && bal > 0)
+      || (statusFilter === "settled" && hasAmount && bal <= 0);
     return matchesSearch && matchesStatus;
   });
 
@@ -191,13 +194,21 @@ export default function ClientLedgerPage() {
                     className="bg-neutral-50 border border-transparent rounded-lg pl-9 pr-3 py-1.5 text-[11px] font-medium outline-none focus:bg-white focus:border-slate-100 transition-all w-48"
                   />
                 </div>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-neutral-50 border border-transparent rounded-lg px-3 py-1.5 text-[10px] font-bold text-slate-600 outline-none cursor-pointer focus:bg-white transition-all"
-                >
-                  <option value="finalized">Finalized Only</option>
-                </select>
+                <div className="flex bg-neutral-50 border border-neutral-100 rounded-lg p-0.5 gap-0.5">
+                  {[
+                    { key: "all",     label: "All" },
+                    { key: "due",     label: "Payment Due" },
+                    { key: "settled", label: "Fully Settled" },
+                  ].map(opt => (
+                    <button
+                      key={opt.key}
+                      onClick={() => setStatusFilter(opt.key)}
+                      className={`px-3 py-1.5 rounded-md text-[9px] font-bold uppercase tracking-widest transition-all ${statusFilter === opt.key ? "bg-white text-slate-900 shadow-sm" : "text-neutral-400 hover:text-slate-600"}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -205,7 +216,7 @@ export default function ClientLedgerPage() {
               <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
                   <tr className="bg-slate-50/50 border-b border-slate-50">
-                    <th className="px-5 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Job ID</th>
+                    <th className="px-5 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Sr. No.</th>
                     <th className="px-5 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Route</th>
                     <th className="px-5 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Payment Status</th>
                     <th className="px-5 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest text-right">Trip Cost</th>
@@ -226,31 +237,52 @@ export default function ClientLedgerPage() {
                         <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest italic">No transactions found</p>
                       </td>
                     </tr>
-                  ) : filteredBookings.map((b) => {
+                  ) : filteredBookings.map((b, i) => {
                     const balance = (b.finalAmount || 0) - (b.advancePaid || 0);
-                    const isFullyPaid = balance <= 0;
-                    
+                    const isNotInvoiced = (b.finalAmount || 0) === 0;
+                    const isFullyPaid = !isNotInvoiced && balance <= 0;
+                    const cities = [
+                      ...(b.pickupLocations || []).map((p: any) => p?.address?.city).filter(Boolean),
+                      ...(b.dropoffLocations || []).map((d: any) => d?.address?.city).filter(Boolean),
+                    ] as string[];
+                    if (!cities.length) cities.push("—");
+
                     return (
                       <tr key={b._id} className="hover:bg-neutral-50/50 transition-colors group border-b border-neutral-50 last:border-none">
                         <td className="px-5 py-5">
                           <div className="flex flex-col">
-                            <span className="text-[12px] font-bold text-slate-900 tracking-tight">{b.tripId || "N/A"}</span>
+                            <span className="text-[12px] font-bold text-slate-900 tracking-tight">{i + 1}</span>
                             <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mt-0.5">
-                              {new Date(b.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                              {b.createdAt ? new Date(b.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : "—"}
                             </span>
                           </div>
                         </td>
                         <td className="px-5 py-5">
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-[11px] font-bold text-slate-900">{b.pickup?.address?.city} → {b.dropoff?.address?.city}</span>
-                            <span className="text-[9px] font-medium text-slate-400">{b.cargoDetails?.goodsType} • {b.cargoDetails?.weight} KG</span>
+                            <div className="relative group/route inline-flex items-center gap-1">
+                              <span className="text-[11px] font-medium text-slate-600 italic">{cities[0]}</span>
+                              {cities.length > 1 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+                              {cities.length > 2 && <span className="text-[11px] text-slate-400 italic">...</span>}
+                              {cities.length > 2 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+                              {cities.length > 1 && <span className="text-[11px] font-medium text-slate-600 italic">{cities[cities.length - 1]}</span>}
+                              {cities.length > 2 && (
+                                <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover/route:block z-50 bg-slate-900 text-white text-[10px] font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl pointer-events-none">
+                                  {cities.join(" → ")}
+                                  <div className="absolute top-full left-3 border-4 border-transparent border-t-slate-900" />
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-[9px] font-medium text-slate-400">{b.cargoDetails?.goodsType}{b.cargoDetails?.weight ? ` • ${b.cargoDetails.weight} KG` : ""}</span>
                           </div>
                         </td>
                         <td className="px-5 py-5">
                           <div className="flex flex-col gap-1">
-                            <span className={`w-fit px-2 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-widest border
-                              ${isFullyPaid ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
-                              {isFullyPaid ? 'Fully Settled' : 'Payment Due'}
+                            <span className={`w-fit px-2 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-widest border ${
+                              isNotInvoiced ? 'bg-slate-50 text-slate-400 border-slate-100'
+                              : isFullyPaid  ? 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                              :                'bg-amber-50 text-amber-600 border-amber-100'
+                            }`}>
+                              {isNotInvoiced ? 'Not Invoiced' : isFullyPaid ? 'Fully Settled' : 'Payment Due'}
                             </span>
                           </div>
                         </td>

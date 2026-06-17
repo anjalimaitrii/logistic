@@ -14,7 +14,6 @@ import {
    X,
    MapPin,
    Eye,
-   ChevronRight
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -55,10 +54,7 @@ function BookingDetailModal({ booking, onClose }: { booking: any; onClose: () =>
             {/* Header */}
             <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
                <div>
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-1">Trip Details</p>
-                  <h2 className="text-[15px] font-semibold text-slate-900 tracking-tight">
-                     {booking.tripId || `#${booking._id?.slice(-7).toUpperCase()}`}
-                  </h2>
+                  <h2 className="text-[14px] font-semibold text-slate-900 uppercase tracking-widest">Trip Details</h2>
                </div>
                <button
                   onClick={onClose}
@@ -131,7 +127,7 @@ function BookingDetailModal({ booking, onClose }: { booking: any; onClose: () =>
                               {loc.address?.city && (
                                  <p className="text-slate-600 col-span-2">
                                     <span className="text-slate-400">Address:</span>{" "}
-                                    {[loc.address.plotNo, loc.address.street, loc.address.city].filter(Boolean).join(", ")}
+                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.country].filter(Boolean).join(", ")}
                                  </p>
                               )}
                            </div>
@@ -171,7 +167,7 @@ function BookingDetailModal({ booking, onClose }: { booking: any; onClose: () =>
                               {loc.address?.city && (
                                  <p className="text-slate-600 col-span-2">
                                     <span className="text-slate-400">Address:</span>{" "}
-                                    {[loc.address.plotNo, loc.address.street, loc.address.city].filter(Boolean).join(", ")}
+                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.country].filter(Boolean).join(", ")}
                                  </p>
                               )}
                            </div>
@@ -232,18 +228,30 @@ export default function DashboardPage() {
       { label: "Pending", value: bookings.filter(b => b.status === "pending").length.toString(), sub: "Action required", icon: TrendingUp, color: "text-emerald-600" },
    ];
 
-   const recentDisplayJobs = bookings.slice(-5).reverse().map(b => {
+   const recentDisplayJobs = [...bookings]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5)
+      .map(b => {
       const firstPickup = (b.pickupLocations || [])[0];
       const lastDropoff = (b.dropoffLocations || [])[(b.dropoffLocations?.length || 1) - 1];
+      const bookedAt = b.createdAt
+         ? new Date(b.createdAt).toLocaleString("en-GB", {
+              timeZone: "Africa/Lagos",
+              day: "2-digit", month: "short", year: "numeric",
+              hour: "2-digit", minute: "2-digit", hour12: true,
+           })
+         : "—";
+      const allCities = [
+         ...(b.pickupLocations || []).map((p: any) => p?.address?.city).filter(Boolean),
+         ...(b.dropoffLocations || []).map((d: any) => d?.address?.city).filter(Boolean),
+      ] as string[];
       return {
          raw: b,
          tripId: b.tripId || `#${b._id?.slice(-7).toUpperCase()}`,
-         origin: firstPickup?.address?.city || "—",
-         destination: lastDropoff?.address?.city || "—",
-         pickupCount: b.pickupLocations?.length || 0,
-         dropoffCount: b.dropoffLocations?.length || 0,
+         cities: allCities.length ? allCities : ["—"],
          cargo: b.cargoDetails?.goodsType || "Cargo",
          status: b.status || "pending",
+         bookedAt,
       };
    });
 
@@ -335,28 +343,29 @@ export default function DashboardPage() {
                <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
                   <div className="px-4 md:px-5 py-3 md:py-4 border-b border-slate-50 flex items-center justify-between">
                      <h3 className="text-[10px] md:text-[11px] font-semibold text-slate-900 uppercase tracking-widest">Recent Activity</h3>
-                     <button className="p-1 px-2 rounded-lg text-[9px] md:text-[10px] font-semibold text-primary hover:bg-primary/5 uppercase tracking-tighter transition-all">View All</button>
+                     <Link href="/dashboard/jobs" className="p-1 px-2 rounded-lg text-[9px] md:text-[10px] font-semibold text-primary hover:bg-primary/5 uppercase tracking-tighter transition-all">View All</Link>
                   </div>
 
                   <div className="overflow-x-auto custom-scrollbar">
                      <table className="w-full text-left border-collapse min-w-[600px] md:min-w-0">
                         <thead>
                            <tr className="bg-slate-50/50 border-b border-slate-50">
-                              <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Trip ID</th>
+                              <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Sr. No.</th>
                               <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Route</th>
                               <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Cargo</th>
                               <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Status</th>
+                              <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Booked At</th>
                               <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest text-right">Actions</th>
                            </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                            {isLoading ? (
                               <tr>
-                                 <td colSpan={5} className="px-4 py-8 text-center text-[10px] text-slate-400 italic">Syncing shipments...</td>
+                                 <td colSpan={6} className="px-4 py-8 text-center text-[10px] text-slate-400 italic">Syncing shipments...</td>
                               </tr>
                            ) : recentDisplayJobs.length === 0 ? (
                               <tr>
-                                 <td colSpan={5} className="px-4 py-10 text-center">
+                                 <td colSpan={6} className="px-4 py-10 text-center">
                                     <p className="text-[11px] text-slate-400">No bookings yet.</p>
                                     <Link href="/bookings/new" className="text-[10px] text-primary font-semibold mt-1 inline-block hover:underline">
                                        Create your first booking →
@@ -367,16 +376,21 @@ export default function DashboardPage() {
                               recentDisplayJobs.map((job, i) => (
                                  <tr key={i} className="hover:bg-slate-50/80 transition-colors group">
                                     <td className="px-4 md:px-5 py-3">
-                                       <span className="text-[11px] md:text-[12px] font-semibold text-slate-900 font-mono">{job.tripId}</span>
+                                       <span className="text-[11px] md:text-[12px] font-semibold text-slate-500">{i + 1}</span>
                                     </td>
                                     <td className="px-4 md:px-5 py-3">
-                                       <div className="flex items-center gap-1.5">
-                                          <span className="text-[10px] md:text-[11px] font-medium text-emerald-700">{job.origin}</span>
-                                          {(job.pickupCount > 1 || job.dropoffCount > 1) && (
-                                             <span className="text-[8px] text-slate-400">+{job.pickupCount + job.dropoffCount - 2} stops</span>
+                                       <div className="relative group inline-flex items-center gap-1">
+                                          <span className="text-[11px] font-medium text-slate-600 italic">{job.cities[0]}</span>
+                                          {job.cities.length > 1 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+                                          {job.cities.length > 2 && <span className="text-[11px] text-slate-400 italic">...</span>}
+                                          {job.cities.length > 2 && <span className="text-slate-300 text-[10px] font-bold">→</span>}
+                                          {job.cities.length > 1 && <span className="text-[11px] font-medium text-slate-600 italic">{job.cities[job.cities.length - 1]}</span>}
+                                          {job.cities.length > 2 && (
+                                             <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-50 bg-slate-900 text-white text-[10px] font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl pointer-events-none">
+                                                {job.cities.join(" → ")}
+                                                <div className="absolute top-full left-3 border-4 border-transparent border-t-slate-900" />
+                                             </div>
                                           )}
-                                          <ChevronRight className="w-3 h-3 text-slate-300" />
-                                          <span className="text-[10px] md:text-[11px] font-medium text-rose-700">{job.destination}</span>
                                        </div>
                                     </td>
                                     <td className="px-4 md:px-5 py-3 text-[10px] md:text-[11px] font-medium text-slate-500">{job.cargo}</td>
@@ -384,6 +398,9 @@ export default function DashboardPage() {
                                        <span className={`px-2 py-0.5 rounded-full text-[8px] md:text-[9px] font-semibold uppercase tracking-widest border ${getStatusStyle(job.status)}`}>
                                           {job.status}
                                        </span>
+                                    </td>
+                                    <td className="px-4 md:px-5 py-3">
+                                       <span className="text-[10px] text-slate-400 whitespace-nowrap">{job.bookedAt}</span>
                                     </td>
                                     <td className="px-4 md:px-5 py-3 text-right">
                                        <button

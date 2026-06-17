@@ -11,7 +11,6 @@ import { bookingService } from "@/services/bookingService";
 import { settlementService } from "@/services/settlementService";
 import { fetchLiveVehicles, getVehicleStatus } from "@/services/liveTrackingService";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
-import { useRouter } from "next/navigation";
 
 const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniMap"), {
   ssr: false,
@@ -23,7 +22,7 @@ const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniM
 });
 
 export default function AdminDashboard() {
-   const router = useRouter();
+
    const [isCreateJobOpen, setCreateJobOpen] = useState(false);
    const [bookings, setBookings] = useState<any[]>([]);
    const [isLoading, setIsLoading] = useState(true);
@@ -177,43 +176,17 @@ export default function AdminDashboard() {
          align: "center" as const,
          render: (_: any, row: any) => (
             <div className="flex gap-2 justify-center">
-               <button 
-                  onClick={() => router.push(`/admin/jobs/${row.rawId}`)}
-                  className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-primary transition-all shadow-sm"
+               <button
+                  onClick={(e) => {
+                     e.stopPropagation();
+                     setSelectedRequest(row.raw);
+                     setIsChatOpen(true);
+                  }}
+                  className="px-4 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-all flex items-center gap-1.5"
                >
-                  <Eye className="w-3.5 h-3.5" />
+                  <MessageSquare className="w-3 h-3" />
+                  Chat
                </button>
-               
-               {row.type === 'warning' ? (
-                  <>
-                     <button 
-                        onClick={() => handleUpdateStatus(row.rawId, 'accepted')}
-                        className="px-3 py-1 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-100 transition-all flex items-center gap-1.5"
-                     >
-                        <Check className="w-3 h-3" />
-                        Accept
-                     </button>
-                     <button 
-                        onClick={() => handleUpdateStatus(row.rawId, 'rejected')}
-                        className="px-3 py-1 bg-rose-50 text-rose-600 border border-rose-100 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-rose-100 transition-all flex items-center gap-1.5"
-                     >
-                        <X className="w-3 h-3" />
-                        Reject
-                     </button>
-                  </>
-               ) : (
-                  <button
-                     onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedRequest(row.raw);
-                        setIsChatOpen(true);
-                     }}
-                     className="px-4 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-all flex items-center gap-1.5"
-                  >
-                     <MessageSquare className="w-3 h-3" />
-                     Chat
-                  </button>
-               )}
             </div>
          ),
       },
@@ -323,7 +296,6 @@ export default function AdminDashboard() {
                icon="📋"
                columns={columns}
                data={isLoading ? [] : recentJobsData}
-               onRowClick={(row) => router.push(`/admin/jobs/${row.rawId}`)}
                emptyState={
                   isLoading ? (
                     <div className="py-12 flex flex-col items-center justify-center gap-2">

@@ -28,17 +28,19 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { useRouter } from "next/navigation";
 import { bookingService } from "@/services/bookingService";
 import { goodsTypeService } from "@/services/goodsTypeService";
-import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES } from "@/lib/africaLocations";
+import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES, CITY_TO_STATE } from "@/lib/africaLocations";
 
 const TRUCK_TYPES = [
-   { name: "Flat Bed", icon: "🚜", desc: "Open Platform", cap: "Required" },
-   { name: "Side Drop", icon: "🚛", desc: "Drop Side Body", cap: "Required" },
+   { name: "Flat Bed", icon: "🚛", desc: "Open Platform", cap: "Required" },
+   { name: "Side Drop", icon: "🚚", desc: "Drop Side Body", cap: "Required" },
 ];
 
 type LocationEntry = {
    contactPerson: string;
+   contactCode: string;
    contact: string;
    contactPerson2: string;
+   contact2Code: string;
    contact2: string;
    clientName: string;
    plotNo: string;
@@ -50,8 +52,23 @@ type LocationEntry = {
 };
 
 const emptyLocation = (): LocationEntry => ({
-   contactPerson: "", contact: "", contactPerson2: "", contact2: "", clientName: "", plotNo: "", street: "", country: "", state: "", city: "", gps: false
+   contactPerson: "", contactCode: "+260", contact: "",
+   contactPerson2: "", contact2Code: "+260", contact2: "",
+   clientName: "", plotNo: "", street: "", country: "", state: "", city: "", gps: false,
 });
+
+const DIAL_CODES = [
+   { code: "+260", label: "ZM +260", maxLen: 9 },
+   { code: "+263", label: "ZW +263", maxLen: 9 },
+   { code: "+243", label: "CD +243", maxLen: 9 },
+   { code: "+265", label: "MW +265", maxLen: 9 },
+   { code: "+255", label: "TZ +255", maxLen: 9 },
+   { code: "+258", label: "MZ +258", maxLen: 9 },
+   { code: "+267", label: "BW +267", maxLen: 8 },
+   { code: "+264", label: "NA +264", maxLen: 9 },
+   { code: "+27",  label: "ZA +27",  maxLen: 9 },
+   { code: "+244", label: "AO +244", maxLen: 9 },
+];
 
 const getLabel = (idx: number, offset = 0) => String.fromCharCode(65 + offset + idx);
 
@@ -93,8 +110,8 @@ function extractPreviousLocations(bookings: any[]): LocationEntry[] {
             seen.add(key);
             locs.push({
                contactPerson: stop.contactPerson || "",
-               contact: stop.contactNumber || "",
-               contactPerson2: "", contact2: "", clientName: "",
+               contactCode: "", contact: stop.contactNumber || "",
+               contactPerson2: "", contact2Code: "", contact2: "", clientName: "",
                plotNo: stop.address?.plotNo || "",
                street: stop.address?.street || "",
                country: stop.address?.country || "",
@@ -120,6 +137,20 @@ interface LocationSectionProps {
    onAdd: (type: "pickupLocations" | "dropoffLocations") => void;
    onRemove: (type: "pickupLocations" | "dropoffLocations", idx: number) => void;
    onFill: (type: "pickupLocations" | "dropoffLocations", idx: number, address: LocationEntry) => void;
+}
+
+function matchList(raw: string, list: string[]): string {
+   if (!raw) return "";
+   const q = raw.toLowerCase();
+   return list.find(l => l.toLowerCase() === q)
+      || list.find(l => q.includes(l.toLowerCase()) || l.toLowerCase().includes(q))
+      || "";
+}
+function matchCountry(raw: string): string {
+   if (!raw) return "";
+   const q = raw.toLowerCase();
+   if (q.includes("congo") || q.includes("drc")) return "DRC (Congo)";
+   return matchList(raw, AFRICAN_COUNTRIES);
 }
 
 function LocationSection({ type, label, color, locations, offset, isPickup, previousAddresses, onUpdate, onAdd, onRemove, onFill }: LocationSectionProps) {
@@ -148,10 +179,20 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                );
                const data = await res.json();
                const addr = data.address || {};
+               const rawCountry = addr.country || "";
+               const rawState = addr.state || addr.state_district || addr.county || "";
+               const rawCity = addr.city || addr.town || addr.village || "";
+               const country = matchCountry(rawCountry);
+               const state = country ? matchList(rawState, AFRICAN_STATES[country] || []) : "";
+               const city = country ? matchList(rawCity, AFRICAN_CITIES[country] || []) : "";
+               if (!country && rawCountry) {
+                  alert(`GPS detected "${rawCountry}" which is outside the supported region. Please select Country, State & City manually.`);
+               }
                onFill(type, idx, {
                   ...locations[idx],
-                  city:   addr.city || addr.town || addr.village || addr.county || "",
-                  state:  addr.state || addr.county || addr.state_district || "",
+                  country,
+                  state,
+                  city,
                   street: addr.road || addr.suburb || addr.neighbourhood || "",
                });
             } catch {
@@ -251,7 +292,7 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                   )}
 
                   {/* Primary contact */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3">
                      <div className="relative">
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
                         <input
@@ -262,15 +303,23 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                            className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
                         />
                      </div>
-                     <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                     <div className={`flex items-center bg-slate-50 rounded-lg border border-transparent focus-within:bg-white focus-within:border-slate-200 transition-all`}>
+                        <Phone className="ml-3 w-3.5 h-3.5 text-slate-300 shrink-0" />
+                        <select
+                           value={loc.contactCode}
+                           onChange={(e) => onUpdate(type, idx, "contactCode", e.target.value)}
+                           className="bg-transparent py-2.5 pl-2 pr-1 text-[11px] font-semibold text-slate-500 outline-none appearance-none cursor-pointer border-r border-slate-200 shrink-0"
+                        >
+                           <option value="">+</option>
+                           {DIAL_CODES.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+                        </select>
                         <input
                            type="tel"
                            placeholder="Contact Number *"
                            value={loc.contact}
-                           maxLength={10}
-                           onChange={(e) => onUpdate(type, idx, "contact", e.target.value.replace(/\D/g, "").slice(0, 10))}
-                           className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
+                           maxLength={DIAL_CODES.find(d => d.code === loc.contactCode)?.maxLen ?? 10}
+                           onChange={(e) => { const max = DIAL_CODES.find(d => d.code === loc.contactCode)?.maxLen ?? 10; onUpdate(type, idx, "contact", e.target.value.replace(/\D/g, "").slice(0, max)); }}
+                           className="flex-1 bg-transparent py-2.5 pl-3 pr-4 text-[12px] font-medium text-slate-900 outline-none min-w-0"
                         />
                      </div>
                   </div>
@@ -286,7 +335,7 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                   </button>
 
                   {showContact2[idx] && (
-                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-dashed border-slate-100">
+                     <div className="grid grid-cols-1 gap-3 pt-1 border-t border-dashed border-slate-100">
                         <div className="relative">
                            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
                            <input
@@ -297,15 +346,23 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                               className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
                            />
                         </div>
-                        <div className="relative">
-                           <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                        <div className="flex items-center bg-slate-50 rounded-lg border border-transparent focus-within:bg-white focus-within:border-slate-200 transition-all">
+                           <Phone className="ml-3 w-3.5 h-3.5 text-slate-300 shrink-0" />
+                           <select
+                              value={loc.contact2Code}
+                              onChange={(e) => onUpdate(type, idx, "contact2Code", e.target.value)}
+                              className="bg-transparent py-2.5 pl-2 pr-1 text-[11px] font-semibold text-slate-500 outline-none appearance-none cursor-pointer border-r border-slate-200 shrink-0"
+                           >
+                              <option value="">+</option>
+                              {DIAL_CODES.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
+                           </select>
                            <input
                               type="tel"
                               placeholder="2nd Contact Number"
                               value={loc.contact2}
-                              maxLength={10}
-                              onChange={(e) => onUpdate(type, idx, "contact2", e.target.value.replace(/\D/g, "").slice(0, 10))}
-                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
+                              maxLength={DIAL_CODES.find(d => d.code === loc.contact2Code)?.maxLen ?? 10}
+                              onChange={(e) => { const max = DIAL_CODES.find(d => d.code === loc.contact2Code)?.maxLen ?? 10; onUpdate(type, idx, "contact2", e.target.value.replace(/\D/g, "").slice(0, max)); }}
+                              className="flex-1 bg-transparent py-2.5 pl-3 pr-4 text-[12px] font-medium text-slate-900 outline-none min-w-0"
                            />
                         </div>
                      </div>
@@ -365,7 +422,12 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                            <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 pointer-events-none" />
                            <select
                               value={loc.city}
-                              onChange={(e) => onUpdate(type, idx, "city", e.target.value)}
+                              onChange={(e) => {
+                                 const selectedCity = e.target.value;
+                                 onUpdate(type, idx, "city", selectedCity);
+                                 const autoState = loc.country ? (CITY_TO_STATE[loc.country]?.[selectedCity] || "") : "";
+                                 if (autoState) onUpdate(type, idx, "state", autoState);
+                              }}
                               disabled={!loc.country}
                               className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all appearance-none cursor-pointer disabled:opacity-50 ${a.focus}`}
                            >
@@ -542,16 +604,16 @@ export default function NewBookingPage() {
          pickupLocations: formData.pickupLocations.map((loc, idx) => ({
             sequence: idx + 1,
             contactPerson: loc.contactPerson,
-            contactNumber: loc.contact,
-            ...(loc.contactPerson2.trim() && { contactPerson2: loc.contactPerson2, contactNumber2: loc.contact2 }),
+            contactNumber: loc.contactCode ? `${loc.contactCode}${loc.contact}` : loc.contact,
+            ...(loc.contactPerson2.trim() && { contactPerson2: loc.contactPerson2, contactNumber2: loc.contact2Code ? `${loc.contact2Code}${loc.contact2}` : loc.contact2 }),
             address: { plotNo: loc.plotNo, street: loc.street, country: loc.country, state: loc.state, city: loc.city },
             gpsEnabled: loc.gps,
          })),
          dropoffLocations: formData.dropoffLocations.map((loc, idx) => ({
             sequence: idx + 1,
             contactPerson: loc.contactPerson,
-            contactNumber: loc.contact,
-            ...(loc.contactPerson2.trim() && { contactPerson2: loc.contactPerson2, contactNumber2: loc.contact2 }),
+            contactNumber: loc.contactCode ? `${loc.contactCode}${loc.contact}` : loc.contact,
+            ...(loc.contactPerson2.trim() && { contactPerson2: loc.contactPerson2, contactNumber2: loc.contact2Code ? `${loc.contact2Code}${loc.contact2}` : loc.contact2 }),
             ...(loc.clientName.trim() && { clientName: loc.clientName }),
             address: { plotNo: loc.plotNo, street: loc.street, country: loc.country, state: loc.state, city: loc.city },
             gpsEnabled: loc.gps,
@@ -614,7 +676,7 @@ export default function NewBookingPage() {
                   )}
                </div>
                <div className="space-y-1">
-                  <label className="text-[9px] font-semibold text-slate-300 uppercase tracking-widest ml-1">Approx Weight (kg) <span className="text-red-500">*</span></label>
+                  <label className="text-[9px] font-semibold text-slate-300 uppercase tracking-widest ml-1">Approx Weight (kg)</label>
                   <input
                      type="number"
                      placeholder="0"
@@ -633,6 +695,7 @@ export default function NewBookingPage() {
                      <input
                         type="date"
                         value={formData.scheduleDate}
+                        min={new Date().toISOString().split('T')[0]}
                         onChange={(e) => setFormData(prev => ({ ...prev, scheduleDate: e.target.value }))}
                         className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-primary/20 outline-none transition-all"
                      />

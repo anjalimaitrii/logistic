@@ -53,3 +53,63 @@ export const AFRICAN_CITIES: Record<string, string[]> = {
 
 // Flat list of all cities (for search/simple dropdowns)
 export const ALL_AFRICAN_CITIES = Object.values(AFRICAN_CITIES).flat();
+
+// city → state lookup (per country)
+export const CITY_TO_STATE: Record<string, Record<string, string>> = {
+  "Zambia": {
+    "Lusaka": "Lusaka Province", "Kafue": "Lusaka Province", "Chongwe": "Lusaka Province",
+    "Ndola": "Copperbelt Province", "Kitwe": "Copperbelt Province", "Chingola": "Copperbelt Province",
+    "Mufulira": "Copperbelt Province", "Luanshya": "Copperbelt Province",
+    "Chililabombwe": "Copperbelt Province", "Kalulushi": "Copperbelt Province",
+    "Livingstone": "Southern Province", "Mazabuka": "Southern Province", "Choma": "Southern Province",
+    "Monze": "Southern Province", "Kalomo": "Southern Province", "Siavonga": "Southern Province",
+    "Kabwe": "Central Province", "Kapiri Mposhi": "Central Province", "Mkushi": "Central Province",
+    "Mumbwa": "Central Province", "Serenje": "Central Province",
+    "Chipata": "Eastern Province", "Petauke": "Eastern Province", "Lundazi": "Eastern Province",
+    "Katete": "Eastern Province", "Chadiza": "Eastern Province",
+    "Kasama": "Northern Province", "Mbala": "Northern Province",
+    "Mpulungu": "Northern Province", "Luwingu": "Northern Province",
+    "Mansa": "Luapula Province", "Kawambwa": "Luapula Province",
+    "Nchelenge": "Luapula Province", "Samfya": "Luapula Province",
+    "Chinsali": "Muchinga Province", "Isoka": "Muchinga Province",
+    "Mpika": "Muchinga Province", "Nakonde": "Muchinga Province",
+    "Solwezi": "North-Western Province", "Mwinilunga": "North-Western Province",
+    "Kasempa": "North-Western Province", "Kabompo": "North-Western Province", "Chavuma": "North-Western Province",
+    "Mongu": "Western Province", "Kaoma": "Western Province", "Senanga": "Western Province",
+    "Sesheke": "Western Province", "Lukulu": "Western Province",
+  },
+  "Zimbabwe": {
+    "Harare": "Harare Metropolitan", "Bulawayo": "Bulawayo Metropolitan",
+    "Mutare": "Manicaland", "Gweru": "Midlands",
+    "Masvingo": "Masvingo", "Chinhoyi": "Mashonaland West",
+  },
+  "DRC (Congo)": {
+    "Lubumbashi": "Haut-Katanga", "Likasi": "Haut-Katanga", "Kipushi": "Haut-Katanga",
+    "Kolwezi": "Lualaba",
+  },
+  "Malawi": {
+    "Lilongwe": "Central Region", "Zomba": "Southern Region",
+    "Blantyre": "Southern Region", "Mzuzu": "Northern Region",
+  },
+  "Tanzania": {
+    "Dar es Salaam": "Dar es Salaam Region", "Mbeya": "Mbeya Region",
+    "Tunduma": "Mbeya Region", "Dodoma": "Dodoma Region", "Arusha": "Dodoma Region",
+  },
+  "Mozambique": {
+    "Maputo": "Maputo Province", "Beira": "Sofala",
+    "Tete": "Tete Province", "Nacala": "Zambezia",
+  },
+  "Botswana": {
+    "Gaborone": "South-East", "Francistown": "North-East", "Maun": "Central",
+  },
+  "Namibia": {
+    "Windhoek": "Khomas", "Walvis Bay": "Erongo", "Rundu": "Kavango East",
+  },
+  "South Africa": {
+    "Johannesburg": "Gauteng", "Pretoria": "Gauteng",
+    "Durban": "KwaZulu-Natal", "Cape Town": "Western Cape", "Musina": "Limpopo",
+  },
+  "Angola": {
+    "Luanda": "Luanda Province", "Lubango": "Huíla", "Huambo": "Huambo Province",
+  },
+};

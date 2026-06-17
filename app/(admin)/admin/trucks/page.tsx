@@ -7,7 +7,7 @@ import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateTruckModal from "@/components/admin/CreateTruckModal";
 import TruckComplianceDrawer from "@/components/admin/TruckComplianceDrawer";
-import { ChevronRight, Eye, Settings, Plus, Package, X, Trash2, RefreshCw } from "lucide-react";
+import { ChevronRight, Eye, Settings, Plus, Package, X, Trash2 } from "lucide-react";
 import { truckService } from "@/services/truckService";
 import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import { driverService } from "@/services/driverService";
@@ -33,6 +33,7 @@ export default function AdminTrucks() {
   const [collectionTruck, setCollectionTruck] = useState<any | null>(null);
   const [colForm, setColForm] = useState({ name: "", description: "", quantity: "1" });
   const [colSaving, setColSaving] = useState(false);
+  const [renewState, setRenewState] = useState<{ colId: string; quantity: string } | null>(null);
 
   useEffect(() => {
     loadTrucks();
@@ -53,38 +54,46 @@ export default function AdminTrucks() {
     } catch { }
   };
 
+  const refreshTruck = async (truckId: string) => {
+    const fresh = await truckService.getById(truckId);
+    setCollectionTruck(fresh);
+    setTrucks(prev => prev.map(t => String(t._id) === truckId ? fresh : t));
+    return fresh;
+  };
+
   const handleAddCollection = async () => {
     if (!collectionTruck || !colForm.name.trim()) return;
     setColSaving(true);
+    const truckId = String(collectionTruck._id);
     try {
-      const updated = await truckService.addCollection(collectionTruck._id, {
+      await truckService.addCollection(truckId, {
         name: colForm.name.trim(),
         description: colForm.description.trim(),
         quantity: Number(colForm.quantity) || 1,
       });
-      setTrucks(prev => prev.map(t => t._id === updated._id ? updated : t));
-      setCollectionTruck(updated);
+      await refreshTruck(truckId);
       setColForm({ name: "", description: "", quantity: "1" });
-    } catch { alert("Failed to add collection item."); }
+    } catch (err: any) { alert("Failed to add collection: " + (err?.message || "Unknown error")); }
     finally { setColSaving(false); }
   };
 
-  const handleRenewCollection = async (colId: string) => {
-    if (!collectionTruck) return;
+  const handleRenewCollection = async () => {
+    if (!collectionTruck || !renewState) return;
+    const truckId = String(collectionTruck._id);
     try {
-      const updated = await truckService.renewCollection(collectionTruck._id, colId);
-      setCollectionTruck(updated);
-      setTrucks(prev => prev.map(t => t._id === updated._id ? updated : t));
-    } catch { alert("Failed to renew item."); }
+      await truckService.renewCollection(truckId, renewState.colId, Number(renewState.quantity) || 1);
+      await refreshTruck(truckId);
+      setRenewState(null);
+    } catch (err: any) { alert("Failed to renew: " + (err?.message || "Unknown error")); }
   };
 
   const handleRemoveCollection = async (colId: string) => {
     if (!collectionTruck) return;
+    const truckId = String(collectionTruck._id);
     try {
-      const updated = await truckService.removeCollection(collectionTruck._id, colId);
-      setTrucks(prev => prev.map(t => t._id === updated._id ? updated : t));
-      setCollectionTruck(updated);
-    } catch { alert("Failed to remove item."); }
+      await truckService.removeCollection(truckId, colId);
+      await refreshTruck(truckId);
+    } catch (err: any) { alert("Failed to remove: " + (err?.message || "Unknown error")); }
   };
 
   const loadTrucks = async () => {
@@ -402,33 +411,52 @@ export default function AdminTrucks() {
                   <p className="text-[11px] text-neutral-300 font-medium text-center py-6">No items yet</p>
                 )}
                 {collectionTruck.collections?.map((col: any) => (
-                  <div key={col._id} className="flex items-start justify-between gap-3 p-3 bg-white border border-neutral-100 rounded-xl">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-[12px] font-semibold text-slate-900">{col.name}</div>
-                      {col.description && <div className="text-[11px] text-neutral-400 mt-0.5">{col.description}</div>}
-                      <div className="text-[10px] font-bold text-orange-500 mt-1 uppercase tracking-widest">Qty: {col.quantity}</div>
-                      {col.renewedAt && (
-                        <div className="text-[10px] text-emerald-500 font-medium mt-0.5">
-                          Renewed: {new Date(col.renewedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                  <div key={col._id} className="space-y-1.5">
+                    <div className="flex items-start justify-between gap-3 p-3 bg-white border border-neutral-100 rounded-xl">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] font-semibold text-slate-900">{col.name}</div>
+                        {col.description && <div className="text-[11px] text-neutral-400 mt-0.5">{col.description}</div>}
+                        <div className="text-[10px] font-bold text-orange-500 mt-1 uppercase tracking-widest">Qty: {col.quantity}</div>
+                        {col.renewedAt && (
+                          <div className="text-[10px] text-emerald-500 font-medium mt-0.5">
+                            Renewed: {new Date(col.renewedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => setRenewState(renewState !== null && renewState.colId === col._id ? null : { colId: col._id, quantity: String(col.quantity || 1) })}
+                          className="px-2 py-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
+                        >
+                          Renew
+                        </button>
+                        <button
+                          onClick={() => handleRemoveCollection(col._id)}
+                          title="Remove"
+                          className="p-1.5 text-neutral-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                    {renewState !== null && renewState.colId === col._id && (
+                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center gap-2">
+                        <div className="flex-1 space-y-1">
+                          <label className="text-[9px] font-bold text-emerald-700 uppercase tracking-widest">New Quantity</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={renewState.quantity}
+                            onChange={(e) => setRenewState({ colId: renewState!.colId, quantity: e.target.value })}
+                            className="w-full bg-white border border-emerald-200 rounded-lg py-1.5 px-3 text-[12px] font-semibold text-slate-900 outline-none focus:border-emerald-400"
+                          />
                         </div>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => handleRenewCollection(col._id)}
-                        title="Renew"
-                        className="p-1.5 text-neutral-300 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleRemoveCollection(col._id)}
-                        title="Remove"
-                        className="p-1.5 text-neutral-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                        <div className="flex flex-col gap-1.5 pt-5">
+                          <button onClick={handleRenewCollection} className="px-3 py-1.5 text-[10px] font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition-colors">Confirm</button>
+                          <button onClick={() => setRenewState(null)} className="px-3 py-1.5 text-[10px] font-bold text-neutral-400 hover:text-neutral-600 bg-white border border-neutral-100 rounded-lg transition-colors">Cancel</button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

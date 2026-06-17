@@ -26,7 +26,8 @@ import {
   Navigation,
   Timer,
   Gauge,
-  Route
+  Route,
+  DollarSign
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
@@ -213,18 +214,20 @@ export default function JobDetailReport() {
   }, [booking, assignment, settlement]);
 
   const financialSummary = useMemo(() => {
-    if (!settlement) return { fuelTotal: 0, otherLogs: 0, totalCost: 0, allocationMoney: 0, remainingProfit: 0 };
-    
+    if (!settlement) return { fuelTotal: 0, otherLogs: 0, totalCost: 0, allocationMoney: 0, councilLevy: 0, remainingProfit: 0 };
+
     const fuelTotal = settlement.financials?.fuelTotal || 0;
     const otherLogs = (settlement.expenses || []).reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
-    const totalCost = fuelTotal + otherLogs;
     const allocationMoney = settlement.financials?.cashAllocation || 0;
-    
+    const councilLevy = settlement.financials?.councilLevy || 0;
+    const totalCost = fuelTotal + otherLogs + allocationMoney + councilLevy;
+
     return {
       fuelTotal,
       otherLogs,
       totalCost,
       allocationMoney,
+      councilLevy,
       remainingProfit: allocationMoney - totalCost
     };
   }, [settlement]);
@@ -584,10 +587,11 @@ export default function JobDetailReport() {
   }, [booking, assignment, settlement]);
 
   const statCards = [
+    { label: "Total Cost", value: `₦${financialSummary.totalCost.toLocaleString()}`, icon: <TrendingUp className="w-4 h-4 text-emerald-500" />, color: "border-emerald-500" },
     { label: "Fuel Total", value: `₦${financialSummary.fuelTotal.toLocaleString()}`, icon: <Fuel className="w-4 h-4 text-orange-500" />, color: "border-orange-500" },
     { label: "Other Logs", value: `₦${financialSummary.otherLogs.toLocaleString()}`, icon: <Receipt className="w-4 h-4 text-blue-500" />, color: "border-blue-500" },
-    { label: "Total Cost", value: `₦${financialSummary.totalCost.toLocaleString()}`, icon: <TrendingUp className="w-4 h-4 text-emerald-500" />, color: "border-emerald-500" },
-    { label: "Trip Health", value: jobInfo?.truckHealth || "N/A", icon: <Truck className="w-4 h-4 text-slate-500" />, color: "border-slate-500" },
+    { label: "Allocation", value: `₦${financialSummary.allocationMoney.toLocaleString()}`, icon: <DollarSign className="w-4 h-4 text-violet-500" />, color: "border-violet-500" },
+    { label: "Council Levy", value: `₦${financialSummary.councilLevy.toLocaleString()}`, icon: <DollarSign className="w-4 h-4 text-slate-500" />, color: "border-slate-400" },
   ];
 
   if (isLoading) {
@@ -662,16 +666,14 @@ export default function JobDetailReport() {
 
         <div className="p-4 md:p-6 max-w-[1400px] mx-auto space-y-6">
           {/* Top KPI Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-5 gap-3">
             {statCards.map((card, i) => (
-              <div key={i} className={`bg-white rounded-[24px] p-6 shadow-sm border border-slate-100 border-t-4 ${card.color}`}>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="p-2.5 rounded-xl bg-slate-50">
-                    {card.icon}
-                  </div>
+              <div key={i} className={`bg-white rounded-2xl p-4 shadow-sm border border-slate-100 border-t-4 ${card.color}`}>
+                <div className="p-1.5 rounded-lg bg-slate-50 w-fit mb-2">
+                  {card.icon}
                 </div>
-                <div className="text-[20px] font-bold text-slate-900 mb-1 leading-tight">{card.value}</div>
-                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.15em]">{card.label}</div>
+                <div className="text-[15px] font-bold text-slate-900 leading-tight">{card.value}</div>
+                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{card.label}</div>
               </div>
             ))}
           </div>
@@ -824,7 +826,7 @@ export default function JobDetailReport() {
                           <div className="flex-1 min-w-0">
                             <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{label}</div>
                             <h3 className="text-base font-bold text-slate-900 mb-1">
-                              {[loc?.address?.plotNo, loc?.address?.street, loc?.address?.city].filter(Boolean).join(', ') || 'N/A'}
+                              {[loc?.address?.plotNo, loc?.address?.street, loc?.address?.city, loc?.address?.country].filter(Boolean).join(', ') || 'N/A'}
                             </h3>
                             {loc?.contactPerson && (
                               <div className="text-[10px] font-medium text-slate-400 mt-0.5">
@@ -954,8 +956,8 @@ export default function JobDetailReport() {
 
                 {/* Expense List */}
                 <div className="space-y-3">
-                  {tripExpenses.length > 0 ? tripExpenses.map((entry) => (
-                    <div key={entry.id} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl hover:shadow-md hover:border-transparent transition-all group">
+                  {tripExpenses.length > 0 ? tripExpenses.map((entry, idx) => (
+                    <div key={entry.id ?? idx} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl hover:shadow-md hover:border-transparent transition-all group">
                       <div className="flex items-center gap-4">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
                           entry.category === "Fuel" ? "bg-amber-50 text-amber-500 border border-amber-100" :
@@ -1203,12 +1205,15 @@ export default function JobDetailReport() {
                 </div>
 
                 <div className="space-y-6">
-                  <div className="p-5 rounded-[20px] bg-slate-50/50 border border-slate-100">
-                    <div className="flex flex-col gap-1">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Allocation Money To Driver</span>
-                      <span className="text-[24px] font-bold text-slate-900 tracking-tight">₦{financialSummary.allocationMoney.toLocaleString()}</span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-xl bg-slate-50/50 border border-slate-100">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Allocation To Driver</span>
+                      <div className="text-[15px] font-bold text-slate-900 mt-0.5">₦{financialSummary.allocationMoney.toLocaleString()}</div>
                     </div>
-                    <p className="text-[9px] font-medium text-slate-300 mt-2 italic uppercase tracking-wider">Approved cash for driver support</p>
+                    <div className="p-3 rounded-xl bg-emerald-50/40 border border-emerald-100">
+                      <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Council Levy</span>
+                      <div className="text-[15px] font-bold text-slate-900 mt-0.5">₦{financialSummary.councilLevy.toLocaleString()}</div>
+                    </div>
                   </div>
 
                   {/* Deal Amounts — read-only, set from Requests page */}

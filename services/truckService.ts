@@ -74,9 +74,10 @@ export const truckService = {
     });
   },
 
-  renewCollection: async (truckId: string, colId: string) => {
+  renewCollection: async (truckId: string, colId: string, quantity?: number) => {
     return await fetchApi(`/api/trucks/${truckId}/collections/${colId}/renew`, {
       method: 'PATCH',
+      body: JSON.stringify({ quantity }),
     });
   },
 };
