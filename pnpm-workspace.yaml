@@ -1,4 +1,4 @@
-ignoredBuiltDependencies:
+neverBuiltDependencies:
   - msw
   - sharp
   - unrs-resolver
