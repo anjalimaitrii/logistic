@@ -7,6 +7,7 @@ import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import {
    ChevronRight,
+   ChevronLeft,
    ArrowLeft,
    Calendar,
    MapPin,
@@ -15,12 +16,17 @@ import {
    Fuel,
    Activity,
    Navigation,
-   Package
+   Package,
+   Clock,
+   RotateCcw,
+   History,
+   FileText,
+   RefreshCw
 } from "lucide-react";
 import { truckService } from "@/services/truckService";
 import { assignmentService } from "@/services/assignmentService";
 import { cleanDriverName } from "@/services/liveTrackingService";
-import { formatDate } from "@/lib/datetime";
+import { formatDate, formatDateTime } from "@/lib/datetime";
 
 // Days until a date (negative = already past). null if no/invalid date.
 const daysUntil = (dateStr?: string): number | null => {
@@ -47,6 +53,7 @@ export default function TruckProfilePage() {
    const [truck, setTruck] = useState<any>(null);
    const [assignments, setAssignments] = useState<any[]>([]);
    const [isLoading, setIsLoading] = useState(true);
+   const [periodOffset, setPeriodOffset] = useState(0); // 0 = latest 10-day window
 
    useEffect(() => {
       if (id) {
@@ -102,6 +109,62 @@ export default function TruckProfilePage() {
          cargo,
       };
    });
+
+   // ── Truck activity timeline — only: docs, collections, driver change, new job ──
+   const truckTimeline = (() => {
+      type Kind = "doc" | "collection" | "driver" | "assign" | "newjob";
+      type Ev = { time: number; title: string; desc: string; kind: Kind };
+      const events: Ev[] = [];
+
+      // 1. Truck-level activity log (Document Uploaded, Collection Added/Renewed)
+      (truck?.activityLog || []).forEach((e: any) => {
+         const kind: Kind = e.title?.startsWith("Document") ? "doc" : "collection";
+         events.push({ time: e.time ? new Date(e.time).getTime() : 0, title: e.title, desc: e.description || "", kind });
+      });
+
+      // 2. Driver assigned / changed + New Job Assigned (from assignments)
+      const sorted = [...assignments].sort(
+         (a, b) => new Date(a.assignedAt || 0).getTime() - new Date(b.assignedAt || 0).getTime()
+      );
+      let prevDriver: string | null = null;
+      sorted.forEach(a => {
+         const b = a.bookingId || {};
+         const trip = b.tripId || "Trip";
+         const driver = cleanDriverName(a.driverName);
+         const at = a.assignedAt ? new Date(a.assignedAt).getTime() : 0;
+
+         if (prevDriver && driver && driver !== prevDriver) {
+            events.push({ time: at, title: "Driver Changed", desc: `${prevDriver} → ${driver} · ${trip}`, kind: "driver" });
+         } else {
+            events.push({ time: at, title: "Driver Assigned", desc: `${driver} · ${trip}`, kind: "assign" });
+         }
+         if (driver) prevDriver = driver;
+
+         // Only the "New Job Assigned" event from booking timeline (skip trip lifecycle)
+         (b.timeline || [])
+            .filter((e: any) => e.title === "New Job Assigned")
+            .forEach((e: any) => {
+               events.push({
+                  time: e.time ? new Date(e.time).getTime() : at,
+                  title: "New Job Assigned",
+                  desc: `${trip}${e.description ? ` · ${e.description}` : ""}`,
+                  kind: "newjob",
+               });
+            });
+      });
+
+      // Newest first
+      return events.sort((a, b) => b.time - a.time);
+   })();
+
+   // ── 10-day window filter ──
+   const PERIOD_DAYS = 10;
+   const PERIOD_MS = PERIOD_DAYS * 86_400_000;
+   const nowMs = Date.now();
+   const windowEnd = nowMs - periodOffset * PERIOD_MS;
+   const windowStart = windowEnd - PERIOD_MS;
+   const windowedTimeline = truckTimeline.filter(e => e.time > windowStart && e.time <= windowEnd);
+   const hasOlder = truckTimeline.some(e => e.time <= windowStart);
 
    const columns = [
       {
@@ -261,6 +324,87 @@ export default function TruckProfilePage() {
                   </div>
                }
             />
+
+            {/* ── Overall Activity Timeline ── */}
+            <div className="bg-white rounded-2xl border border-neutral-100 shadow-sm overflow-hidden">
+               <div className="px-5 py-4 border-b border-neutral-50 flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-3">
+                     <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                        <History className="w-4 h-4" />
+                     </div>
+                     <div>
+                        <h3 className="text-[13px] font-bold text-slate-900">Activity Timeline</h3>
+                        <p className="text-[9px] text-neutral-400 font-bold uppercase tracking-widest">
+                           {formatDate(windowStart + 1)} – {formatDate(windowEnd)} · {windowedTimeline.length} events
+                        </p>
+                     </div>
+                  </div>
+                  {/* 10-day window navigation */}
+                  <div className="flex items-center gap-1.5">
+                     <button
+                        onClick={() => setPeriodOffset(o => o + 1)}
+                        disabled={!hasOlder}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-100 bg-white text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-primary/30 hover:text-primary transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                     >
+                        <ChevronLeft className="w-3 h-3" /> Previous 10 days
+                     </button>
+                     {periodOffset > 0 && (
+                        <button
+                           onClick={() => setPeriodOffset(o => Math.max(0, o - 1))}
+                           className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-neutral-100 bg-white text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:border-primary/30 hover:text-primary transition-all"
+                        >
+                           Newer <ChevronRight className="w-3 h-3" />
+                        </button>
+                     )}
+                  </div>
+               </div>
+
+               <div className="p-5">
+                  {truckTimeline.length === 0 ? (
+                     <p className="text-center text-[11px] text-neutral-300 font-bold uppercase tracking-widest py-8">No activity yet</p>
+                  ) : windowedTimeline.length === 0 ? (
+                     <div className="text-center py-8">
+                        <p className="text-[11px] text-neutral-300 font-bold uppercase tracking-widest">No events in this 10-day window</p>
+                        {hasOlder && (
+                           <button onClick={() => setPeriodOffset(o => o + 1)} className="mt-2 text-[10px] font-bold text-primary uppercase tracking-widest hover:underline">← See previous 10 days</button>
+                        )}
+                     </div>
+                  ) : (
+                     <div className="relative pl-6">
+                        {/* vertical line */}
+                        <div className="absolute left-[9px] top-1 bottom-1 w-px bg-neutral-100" />
+                        <div className="space-y-5">
+                           {windowedTimeline.map((e, i) => {
+                              const style =
+                                 e.kind === "doc" ? { ring: "bg-indigo-500", box: "bg-indigo-50 text-indigo-600", Icon: FileText } :
+                                 e.kind === "collection" ? { ring: "bg-teal-500", box: "bg-teal-50 text-teal-600", Icon: Package } :
+                                 e.kind === "driver" ? { ring: "bg-violet-500", box: "bg-violet-50 text-violet-600", Icon: RefreshCw } :
+                                 e.kind === "newjob" ? { ring: "bg-amber-500", box: "bg-amber-50 text-amber-600", Icon: RotateCcw } :
+                                                       { ring: "bg-blue-500", box: "bg-blue-50 text-blue-600", Icon: User };
+                              const Icon = style.Icon;
+                              return (
+                                 <div key={i} className="relative flex items-start gap-3">
+                                    <div className={`absolute -left-[18px] mt-0.5 w-[18px] h-[18px] rounded-full ${style.ring} flex items-center justify-center ring-4 ring-white`}>
+                                       <Icon className="w-2.5 h-2.5 text-white" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                       <div className="flex items-center gap-2 flex-wrap">
+                                          <span className={`text-[9px] font-bold px-2 py-0.5 rounded uppercase tracking-wide ${style.box}`}>{e.title}</span>
+                                          <span className="text-[9px] text-neutral-300 font-medium flex items-center gap-1">
+                                             <Clock className="w-2.5 h-2.5" />
+                                             {e.time ? formatDateTime(new Date(e.time)) : "—"}
+                                          </span>
+                                       </div>
+                                       <p className="text-[12px] font-medium text-slate-700 mt-1">{e.desc}</p>
+                                    </div>
+                                 </div>
+                              );
+                           })}
+                        </div>
+                     </div>
+                  )}
+               </div>
+            </div>
          </div>
       </AdminLayout>
    );
