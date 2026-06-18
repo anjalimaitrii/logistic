@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { tollService } from "@/services/tollService";
-import { format } from "date-fns";
+import { formatDateTime } from "@/lib/datetime";
 import { Wallet, Plus, TrendingDown, TrendingUp, ArrowUpRight, ArrowDownRight } from "lucide-react";
 
 export default function TollAccountPage() {
@@ -228,7 +228,7 @@ export default function TollAccountPage() {
                       {tx.type === "recharge" ? "+" : "-"}K{Number(tx.amount).toLocaleString()}
                     </p>
                     <p className="text-[9px] text-slate-400 mt-0.5">
-                      {tx.date ? format(new Date(tx.date), "dd MMM yyyy, hh:mm a") : "—"}
+                      {tx.date ? formatDateTime(tx.date, { hour12: true }) : "—"}
                     </p>
                   </div>
                   <div className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-widest shrink-0 ${

@@ -6,7 +6,7 @@ import Link from "next/link";
 import CommonTable from "@/components/admin/CommonTable";
 import { bookingService } from "@/services/bookingService";
 import { Eye, Package, ChevronRight } from "lucide-react";
-import { format } from "date-fns";
+import { formatDate } from "@/lib/datetime";
 
 export default function SecretJobsPage() {
   const router = useRouter();
@@ -45,7 +45,7 @@ export default function SecretJobsPage() {
     finalAmount: b.finalAmount ? `K${b.finalAmount.toLocaleString()}` : "—",
     advancePaid: b.advancePaid ? `K${b.advancePaid.toLocaleString()}` : "—",
     date: b.createdAt
-      ? format(new Date(b.createdAt), "dd MMM yyyy")
+      ? formatDate(b.createdAt)
       : "—",
     raw: b,
   }));

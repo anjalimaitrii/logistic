@@ -12,6 +12,7 @@ import {
   User,
   Phone,
 } from "lucide-react";
+import { formatDate } from "@/lib/datetime";
 
 interface FinalizeDealDrawerProps {
   isOpen: boolean;
@@ -148,7 +149,7 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
                 <div className="flex items-center gap-2 text-[11px] text-neutral-700">
                   <Calendar className="w-3.5 h-3.5 text-neutral-400" />
                   <span className="font-medium">
-                    {new Date(request.cargoDetails.loadingDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                    {formatDate(request.cargoDetails.loadingDate)}
                   </span>
                 </div>
               )}

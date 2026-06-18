@@ -10,11 +10,12 @@ import { bookingService }         from "@/services/bookingService";
 import { settlementService }      from "@/services/settlementService";
 import { truckInspectionService } from "@/services/truckInspectionService";
 import { assignmentService }      from "@/services/assignmentService";
+import { formatDate } from "@/lib/datetime";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const N = (v: any) => parseFloat(String(v ?? 0).replace(/[^\d.-]/g, "")) || 0;
 const naira   = (n: number) => `K ${Math.round(n).toLocaleString("en")}`;
-const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+const fmtDate = (d: any) => d ? formatDate(d) : "—";
 const shortId = (id: any) => (typeof id === "string" ? id : id?._id ?? "")?.slice(-8)?.toUpperCase() || "—";
 
 // clean "null" literals from driver names e.g. "First null Last"

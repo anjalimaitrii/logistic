@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
 import {
-   Bell,
    Search,
    TrendingUp,
    Package,
@@ -19,6 +18,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { AnimatedGradientText } from "@/components/ui/animated-gradient-text";
 import { bookingService } from "@/services/bookingService";
+import ClientNotificationBell from "@/components/client/ClientNotificationBell";
+import { formatDate, formatDateTime } from "@/lib/datetime";
 
 function getStatusStyle(status: string) {
    switch (status?.toLowerCase()) {
@@ -97,7 +98,7 @@ function BookingDetailModal({ booking, onClose }: { booking: any; onClose: () =>
                      <div>
                         <p className="text-[9px] text-slate-400 mb-0.5">Date</p>
                         <p className="text-[11px] font-semibold text-slate-800">
-                           {booking.cargoDetails?.loadingDate ? new Date(booking.cargoDetails.loadingDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
+                           {booking.cargoDetails?.loadingDate ? formatDate(booking.cargoDetails.loadingDate, { year: undefined }) : "—"}
                         </p>
                      </div>
                   </div>
@@ -225,7 +226,7 @@ export default function DashboardPage() {
    const dynamicStats = [
       { label: "Active Jobs", value: bookings.filter(b => b.status === "transit" || b.status === "active").length.toString(), sub: "Real-time", icon: Package, color: "text-primary" },
       { label: "Total Bookings", value: bookings.length.toString(), sub: "Lifetime", icon: DollarSign, color: "text-slate-900" },
-      { label: "Pending", value: bookings.filter(b => b.status === "pending").length.toString(), sub: "Action required", icon: TrendingUp, color: "text-emerald-600" },
+      { label: "Completed", value: bookings.filter(b => b.status === "completed").length.toString(), sub: "Action required", icon: TrendingUp, color: "text-emerald-600" },
    ];
 
    const recentDisplayJobs = [...bookings]
@@ -235,11 +236,7 @@ export default function DashboardPage() {
       const firstPickup = (b.pickupLocations || [])[0];
       const lastDropoff = (b.dropoffLocations || [])[(b.dropoffLocations?.length || 1) - 1];
       const bookedAt = b.createdAt
-         ? new Date(b.createdAt).toLocaleString("en-GB", {
-              timeZone: "Africa/Lagos",
-              day: "2-digit", month: "short", year: "numeric",
-              hour: "2-digit", minute: "2-digit", hour12: true,
-           })
+         ? formatDateTime(b.createdAt, { hour12: true })
          : "—";
       const allCities = [
          ...(b.pickupLocations || []).map((p: any) => p?.address?.city).filter(Boolean),
@@ -288,10 +285,7 @@ export default function DashboardPage() {
                   </div>
                </div>
                <div className="flex items-center gap-2">
-                  <button className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-50 relative">
-                     <Bell className="w-4 h-4" />
-                     <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-primary rounded-full ring-2 ring-white" />
-                  </button>
+                  <ClientNotificationBell />
                   <div className="h-4 w-px bg-slate-200 mx-1" />
                   <Link href="/dashboard/profile" className="flex items-center gap-2 pl-2 hover:opacity-80 transition-opacity cursor-pointer">
                      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[10px] font-medium">

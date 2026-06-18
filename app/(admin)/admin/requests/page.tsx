@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
+import { formatDate } from "@/lib/datetime";
 import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
 import { MessageSquare, CheckCircle, ChevronRight, Package, Search } from "lucide-react";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
@@ -32,17 +33,20 @@ export default function BookingRequestsPage() {
     loadRequests();
   }, []);
 
-  // Auto-open chat when navigated from notification (?openChat=<clientId/roomId>)
+  // Auto-open chat when navigated from notification (?openChat=<clientId__tripId>)
   useEffect(() => {
     if (requests.length === 0) return;
     const params = new URLSearchParams(window.location.search);
     const openChatId = params.get("openChat");
     if (!openChatId) return;
-    const match = requests.find(r =>
-      r.clientId?._id === openChatId ||
-      r.clientId === openChatId ||
-      r._id === openChatId
-    );
+    // roomId format: clientId__tripId — split to match the exact trip
+    const [chatClientId, chatTripId] = openChatId.split("__");
+    const match = requests.find(r => {
+      const rClientId = (r.clientId as any)?._id || r.clientId;
+      if (chatTripId) return rClientId === chatClientId && r.tripId === chatTripId;
+      // Legacy fallback (no tripId in roomId)
+      return rClientId === openChatId || r._id === openChatId;
+    });
     if (match) {
       setSelectedRequest(match);
       setIsChatOpen(true);
@@ -130,7 +134,7 @@ export default function BookingRequestsPage() {
     cargo: req.cargoDetails.goodsType,
     weight: `${req.cargoDetails.weight} KG`,
     price: req.finalAmount ? `K${req.finalAmount}` : "TBD",
-    date: new Date(req.createdAt || req.metadata?.createdAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+    date: formatDate(req.createdAt || req.metadata?.createdAt || Date.now()),
     status: getStatusLabel(req.status),
     raw: req
   }));
@@ -344,13 +348,14 @@ export default function BookingRequestsPage() {
           isOpen={isChatOpen}
           onClose={() => setIsChatOpen(false)}
           clientId={(selectedRequest?.clientId as any)?._id || (selectedRequest?.clientId as any)?.id || ""}
+          tripId={selectedRequest?.tripId || ""}
           request={selectedRequest ? {
             id: selectedRequest.tripId || `#BR-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
             customer: (selectedRequest.clientId as any)?.name || "Direct Client",
             route: getRequestRoute(selectedRequest),
             cargo: selectedRequest.cargoDetails.goodsType,
             price: "TBD",
-            date: new Date(selectedRequest.createdAt || Date.now()).toLocaleDateString(),
+            date: formatDate(selectedRequest.createdAt || Date.now()),
             status: getStatusLabel(selectedRequest.status) as any
           } : null}
           onFinalize={() => {
@@ -369,7 +374,7 @@ export default function BookingRequestsPage() {
             route: getRequestRoute(selectedRequest),
             cargo: selectedRequest.cargoDetails.goodsType,
             price: "TBD",
-            date: new Date(selectedRequest.createdAt || Date.now()).toLocaleDateString(),
+            date: formatDate(selectedRequest.createdAt || Date.now()),
             status: getStatusLabel(selectedRequest.status) as any
           } : null}
           onSubmit={async (data) => {

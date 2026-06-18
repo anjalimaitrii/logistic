@@ -19,6 +19,7 @@ import {
 import { driverService } from "@/services/driverService";
 import { assignmentService } from "@/services/assignmentService";
 import { format } from "date-fns";
+import { formatDate } from "@/lib/datetime";
 
 
 export default function DriverProfilePage() {
@@ -162,7 +163,7 @@ export default function DriverProfilePage() {
                     </div>
                     <div className="flex items-center gap-4 mt-1.5 text-[11px] text-neutral-400 font-medium">
                        <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-amber-500" /> {driver.experience} Yrs Exp</span>
-                       <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Registered {format(new Date(driver.createdAt), "MMM yyyy")}</span>
+                       <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Registered {formatDate(driver.createdAt, { day: undefined })}</span>
                        <span className="text-neutral-200">|</span>
                        <span>ID: <span className="text-slate-900 font-bold tracking-wider">{driverId}</span></span>
                     </div>

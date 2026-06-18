@@ -21,6 +21,7 @@ import {
 import { motion } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { clientService } from "@/services/clientService";
+import { formatDate } from "@/lib/datetime";
 
 export default function ClientProfilePage() {
    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -206,7 +207,7 @@ export default function ClientProfilePage() {
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {[
                            { label: "Account ID", value: user?._id?.substring(user._id.length - 8).toUpperCase() || 'N/A', icon: Briefcase },
-                           { label: "Joined", value: user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : 'Apr 2024', icon: Calendar },
+                           { label: "Joined", value: user?.createdAt ? formatDate(user.createdAt, { day: undefined }) : 'Apr 2024', icon: Calendar },
                            { label: "Role Level", value: "Verified Client", icon: ShieldCheck },
                         ].map((stat, i) => (
                            <div key={i} className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-3">

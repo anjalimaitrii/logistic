@@ -9,7 +9,6 @@ import {
   Wallet, 
   Clock, 
   CheckCircle2,
-  Bell,
   TrendingUp,
   Package,
   Plus,
@@ -19,6 +18,8 @@ import { motion } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
 import { bookingService } from "@/services/bookingService";
+import ClientNotificationBell from "@/components/client/ClientNotificationBell";
+import { formatDate } from "@/lib/datetime";
 
 export default function ClientLedgerPage() {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -27,6 +28,7 @@ export default function ClientLedgerPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [periodFilter, setPeriodFilter] = useState<"daily" | "monthly">("monthly");
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
   useEffect(() => {
@@ -52,12 +54,23 @@ export default function ClientLedgerPage() {
     }
   };
 
-  // Financial Stats — across all bookings
+  // Period key in Zambia time — "2026-06-18" (day) or "2026-06" (month)
+  const catKey = (date: any, granularity: "daily" | "monthly") => {
+    if (!date) return "";
+    const iso = new Date(date).toLocaleDateString("en-CA", { timeZone: "Africa/Lusaka" }); // YYYY-MM-DD
+    return granularity === "daily" ? iso : iso.slice(0, 7);
+  };
+  const nowKey = catKey(new Date(), periodFilter);
+
+  // Bookings within the selected period (Daily / Monthly) — drives both stats and table
+  const periodBookings = bookings.filter(b => catKey(b.createdAt, periodFilter) === nowKey);
+
+  // Financial Stats — for the selected period
   const stats = {
-    totalSpent:         bookings.reduce((sum, b) => sum + (b.finalAmount  || 0), 0),
-    advancePaid:        bookings.reduce((sum, b) => sum + (b.advancePaid  || 0), 0),
-    completedJobs:      bookings.filter(b => ["completed", "delivered", "finalized"].includes(b.status?.toLowerCase())).length,
-    outstandingBalance: bookings.reduce((sum, b) => sum + Math.max(0, (b.finalAmount || 0) - (b.advancePaid || 0)), 0),
+    totalSpent:         periodBookings.reduce((sum, b) => sum + (b.finalAmount  || 0), 0),
+    advancePaid:        periodBookings.reduce((sum, b) => sum + (b.advancePaid  || 0), 0),
+    completedJobs:      periodBookings.filter(b => ["completed", "delivered", "finalized"].includes(b.status?.toLowerCase())).length,
+    outstandingBalance: periodBookings.reduce((sum, b) => sum + Math.max(0, (b.finalAmount || 0) - (b.advancePaid || 0)), 0),
   };
 
   const filteredBookings = bookings.filter(b => {
@@ -72,7 +85,8 @@ export default function ClientLedgerPage() {
     const matchesStatus = statusFilter === "all"
       || (statusFilter === "due"     && hasAmount && bal > 0)
       || (statusFilter === "settled" && hasAmount && bal <= 0);
-    return matchesSearch && matchesStatus;
+    const matchesPeriod = catKey(b.createdAt, periodFilter) === nowKey;
+    return matchesSearch && matchesStatus && matchesPeriod;
   });
 
   return (
@@ -109,10 +123,7 @@ export default function ClientLedgerPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-50 relative">
-              <Bell className="w-4 h-4" />
-              <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-primary rounded-full ring-2 ring-white" />
-            </button>
+            <ClientNotificationBell />
             <div className="h-4 w-px bg-slate-200 mx-1" />
             <Link href="/dashboard/profile" className="flex items-center gap-2 pl-2 hover:opacity-80 transition-opacity cursor-pointer">
               <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[10px] font-medium">
@@ -141,8 +152,14 @@ export default function ClientLedgerPage() {
 
             <div className="flex items-center gap-3">
               <div className="bg-white border border-neutral-100 rounded-xl p-1 flex items-center gap-1 shadow-sm">
-                <button className="px-4 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest bg-slate-900 text-white transition-all">Daily</button>
-                <button className="px-4 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest text-neutral-400 hover:text-slate-600 transition-all">Monthly</button>
+                <button
+                  onClick={() => setPeriodFilter("daily")}
+                  className={`px-4 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all ${periodFilter === "daily" ? "bg-slate-900 text-white" : "text-neutral-400 hover:text-slate-600"}`}
+                >Daily</button>
+                <button
+                  onClick={() => setPeriodFilter("monthly")}
+                  className={`px-4 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all ${periodFilter === "monthly" ? "bg-slate-900 text-white" : "text-neutral-400 hover:text-slate-600"}`}
+                >Monthly</button>
               </div>
             </div>
           </div>
@@ -150,7 +167,7 @@ export default function ClientLedgerPage() {
           {/* KPI Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
-              { label: "Final Cost", value: `K${stats.totalSpent.toLocaleString()}`, icon: Wallet, trend: "Statement", color: "text-blue-600", bg: "bg-blue-50" },
+              { label: "Total Cost", value: `K${stats.totalSpent.toLocaleString()}`, icon: Wallet, trend: "All Trips", color: "text-blue-600", bg: "bg-blue-50" },
               { label: "Paid Amount", value: `K${stats.advancePaid.toLocaleString()}`, icon: CheckCircle2, trend: "Settled", color: "text-emerald-600", bg: "bg-emerald-50" },
               { label: "Completed Trips", value: stats.completedJobs, icon: Package, trend: "History", color: "text-amber-600", bg: "bg-amber-50" },
               { label: "Balance Due", value: `K${stats.outstandingBalance.toLocaleString()}`, icon: FileText, trend: "Pending", color: "text-rose-600", bg: "bg-rose-50" }
@@ -253,7 +270,7 @@ export default function ClientLedgerPage() {
                           <div className="flex flex-col">
                             <span className="text-[12px] font-bold text-slate-900 tracking-tight">{i + 1}</span>
                             <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mt-0.5">
-                              {b.createdAt ? new Date(b.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : "—"}
+                              {b.createdAt ? formatDate(b.createdAt, { year: undefined }) : "—"}
                             </span>
                           </div>
                         </td>

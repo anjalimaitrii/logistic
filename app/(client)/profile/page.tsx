@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { formatDate } from "@/lib/datetime";
 
 export default function ClientProfilePage() {
    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -169,7 +170,7 @@ export default function ClientProfilePage() {
                                  <span className="text-[10px] font-bold uppercase tracking-widest">Member Since</span>
                               </div>
                               <p className="text-[14px] font-semibold text-slate-800 ml-5.5">
-                                 {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) : "April 2024"}
+                                 {user?.createdAt ? formatDate(user.createdAt, { day: undefined, month: 'long' }) : "April 2024"}
                               </p>
                            </div>
                         </div>

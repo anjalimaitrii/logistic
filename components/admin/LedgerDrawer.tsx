@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Wallet, TrendingDown, CheckCircle2, Plus, Trash2, ArrowRight, Receipt, AlertCircle } from "lucide-react";
 import { ledgerService } from "@/services/ledgerService";
+import { formatDate } from "@/lib/datetime";
 
 interface LedgerDrawerProps {
   isOpen: boolean;
@@ -173,7 +174,7 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
                     <div>
                       <div className="text-[13px] font-bold text-emerald-700">{fmt(p.amount)}</div>
                       <div className="text-[10px] text-neutral-400 font-medium mt-0.5">
-                        {new Date(p.paidAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                        {formatDate(p.paidAt)}
                         {p.note && ` · ${p.note}`}
                       </div>
                     </div>

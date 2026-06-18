@@ -11,6 +11,7 @@ import {
   getDriverName,
   VehicleStatusType,
 } from "@/services/liveTrackingService";
+import { formatTime } from "@/lib/datetime";
 
 // Leaflet must be loaded client-side only
 const LiveTrackMap = dynamic(() => import("@/components/admin/LiveTrackMap"), {
@@ -109,7 +110,7 @@ export default function LiveTrackPage() {
               {lastUpdated && (
                 <p className="text-[10px] text-neutral-400 mt-0.5 flex items-center gap-1">
                   <Wifi className="w-3 h-3 text-emerald-400" />
-                  Updated {lastUpdated.toLocaleTimeString()} · Auto-refresh every 30s
+                  Updated {formatTime(lastUpdated, { second: "2-digit" })} · Auto-refresh every 30s
                 </p>
               )}
             </div>

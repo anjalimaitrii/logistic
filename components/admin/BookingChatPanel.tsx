@@ -1,34 +1,38 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { chatService, ChatMessage } from "@/services/chatService";
+import { chatService, ChatMessage, buildRoomId } from "@/services/chatService";
+import { formatTime } from "@/lib/datetime";
 
 interface BookingChatPanelProps {
   isOpen: boolean;
   onClose: () => void;
   request: any | null;
   clientId: string;
+  tripId: string;
   onFinalize: () => void;
 }
 
-export default function BookingChatPanel({ isOpen, onClose, request, clientId, onFinalize }: BookingChatPanelProps) {
+export default function BookingChatPanel({ isOpen, onClose, request, clientId, tripId, onFinalize }: BookingChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const roomId = clientId && tripId ? buildRoomId(clientId, tripId) : "";
+
   useEffect(() => {
-    if (!isOpen || !clientId) return;
+    if (!isOpen || !roomId) return;
 
     const socket = chatService.connect();
 
     socket.on("connect", () => {
-      chatService.joinRoom(clientId);
-      chatService.loadHistory(clientId);
+      chatService.joinRoom(roomId);
+      chatService.loadHistory(roomId);
     });
 
     if (socket.connected) {
-      chatService.joinRoom(clientId);
-      chatService.loadHistory(clientId);
+      chatService.joinRoom(roomId);
+      chatService.loadHistory(roomId);
     }
 
     chatService.onHistory((msgs) => setMessages(msgs));
@@ -38,7 +42,7 @@ export default function BookingChatPanel({ isOpen, onClose, request, clientId, o
       chatService.offAll();
       socket.off("connect");
     };
-  }, [isOpen, clientId]);
+  }, [isOpen, roomId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -46,9 +50,9 @@ export default function BookingChatPanel({ isOpen, onClose, request, clientId, o
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !clientId) return;
+    if (!input.trim() || !roomId) return;
     chatService.sendMessage({
-      roomId: clientId,
+      roomId,
       message: input.trim(),
       sender: "admin",
       senderName: "Support",
@@ -56,8 +60,7 @@ export default function BookingChatPanel({ isOpen, onClose, request, clientId, o
     setInput("");
   };
 
-  const fmt = (ts: string | Date) =>
-    new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const fmt = (ts: string | Date) => formatTime(ts);
 
   if (!isOpen) return null;
 

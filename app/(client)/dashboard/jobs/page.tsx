@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
 import {
    Search,
-   Bell,
    Filter,
    MessageSquare,
    Eye,
@@ -20,8 +19,10 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
-import ClientChatPanel from "@/components/client/ClientChatPanel";
 import { bookingService } from "@/services/bookingService";
+import ClientNotificationBell from "@/components/client/ClientNotificationBell";
+import { useClientNotifications } from "@/context/ClientNotificationContext";
+import { formatDate } from "@/lib/datetime";
 
 const getStatusStyles = (type: string) => {
    switch (type?.toLowerCase()) {
@@ -115,7 +116,7 @@ function BookingDetailModal({ booking, onClose }: ModalProps) {
                      <div>
                         <p className="text-[9px] text-slate-400 mb-0.5">Date</p>
                         <p className="text-[11px] font-semibold text-slate-800">
-                           {booking.cargoDetails?.loadingDate ? new Date(booking.cargoDetails.loadingDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" }) : "—"}
+                           {booking.cargoDetails?.loadingDate ? formatDate(booking.cargoDetails.loadingDate, { year: undefined }) : "—"}
                         </p>
                      </div>
                   </div>
@@ -210,8 +211,8 @@ function BookingDetailModal({ booking, onClose }: ModalProps) {
 }
 
 export default function JobsPage() {
+   const { unreadTrips, openChat } = useClientNotifications();
    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
-   const [chatJobId, setChatJobId] = useState<string | null>(null);
    const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
    const [bookings, setBookings] = useState<any[]>([]);
    const [isLoading, setIsLoading] = useState(true);
@@ -236,10 +237,7 @@ export default function JobsPage() {
 
    useEffect(() => {
       const storedUser = localStorage.getItem("user");
-      if (storedUser) {
-         const parsedUser = JSON.parse(storedUser);
-         setUser(parsedUser);
-      }
+      if (storedUser) setUser(JSON.parse(storedUser));
       loadBookings();
    }, []);
 
@@ -321,7 +319,7 @@ export default function JobsPage() {
          status: b.tripStatus || b.status || "pending",
          jobStatus: b.status || "",
          date: b.cargoDetails?.loadingDate
-            ? new Date(b.cargoDetails.loadingDate).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })
+            ? formatDate(b.cargoDetails.loadingDate, { year: undefined })
             : "N/A",
          finalAmount: b.financials?.finalAmount || b.finalAmount,
          canCancel: !b.tripStatus || ["", "accepted", "pending"].includes((b.tripStatus || "").toLowerCase()),
@@ -360,10 +358,7 @@ export default function JobsPage() {
                   </div>
                </div>
                <div className="flex items-center gap-2">
-                  <button className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-50 relative">
-                     <Bell className="w-4 h-4" />
-                     <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-primary rounded-full ring-2 ring-white" />
-                  </button>
+                  <ClientNotificationBell />
                   <div className="h-4 w-px bg-slate-200 mx-1" />
                   <Link href="/dashboard/profile" className="flex items-center gap-2 pl-2 hover:opacity-80 transition-opacity cursor-pointer">
                      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
@@ -564,11 +559,14 @@ export default function JobsPage() {
                                           </button>
                                           {(job.status === "accepted" || job.status === "transit" || job.status === "active") && (
                                              <button
-                                                onClick={() => setChatJobId(job.tripId)}
-                                                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-all border border-transparent hover:border-slate-100"
+                                                onClick={() => openChat(job.tripId)}
+                                                className="relative p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-all border border-transparent hover:border-slate-100"
                                                 title="Chat with Support"
                                              >
                                                 <MessageSquare className="w-4 h-4" />
+                                                {unreadTrips.has(job.tripId) && (
+                                                   <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-red-500 rounded-full border border-white" />
+                                                )}
                                              </button>
                                           )}
                                           {job.canCancel && (
@@ -648,10 +646,13 @@ export default function JobsPage() {
                                     </button>
                                     {(job.status === "accepted" || job.status === "transit" || job.status === "active") && (
                                        <button
-                                          onClick={() => setChatJobId(job.tripId)}
-                                          className="p-2.5 bg-primary/10 hover:bg-primary/20 rounded-lg text-primary transition-all"
+                                          onClick={() => openChat(job.tripId)}
+                                          className="relative p-2.5 bg-primary/10 hover:bg-primary/20 rounded-lg text-primary transition-all"
                                        >
                                           <MessageSquare className="w-4 h-4" />
+                                          {unreadTrips.has(job.tripId) && (
+                                             <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-500 rounded-full border border-white" />
+                                          )}
                                        </button>
                                     )}
                                     {job.canCancel && (
@@ -681,14 +682,7 @@ export default function JobsPage() {
             )}
          </AnimatePresence>
 
-         {/* ── CHAT PANEL ── */}
-         <ClientChatPanel
-            isOpen={!!chatJobId}
-            onClose={() => setChatJobId(null)}
-            jobId={chatJobId || ""}
-            clientId={user?._id || user?.id || ""}
-            clientName={user?.name || "Client"}
-         />
+         {/* Chat panel is rendered globally by ClientNotificationProvider */}
 
          {/* ── MOBILE NAV ── */}
          <nav className="md:hidden fixed bottom-6 left-6 right-6 bg-white/90 backdrop-blur-xl border border-neutral-100 flex justify-around py-3 rounded-2xl shadow-xl z-50">

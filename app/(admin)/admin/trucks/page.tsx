@@ -11,6 +11,7 @@ import { ChevronRight, Eye, Settings, Plus, Package, X, Trash2, AlertTriangle } 
 import { truckService } from "@/services/truckService";
 import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import { driverService } from "@/services/driverService";
+import { formatDate } from "@/lib/datetime";
 
 function gpsStatusToTruck(s: string) {
   if (s === "RUNNING") return "Active";
@@ -492,7 +493,7 @@ export default function AdminTrucks() {
                         <div className="text-[10px] font-bold text-orange-500 mt-1 uppercase tracking-widest">Qty: {col.quantity}</div>
                         {col.renewedAt && (
                           <div className="text-[10px] text-emerald-500 font-medium mt-0.5">
-                            Renewed: {new Date(col.renewedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                            Renewed: {formatDate(col.renewedAt)}
                           </div>
                         )}
                       </div>

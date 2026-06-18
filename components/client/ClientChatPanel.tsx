@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { chatService, ChatMessage } from "@/services/chatService";
+import { chatService, ChatMessage, buildRoomId } from "@/services/chatService";
+import { formatTime } from "@/lib/datetime";
 
 interface ClientChatPanelProps {
   isOpen: boolean;
@@ -17,21 +18,23 @@ export default function ClientChatPanel({ isOpen, onClose, jobId, clientId, clie
   const [connected, setConnected] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  const roomId = clientId && jobId ? buildRoomId(clientId, jobId) : "";
+
   useEffect(() => {
-    if (!isOpen || !clientId) return;
+    if (!isOpen || !roomId) return;
 
     const socket = chatService.connect();
 
     socket.on("connect", () => {
       setConnected(true);
-      chatService.joinRoom(clientId);
-      chatService.loadHistory(clientId);
+      chatService.joinRoom(roomId);
+      chatService.loadHistory(roomId);
     });
 
     if (socket.connected) {
       setConnected(true);
-      chatService.joinRoom(clientId);
-      chatService.loadHistory(clientId);
+      chatService.joinRoom(roomId);
+      chatService.loadHistory(roomId);
     }
 
     chatService.onHistory((msgs) => setMessages(msgs));
@@ -41,7 +44,7 @@ export default function ClientChatPanel({ isOpen, onClose, jobId, clientId, clie
       chatService.offAll();
       socket.off("connect");
     };
-  }, [isOpen, clientId]);
+  }, [isOpen, roomId]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -49,9 +52,9 @@ export default function ClientChatPanel({ isOpen, onClose, jobId, clientId, clie
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || !clientId) return;
+    if (!input.trim() || !roomId) return;
     chatService.sendMessage({
-      roomId: clientId,
+      roomId,
       message: input.trim(),
       sender: "client",
       senderName: clientName || "Client",
@@ -59,8 +62,7 @@ export default function ClientChatPanel({ isOpen, onClose, jobId, clientId, clie
     setInput("");
   };
 
-  const fmt = (ts: string | Date) =>
-    new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const fmt = (ts: string | Date) => formatTime(ts);
 
   if (!isOpen) return null;
 
@@ -82,7 +84,7 @@ export default function ClientChatPanel({ isOpen, onClose, jobId, clientId, clie
               <div className="text-[14px] font-display font-black text-neutral-900 tracking-tight">Support Chat</div>
               <div className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 mt-0.5" style={{ color: connected ? "#22c55e" : "#f59e0b" }}>
                 <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: connected ? "#22c55e" : "#f59e0b" }} />
-                {connected ? `${jobId} · Live` : "Connecting..."}
+                {connected ? jobId : "Connecting..."}
               </div>
             </div>
           </div>

@@ -83,23 +83,66 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const socket = getSocket();
 
-    const handleNewJob = (data: { tripId: string; pickup: string; dropoff: string; goods: string; createdAt: string }) => {
-      saveNotif({
-        icon: "📦",
-        title: `New Job: ${data.tripId}`,
-        body: `${Array.isArray(data.goods) ? data.goods.join(", ") : data.goods} · ${data.pickup} → ${data.dropoff}`,
-        link: "/admin/requests",
+    const handleNewJob = (data: { _id?: string; tripId: string; pickup: string; dropoff: string; goods: string; createdAt: string }) => {
+      const notifKey = data._id || `${data.tripId}-${data.createdAt}`;
+      setNotifications(prev => {
+        if (prev.some(n => n.id === notifKey)) return prev;
+        return [{
+          id: notifKey,
+          icon: "📦",
+          title: `New Job: ${data.tripId}`,
+          body: `${Array.isArray(data.goods) ? data.goods.join(", ") : data.goods} · ${data.pickup} → ${data.dropoff}`,
+          link: "/admin/requests",
+          time: new Date(data.createdAt),
+          unread: true,
+        }, ...prev];
       });
+      if (!data._id) {
+        const lockKey = `__jobnotif_${data.tripId}`;
+        if (!localStorage.getItem(lockKey)) {
+          localStorage.setItem(lockKey, '1');
+          setTimeout(() => localStorage.removeItem(lockKey), 30000);
+          notificationService.create({
+            icon: "📦",
+            title: `New Job: ${data.tripId}`,
+            body: `${Array.isArray(data.goods) ? data.goods.join(", ") : data.goods} · ${data.pickup} → ${data.dropoff}`,
+            link: "/admin/requests",
+          }).catch(() => { localStorage.removeItem(lockKey); });
+        }
+      }
+      playBeep();
     };
 
-    // Use chatService socket for chat_notification (same connection as chat panels)
-    chatService.onChatNotification((data) => {
-      saveNotif({
-        icon: "💬",
-        title: `New Message — ${data.senderName}`,
-        body: data.message,
-        link: `/admin/requests?openChat=${data.roomId}`,
+    chatService.onChatNotification((data: any) => {
+      const notifKey = data.notifId || `chat-${data._id}`;
+      setNotifications(prev => {
+        if (prev.some(n => n.id === notifKey)) return prev;
+        return [{
+          id: notifKey,
+          icon: "💬",
+          title: `New Message — ${data.senderName}`,
+          body: data.message,
+          link: `/admin/requests?openChat=${data.roomId}`,
+          time: new Date(data.timestamp),
+          unread: true,
+        }, ...prev];
       });
+      // Save to DB — backend saves when notifId present, else frontend saves.
+      // localStorage lock prevents multi-tab duplicate saves.
+      if (!data.notifId) {
+        const lockKey = `__chatnotif_${data._id}`;
+        if (!localStorage.getItem(lockKey)) {
+          localStorage.setItem(lockKey, '1');
+          setTimeout(() => localStorage.removeItem(lockKey), 30000);
+          notificationService.create({
+            icon: "💬",
+            title: `New Message — ${data.senderName}`,
+            body: data.message,
+            link: `/admin/requests?openChat=${data.roomId}`,
+          }).catch(() => { localStorage.removeItem(lockKey); });
+        }
+      }
+      playBeep();
     });
 
     socket.on("new_job", handleNewJob);

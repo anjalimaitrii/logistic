@@ -90,11 +90,6 @@ export default function AdminNotifPanel({ isOpen, onClose }: AdminNotifPanelProp
                   <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
                     {formatDistanceToNow(new Date(notif.time), { addSuffix: true })}
                   </span>
-                  {notif.link && (
-                    <span className="text-[9px] font-bold text-primary uppercase tracking-widest">
-                      Tap to open →
-                    </span>
-                  )}
                 </div>
               </div>
               {notif.unread && (

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, ChevronRight, MapPin, Package, Calendar, CheckCircle2,
-  ArrowLeft, Users, Navigation, Loader2, Trash2, Plus, UserPlus, Phone,
+  ArrowLeft, Users, Navigation, Loader2, Trash2, Plus, UserPlus, Phone, Clock,
 } from "lucide-react";
 import { clientService } from "@/services/clientService";
 import { bookingService } from "@/services/bookingService";
@@ -89,6 +89,12 @@ function LocationCard({
 }: LocationCardProps) {
   const isPickup = type === "pickup";
   const inputCls = `w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none focus:border-${color}-200 transition-colors`;
+
+  // Show previous-address suggestions only while an address field is focused (floating overlay)
+  const [showSuggest, setShowSuggest] = useState(false);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onAddrFocus = () => { if (hideTimer.current) clearTimeout(hideTimer.current); if (suggestions.length > 0) setShowSuggest(true); };
+  const onAddrBlur = () => { hideTimer.current = setTimeout(() => setShowSuggest(false), 150); };
 
   return (
     <div className={`space-y-3 p-4 rounded-2xl bg-${color}-50/10 border border-${color}-100/30`}>
@@ -195,24 +201,29 @@ function LocationCard({
         </div>
       )}
 
-      {/* Address */}
+      {/* Address — suggestions float over this block on focus */}
+      <div className="relative">
       <div className="grid grid-cols-2 gap-3">
         <input
           placeholder="Plot/Shop No"
           value={location.plotNo}
           onChange={e => onUpdate("plotNo", e.target.value)}
+          onFocus={onAddrFocus}
+          onBlur={onAddrBlur}
           className={inputCls}
         />
         <input
           placeholder="Street/Area"
           value={location.street}
           onChange={e => onUpdate("street", e.target.value)}
+          onFocus={onAddrFocus}
+          onBlur={onAddrBlur}
           className={inputCls}
         />
       </div>
 
       {/* Country → State → City */}
-      <div className="grid grid-cols-1 gap-2">
+      <div className="grid grid-cols-1 gap-2 mt-3">
         <select
           value={location.country}
           onChange={e => { onUpdate("country", e.target.value); onUpdate("state", ""); onUpdate("city", ""); }}
@@ -252,29 +263,36 @@ function LocationCard({
         </div>
       </div>
 
-      {/* Previous address suggestions */}
-      {suggestions.length > 0 && (
-        <div className="pt-2 border-t border-dashed border-neutral-100">
-          <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2">Previous Addresses</p>
-          <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto">
+      {/* Previous address suggestions — floating overlay, shows on focus, does not push UI */}
+      {showSuggest && suggestions.length > 0 && (
+        <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
+          <div className="flex items-center gap-1.5 px-3 py-2 border-b border-neutral-50">
+            <Clock className="w-3 h-3 text-neutral-300" />
+            <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Previous Addresses</span>
+          </div>
+          <div className="max-h-48 overflow-y-auto">
             {suggestions.map((s, i) => (
               <button
                 key={i}
                 type="button"
-                onClick={() => onFill(s)}
-                className={`text-left px-3 py-2 rounded-lg bg-white border border-neutral-100 hover:border-${color}-300 hover:bg-${color}-50/50 transition-all`}
+                onMouseDown={(e) => { e.preventDefault(); onFill(s); setShowSuggest(false); }}
+                className="w-full text-left px-3 py-2.5 hover:bg-neutral-50 transition-colors border-b border-neutral-50 last:border-0 flex items-center gap-2.5"
               >
-                <div className="text-[11px] font-semibold text-slate-700 truncate">
-                  {[s.plotNo, s.street, s.city, s.country].filter(Boolean).join(", ")}
+                <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-semibold text-slate-700 truncate">
+                    {[s.plotNo, s.street, s.city, s.country].filter(Boolean).join(", ")}
+                  </p>
+                  {s.contactPerson && (
+                    <p className="text-[10px] text-neutral-400 mt-0.5 truncate">{s.contactPerson} · {s.contact}</p>
+                  )}
                 </div>
-                {s.contactPerson && (
-                  <div className="text-[10px] text-neutral-400 mt-0.5">{s.contactPerson} · {s.contact}</div>
-                )}
               </button>
             ))}
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

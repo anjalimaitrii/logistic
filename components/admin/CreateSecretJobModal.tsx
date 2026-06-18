@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, ChevronRight, MapPin, Package, Calendar,
-  CheckCircle2, ArrowLeft, Users, Plus, Trash2, UserPlus, Phone, Navigation, Loader2
+  CheckCircle2, ArrowLeft, Users, Plus, Trash2, UserPlus, Phone, Navigation, Loader2, Clock
 } from "lucide-react";
 import { clientService } from "@/services/clientService";
 import { bookingService } from "@/services/bookingService";
@@ -43,6 +43,11 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
   const [showContact2, setShowContact2] = useState<{ pickup: boolean[]; dropoff: boolean[] }>({ pickup: [false], dropoff: [false] });
   const [gpsLoading, setGpsLoading] = useState<{ type: "pickup" | "dropoff"; idx: number } | null>(null);
   const [clientSuggestions, setClientSuggestions] = useState<ReturnType<typeof emptyLocation>[]>([]);
+  // Floating previous-address dropdown — tracks which location card's address field is focused
+  const [focusedAddr, setFocusedAddr] = useState<string | null>(null);
+  const addrHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onAddrFocus = (key: string) => { if (addrHideTimer.current) clearTimeout(addrHideTimer.current); if (clientSuggestions.length > 0) setFocusedAddr(key); };
+  const onAddrBlur = () => { addrHideTimer.current = setTimeout(() => setFocusedAddr(null), 150); };
 
   const [formData, setFormData] = useState({
     clientId: "",
@@ -497,15 +502,16 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                           </div>
                         </div>
                       )}
+                      <div className="relative">
                       <div className="grid grid-cols-2 gap-3">
-                        <input placeholder="Plot/Shop No" value={loc.plotNo} onChange={(e) => updatePickup(idx, "plotNo", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
-                        <input placeholder="Street/Building" value={loc.street} onChange={(e) => updatePickup(idx, "street", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <input placeholder="Plot/Shop No" value={loc.plotNo} onChange={(e) => updatePickup(idx, "plotNo", e.target.value)} onFocus={() => onAddrFocus(`pickup-${idx}`)} onBlur={onAddrBlur} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <input placeholder="Street/Building" value={loc.street} onChange={(e) => updatePickup(idx, "street", e.target.value)} onFocus={() => onAddrFocus(`pickup-${idx}`)} onBlur={onAddrBlur} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
-                      <select value={loc.country} onChange={(e) => { updatePickup(idx, "country", e.target.value); updatePickup(idx, "state", ""); updatePickup(idx, "city", ""); }} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
+                      <select value={loc.country} onChange={(e) => { updatePickup(idx, "country", e.target.value); updatePickup(idx, "state", ""); updatePickup(idx, "city", ""); }} className="w-full mt-3 bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
                         <option value="">Country *</option>
                         {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-3 mt-3">
                         <select value={loc.state} onChange={(e) => { updatePickup(idx, "state", e.target.value); updatePickup(idx, "city", ""); }} disabled={!loc.country} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer disabled:opacity-50">
                           <option value="">State / Province</option>
                           {(AFRICAN_STATES[loc.country] || []).map(s => <option key={s} value={s}>{s}</option>)}
@@ -515,19 +521,26 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                           {(AFRICAN_CITIES[loc.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
-                      {clientSuggestions.length > 0 && (
-                        <div className="pt-2 border-t border-dashed border-neutral-100">
-                          <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2">Previous Addresses</p>
-                          <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto">
+                      {focusedAddr === `pickup-${idx}` && clientSuggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
+                          <div className="flex items-center gap-1.5 px-3 py-2 border-b border-neutral-50">
+                            <Clock className="w-3 h-3 text-neutral-300" />
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Previous Addresses</span>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto">
                             {clientSuggestions.map((s, i) => (
-                              <button key={i} type="button" onClick={() => fillPickup(idx, s)} className="text-left px-3 py-2 rounded-lg bg-white border border-neutral-100 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all">
-                                <div className="text-[11px] font-semibold text-slate-700 truncate">{[s.plotNo, s.street, s.city, s.country].filter(Boolean).join(", ")}</div>
-                                {s.contactPerson && <div className="text-[10px] text-neutral-400 mt-0.5">{s.contactPerson} · {s.contact}</div>}
+                              <button key={i} type="button" onMouseDown={(e) => { e.preventDefault(); fillPickup(idx, s); setFocusedAddr(null); }} className="w-full text-left px-3 py-2.5 hover:bg-neutral-50 transition-colors border-b border-neutral-50 last:border-0 flex items-center gap-2.5">
+                                <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[11px] font-semibold text-slate-700 truncate">{[s.plotNo, s.street, s.city, s.country].filter(Boolean).join(", ")}</p>
+                                  {s.contactPerson && <p className="text-[10px] text-neutral-400 mt-0.5 truncate">{s.contactPerson} · {s.contact}</p>}
+                                </div>
                               </button>
                             ))}
                           </div>
                         </div>
                       )}
+                      </div>
                     </div>
                   ))}
                   <button onClick={() => { setFormData({ ...formData, pickupLocations: [...formData.pickupLocations, emptyLocation()] }); setShowContact2(prev => ({ ...prev, pickup: [...prev.pickup, false] })); }} className="w-full py-2.5 border border-dashed border-emerald-300 rounded-lg text-[11px] font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors">
@@ -588,15 +601,16 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                           </div>
                         </div>
                       )}
+                      <div className="relative">
                       <div className="grid grid-cols-2 gap-3">
-                        <input placeholder="Plot/Shop No" value={loc.plotNo} onChange={(e) => updateDropoff(idx, "plotNo", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
-                        <input placeholder="Street/Building" value={loc.street} onChange={(e) => updateDropoff(idx, "street", e.target.value)} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <input placeholder="Plot/Shop No" value={loc.plotNo} onChange={(e) => updateDropoff(idx, "plotNo", e.target.value)} onFocus={() => onAddrFocus(`dropoff-${idx}`)} onBlur={onAddrBlur} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
+                        <input placeholder="Street/Building" value={loc.street} onChange={(e) => updateDropoff(idx, "street", e.target.value)} onFocus={() => onAddrFocus(`dropoff-${idx}`)} onBlur={onAddrBlur} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
-                      <select value={loc.country} onChange={(e) => { updateDropoff(idx, "country", e.target.value); updateDropoff(idx, "state", ""); updateDropoff(idx, "city", ""); }} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
+                      <select value={loc.country} onChange={(e) => { updateDropoff(idx, "country", e.target.value); updateDropoff(idx, "state", ""); updateDropoff(idx, "city", ""); }} className="w-full mt-3 bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
                         <option value="">Country *</option>
                         {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
                       </select>
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-2 gap-3 mt-3">
                         <select value={loc.state} onChange={(e) => { updateDropoff(idx, "state", e.target.value); updateDropoff(idx, "city", ""); }} disabled={!loc.country} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer disabled:opacity-50">
                           <option value="">State / Province</option>
                           {(AFRICAN_STATES[loc.country] || []).map(s => <option key={s} value={s}>{s}</option>)}
@@ -606,19 +620,26 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                           {(AFRICAN_CITIES[loc.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
-                      {clientSuggestions.length > 0 && (
-                        <div className="pt-2 border-t border-dashed border-neutral-100">
-                          <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-2">Previous Addresses</p>
-                          <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto">
+                      {focusedAddr === `dropoff-${idx}` && clientSuggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
+                          <div className="flex items-center gap-1.5 px-3 py-2 border-b border-neutral-50">
+                            <Clock className="w-3 h-3 text-neutral-300" />
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Previous Addresses</span>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto">
                             {clientSuggestions.map((s, i) => (
-                              <button key={i} type="button" onClick={() => fillDropoff(idx, s)} className="text-left px-3 py-2 rounded-lg bg-white border border-neutral-100 hover:border-rose-300 hover:bg-rose-50/50 transition-all">
-                                <div className="text-[11px] font-semibold text-slate-700 truncate">{[s.plotNo, s.street, s.city, s.country].filter(Boolean).join(", ")}</div>
-                                {s.contactPerson && <div className="text-[10px] text-neutral-400 mt-0.5">{s.contactPerson} · {s.contact}</div>}
+                              <button key={i} type="button" onMouseDown={(e) => { e.preventDefault(); fillDropoff(idx, s); setFocusedAddr(null); }} className="w-full text-left px-3 py-2.5 hover:bg-neutral-50 transition-colors border-b border-neutral-50 last:border-0 flex items-center gap-2.5">
+                                <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[11px] font-semibold text-slate-700 truncate">{[s.plotNo, s.street, s.city, s.country].filter(Boolean).join(", ")}</p>
+                                  {s.contactPerson && <p className="text-[10px] text-neutral-400 mt-0.5 truncate">{s.contactPerson} · {s.contact}</p>}
+                                </div>
                               </button>
                             ))}
                           </div>
                         </div>
                       )}
+                      </div>
                     </div>
                   ))}
                   <button onClick={() => { setFormData({ ...formData, dropoffLocations: [...formData.dropoffLocations, emptyLocation()] }); setShowContact2(prev => ({ ...prev, dropoff: [...prev.dropoff, false] })); }} className="w-full py-2.5 border border-dashed border-rose-300 rounded-lg text-[11px] font-semibold text-rose-600 hover:bg-rose-50 transition-colors">

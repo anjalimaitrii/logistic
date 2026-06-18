@@ -11,6 +11,7 @@ import { bookingService } from "@/services/bookingService";
 import { settlementService } from "@/services/settlementService";
 import { fetchLiveVehicles, getVehicleStatus } from "@/services/liveTrackingService";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
+import { formatDate } from "@/lib/datetime";
 
 const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniMap"), {
   ssr: false,
@@ -328,13 +329,14 @@ export default function AdminDashboard() {
             isOpen={isChatOpen}
             onClose={() => setIsChatOpen(false)}
             clientId={(selectedRequest?.clientId as any)?._id || (selectedRequest?.clientId as any)?.id || ""}
+            tripId={selectedRequest?.tripId || ""}
             request={selectedRequest ? {
                id: selectedRequest.tripId || `#FL-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
                customer: (selectedRequest.clientId as any)?.name || "Direct Client",
                route: [getRoute(selectedRequest)],
                cargo: selectedRequest.cargoDetails?.goodsType,
                price: selectedRequest.finalAmount ? `K${selectedRequest.finalAmount}` : "TBD",
-               date: new Date(selectedRequest.createdAt || Date.now()).toLocaleDateString(),
+               date: formatDate(selectedRequest.createdAt || Date.now()),
                status: "Active" as any,
             } : null}
             onFinalize={() => setIsChatOpen(false)}

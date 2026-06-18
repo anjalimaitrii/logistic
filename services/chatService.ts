@@ -13,6 +13,9 @@ export interface ChatMessage {
   timestamp: string | Date;
 }
 
+// Each trip has its own chat thread: roomId = clientId__tripId
+export const buildRoomId = (clientId: string, tripId: string) => `${clientId}__${tripId}`;
+
 export const chatService = {
   connect(): Socket {
     if (!socket || !socket.connected) {
@@ -56,6 +59,16 @@ export const chatService = {
 
   offChatNotification() {
     socket?.off("chat_notification");
+  },
+
+  onClientNotification(callback: (data: { roomId: string; clientId?: string; tripId?: string; message: string; senderName: string; notifId?: string }) => void) {
+    this.connect();
+    socket?.off("client_notification");
+    socket?.on("client_notification", callback);
+  },
+
+  offClientNotification() {
+    socket?.off("client_notification");
   },
 
   offAll() {
