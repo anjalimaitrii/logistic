@@ -36,6 +36,9 @@ export default function Home() {
 
     // Admin hardcoded credentials
     if (identifier === "admin@gmail.com" && password === "admin123") {
+      document.cookie = 'role=admin; path=/; SameSite=Strict';
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
       router.push("/admin/dashboard");
       return;
     }
@@ -55,6 +58,7 @@ export default function Home() {
 
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.client));
+      document.cookie = 'role=client; path=/; SameSite=Strict';
 
       router.push("/dashboard");
     } catch (err: any) {

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { X, Smartphone, Download, CheckCircle2 } from 'lucide-react';
+import { usePathname } from 'next/navigation';
+import { X, Smartphone } from 'lucide-react';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -13,11 +14,15 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export default function PwaInstallPrompt() {
+  const pathname = usePathname();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [isInstalled, setIsInstalled] = useState(false);
 
   useEffect(() => {
+    // Always capture the install event (fires once at page load — can't miss it)
+    // Rendering is blocked on login page via the pathname check below
+
     // Check if app is already installed
     if (window.matchMedia('(display-mode: standalone)').matches) {
        setIsInstalled(true);
@@ -76,13 +81,13 @@ export default function PwaInstallPrompt() {
     sessionStorage.setItem('pwa-prompt-dismissed', 'true');
   };
 
-  if (isInstalled || !isVisible) return null;
+  if (pathname === '/' || isInstalled || !isVisible) return null;
 
   return (
     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md animate-in slide-in-from-bottom-10 duration-500 ease-out">
       <div className="bg-secondary/95 backdrop-blur-md border border-neutral-200/20 rounded-2xl shadow-fleet-lg p-5 flex items-center gap-4 relative overflow-hidden group">
         {/* Decorative gradient */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-primary/20 transition-colors duration-500" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 rounded-full -mr-16 -mt-16 blur-3xl group-hover:bg-primary/20 transition-colors duration-500 pointer-events-none" />
         
         <div className="shrink-0 w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center text-primary border border-primary/20">
           <Smartphone className="w-6 h-6" />

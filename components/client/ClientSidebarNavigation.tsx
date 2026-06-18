@@ -41,6 +41,7 @@ export function ClientSidebarNavigation({ isExpanded, onHover }: { isExpanded: b
     const router = useRouter();
 
     const handleLogout = () => {
+        document.cookie = 'role=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         router.push("/");

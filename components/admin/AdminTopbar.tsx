@@ -33,6 +33,9 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
   }, [showProfileMenu]);
 
   const handleLogout = () => {
+    document.cookie = 'role=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
     setShowProfileMenu(false);
     router.push("/");
   };
