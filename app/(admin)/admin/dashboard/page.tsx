@@ -88,9 +88,9 @@ export default function AdminDashboard() {
    const pendingPayments = bookings.filter(b => !b.finalAmount && b.status !== "rejected" && b.status !== "pending").length;
 
    const fmt = (n: number) =>
-      n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M`
-      : n >= 1_000   ? `$${Math.round(n / 1_000)}K`
-      : n > 0        ? `$${n}`
+      n >= 1_000_000 ? `K ${(n / 1_000_000).toFixed(1)}M`
+      : n >= 1_000   ? `K ${Math.round(n / 1_000)}K`
+      : n > 0        ? `K ${n}`
       : "--";
 
    const kpis = [
@@ -139,7 +139,7 @@ export default function AdminDashboard() {
       status: b?.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : "Unknown",
       driver: "TBD",
       route: getRoute(b),
-      proposed: b?.finalAmount ? `₦${Number(b.finalAmount).toLocaleString()}` : "TBD",
+      proposed: b?.finalAmount ? `K${Number(b.finalAmount).toLocaleString()}` : "TBD",
       type: getStatusType(b?.status || ""),
       rawId: b?._id,
       raw: b,
@@ -333,7 +333,7 @@ export default function AdminDashboard() {
                customer: (selectedRequest.clientId as any)?.name || "Direct Client",
                route: [getRoute(selectedRequest)],
                cargo: selectedRequest.cargoDetails?.goodsType,
-               price: selectedRequest.finalAmount ? `₦${selectedRequest.finalAmount}` : "TBD",
+               price: selectedRequest.finalAmount ? `K${selectedRequest.finalAmount}` : "TBD",
                date: new Date(selectedRequest.createdAt || Date.now()).toLocaleDateString(),
                status: "Active" as any,
             } : null}

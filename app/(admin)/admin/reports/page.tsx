@@ -13,7 +13,7 @@ import { assignmentService }      from "@/services/assignmentService";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const N = (v: any) => parseFloat(String(v ?? 0).replace(/[^\d.-]/g, "")) || 0;
-const naira   = (n: number) => `₦${Math.round(n).toLocaleString("en")}`;
+const naira   = (n: number) => `K ${Math.round(n).toLocaleString("en")}`;
 const fmtDate = (d: any) => d ? new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const shortId = (id: any) => (typeof id === "string" ? id : id?._id ?? "")?.slice(-8)?.toUpperCase() || "—";
 
@@ -630,7 +630,7 @@ export default function ReportsPage() {
                                   <Td><span className="text-[10px]">{leg.from} → {leg.to}</span></Td>
                                   <Td>{leg.km ?? "—"}</Td>
                                   <Td>{leg.liters?.toFixed(1) ?? "—"} L</Td>
-                                  <Td>₦{leg.mileage ?? "—"}/L</Td>
+                                  <Td>K{leg.mileage ?? "—"}/L</Td>
                                   <td className="py-2 text-right font-bold text-amber-600 text-[11px]">{naira(N(leg.amount))}</td>
                                 </tr>
                               ))}
@@ -640,7 +640,7 @@ export default function ReportsPage() {
                         {st.fuelDetails?.totalDistance && (
                           <p className="text-[10px] text-neutral-400">
                             Total: <b>{st.fuelDetails.totalDistance} km</b> · {st.fuelDetails.totalLiters?.toFixed(1)} L
-                            · Rate ₦{st.fuelDetails.fuelRate}/L
+                            · Rate K{st.fuelDetails.fuelRate}/L
                           </p>
                         )}
                       </div>

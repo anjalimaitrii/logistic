@@ -316,7 +316,7 @@ export default function RoutesMasterPage() {
                 <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
                   <MapPin className="w-2.5 h-2.5 text-white" />
                 </div>
-                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Pickup Location</span>
+                <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Route A</span>
               </div>
               <div className="space-y-2 pl-7">
                 <div className="space-y-1.5">
@@ -358,7 +358,7 @@ export default function RoutesMasterPage() {
                 <div className="w-5 h-5 rounded-full bg-rose-500 flex items-center justify-center shrink-0">
                   <MapPin className="w-2.5 h-2.5 text-white" />
                 </div>
-                <span className="text-[10px] font-bold text-rose-600 uppercase tracking-widest">Dropoff Location</span>
+                <span className="text-[10px] font-bold text-rose-600 uppercase tracking-widest">Route B</span>
               </div>
               <div className="space-y-2 pl-7">
                 <div className="space-y-1.5">

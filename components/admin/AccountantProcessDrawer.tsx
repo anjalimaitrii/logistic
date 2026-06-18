@@ -160,7 +160,7 @@ export default function AccountantProcessDrawer({ isOpen, onClose, job, onSubmit
                <div className="bg-emerald-50/30 border border-emerald-100/50 rounded-[32px] p-6 space-y-4">
                   <div className="relative group">
                     <div className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-lg shadow-emerald-600/20">
-                       <span className="text-[14px] font-bold">₦</span>
+                       <span className="text-[14px] font-bold">K</span>
                     </div>
                     <input 
                       type="number"

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateTruckModal from "@/components/admin/CreateTruckModal";
 import TruckComplianceDrawer from "@/components/admin/TruckComplianceDrawer";
-import { ChevronRight, Eye, Settings, Plus, Package, X, Trash2 } from "lucide-react";
+import { ChevronRight, Eye, Settings, Plus, Package, X, Trash2, AlertTriangle } from "lucide-react";
 import { truckService } from "@/services/truckService";
 import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import { driverService } from "@/services/driverService";
@@ -17,6 +17,27 @@ function gpsStatusToTruck(s: string) {
   if (s === "IDLE")    return "Idle";
   if (s === "STOP")    return "Stopped";
   return "Inactive";
+}
+
+function daysUntil(dateStr: string): number | null {
+  if (!dateStr) return null;
+  const diff = new Date(dateStr).setHours(0,0,0,0) - new Date().setHours(0,0,0,0);
+  return Math.ceil(diff / 86400000);
+}
+
+interface ComplianceAlert { truckId: string; label: string; days: number; }
+
+function getComplianceAlerts(trucks: any[]): ComplianceAlert[] {
+  const alerts: ComplianceAlert[] = [];
+  trucks.forEach(t => {
+    (t.complianceDocs || []).forEach((doc: any) => {
+      const d = daysUntil(doc.dueDate);
+      if (d !== null && d <= 20) alerts.push({ truckId: t.truckId, label: doc.type, days: d });
+    });
+    const sd = daysUntil(t.nextServiceDate);
+    if (sd !== null && sd <= 20) alerts.push({ truckId: t.truckId, label: "Service", days: sd });
+  });
+  return alerts.sort((a, b) => a.days - b.days);
 }
 
 export default function AdminTrucks() {
@@ -34,6 +55,16 @@ export default function AdminTrucks() {
   const [colForm, setColForm] = useState({ name: "", description: "", quantity: "1" });
   const [colSaving, setColSaving] = useState(false);
   const [renewState, setRenewState] = useState<{ colId: string; quantity: string } | null>(null);
+  const [alertOpen, setAlertOpen] = useState(false);
+  const alertRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (alertRef.current && !alertRef.current.contains(e.target as Node)) setAlertOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   useEffect(() => {
     loadTrucks();
@@ -297,6 +328,48 @@ export default function AdminTrucks() {
             <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Manage Trucks</h1>
             <p className="text-[11px] text-neutral-400 mt-0.5">Inventory and health monitoring of all fleet units.</p>
           </div>
+          {/* Compliance Alert Button */}
+          {(() => {
+            const alerts = getComplianceAlerts(trucks);
+            if (alerts.length === 0) return null;
+            const critical = alerts.filter(a => a.days <= 7).length;
+            return (
+              <div className="relative" ref={alertRef}>
+                <button
+                  onClick={() => setAlertOpen(v => !v)}
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[11px] font-bold uppercase tracking-widest border transition-all ${critical > 0 ? "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100" : "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"}`}
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Renewals Due
+                  <span className={`w-5 h-5 rounded-full text-white text-[10px] flex items-center justify-center font-black ${critical > 0 ? "bg-rose-500" : "bg-amber-500"}`}>
+                    {alerts.length}
+                  </span>
+                </button>
+
+                {alertOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-neutral-100 rounded-2xl shadow-2xl shadow-slate-200 z-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-neutral-50 bg-neutral-50/50">
+                      <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Upcoming Renewals</p>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto divide-y divide-neutral-50">
+                      {alerts.map((a, i) => (
+                        <div key={i} className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50 transition-colors">
+                          <div>
+                            <p className="text-[12px] font-semibold text-slate-800">{a.truckId}</p>
+                            <p className="text-[10px] text-neutral-400 font-medium mt-0.5">{a.label}</p>
+                          </div>
+                          <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${a.days <= 0 ? "bg-rose-100 text-rose-600" : a.days <= 7 ? "bg-rose-50 text-rose-500" : "bg-amber-50 text-amber-600"}`}>
+                            {a.days <= 0 ? "Expired" : `${a.days}d left`}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* <button
             onClick={() => setModalOpen(true)}
             className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-semibold text-[10px] uppercase tracking-widest shadow-xl shadow-slate-200 hover:brightness-110 transition-all w-fit flex items-center gap-2"

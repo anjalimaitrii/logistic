@@ -219,7 +219,7 @@ export default function CreateJobModal({ isOpen, onClose, onSubmit }: CreateJobM
                         <input
                           type="text"
                           className="bg-transparent text-[13px] font-semibold text-emerald-600 outline-none w-full"
-                          placeholder="Amount in ₦"
+                          placeholder="Amount in K"
                           onChange={(e) => setFormData({...formData, advancePaid: e.target.value})}
                         />
                       </div>

@@ -14,6 +14,7 @@ import {
    DollarSign,
    ChevronDown,
    Check,
+   AlertTriangle,
 } from "lucide-react";
 import { truckService } from "@/services/truckService";
 
@@ -21,6 +22,12 @@ interface TruckComplianceDrawerProps {
    isOpen: boolean;
    onClose: () => void;
    truckId: string | null;
+}
+
+function daysUntil(dateStr: string): number | null {
+   if (!dateStr) return null;
+   const diff = new Date(dateStr).setHours(0,0,0,0) - new Date().setHours(0,0,0,0);
+   return Math.ceil(diff / 86400000);
 }
 
 const COMPLIANCE_DOC_TYPES = [
@@ -225,11 +232,25 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                     </div>
 
                                     <div className="space-y-3">
-                                       {docs.map((doc, idx) => (
-                                          <div key={idx} className="bg-neutral-50 border border-neutral-100 rounded-2xl p-4 hover:bg-neutral-100/50 transition-all group">
+                                       {docs.map((doc, idx) => {
+                                          const days = daysUntil(doc.dueDate);
+                                          const isExpired = days !== null && days <= 0;
+                                          const isCritical = days !== null && days > 0 && days <= 7;
+                                          const isWarning = days !== null && days > 7 && days <= 20;
+                                          const borderClass = isExpired ? "border-rose-300 bg-rose-50/40" : isCritical ? "border-rose-200 bg-rose-50/20" : isWarning ? "border-amber-200 bg-amber-50/20" : "border-neutral-100 bg-neutral-50";
+                                          return (
+                                          <div key={idx} className={`border rounded-2xl p-4 hover:brightness-95 transition-all group ${borderClass}`}>
                                              <div className="flex justify-between items-start mb-4">
-                                                <div>
-                                                   <span className="text-[13px] font-semibold text-slate-900">{doc.type}</span>
+                                                <div className="flex-1">
+                                                   <div className="flex items-center gap-2">
+                                                      <span className="text-[13px] font-semibold text-slate-900">{doc.type}</span>
+                                                      {days !== null && days <= 20 && (
+                                                         <span className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[9px] font-bold ${isExpired ? "bg-rose-100 text-rose-600" : isCritical ? "bg-rose-50 text-rose-500" : "bg-amber-50 text-amber-600"}`}>
+                                                            <AlertTriangle className="w-2.5 h-2.5" />
+                                                            {isExpired ? "Expired" : `${days}d left`}
+                                                         </span>
+                                                      )}
+                                                   </div>
                                                    <div className="flex items-center gap-3 text-[10px] font-medium text-neutral-400 mt-0.5">
                                                       <span className="flex items-center gap-1">
                                                          <Calendar className="w-3 h-3" /> Due: {doc.dueDate || "Not Set"}
@@ -249,6 +270,7 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                                       type="date"
                                                       className="w-full bg-white border border-neutral-100 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-900 outline-none focus:border-primary/20"
                                                       value={doc.dueDate}
+                                                      min={new Date().toISOString().split("T")[0]}
                                                       onChange={(e) => updateDocDate(doc.type, e.target.value)}
                                                    />
                                                 </div>
@@ -273,7 +295,8 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                                 </div>
                                              </div>
                                           </div>
-                                       ))}
+                                       );
+                                       })}
                                     </div>
                                  </section>
                               )}
@@ -294,7 +317,7 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                           {/* Maintenance Fare Cost */}
                                           <div className="space-y-1.5">
                                              <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
-                                                <DollarSign className="w-3 h-3" /> Maintenance Fare Cost (₦)
+                                                <DollarSign className="w-3 h-3" /> Maintenance Fare Cost (K)
                                              </label>
                                              <input
                                                 type="number"
@@ -338,6 +361,7 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                                 type="date"
                                                 className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-primary/20 transition-all"
                                                 value={nextServiceDate}
+                                                min={new Date().toISOString().split("T")[0]}
                                                 onChange={(e) => setNextServiceDate(e.target.value)}
                                              />
                                           </div>

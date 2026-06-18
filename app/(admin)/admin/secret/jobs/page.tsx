@@ -42,8 +42,8 @@ export default function SecretJobsPage() {
     route: `${b.pickupLocations?.[0]?.address?.city || "Origin"} → ${b.dropoffLocations?.[0]?.address?.city || "Dest."}`,
     cargo: b.cargoDetails?.goodsType || "—",
     weight: b.cargoDetails?.weight ? `${b.cargoDetails.weight} KG` : "—",
-    finalAmount: b.finalAmount ? `₹${b.finalAmount.toLocaleString()}` : "—",
-    advancePaid: b.advancePaid ? `₹${b.advancePaid.toLocaleString()}` : "—",
+    finalAmount: b.finalAmount ? `K${b.finalAmount.toLocaleString()}` : "—",
+    advancePaid: b.advancePaid ? `K${b.advancePaid.toLocaleString()}` : "—",
     date: b.createdAt
       ? format(new Date(b.createdAt), "dd MMM yyyy")
       : "—",

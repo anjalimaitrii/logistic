@@ -11,10 +11,29 @@ import {
   Clock,
   CheckCircle2,
   ChevronDown,
-  ListOrdered
+  ListOrdered,
+  ShieldCheck,
+  AlertTriangle,
+  FileText,
 } from "lucide-react";
+
+function daysUntil(dateStr: string): number | null {
+  if (!dateStr) return null;
+  const diff = new Date(dateStr).setHours(0,0,0,0) - new Date().setHours(0,0,0,0);
+  return Math.ceil(diff / 86400000);
+}
+
+function complianceDot(complianceDocs: any[]): string {
+  if (!complianceDocs?.length) return "⚪";
+  const hasExpired = complianceDocs.some((d: any) => { const x = daysUntil(d.dueDate); return x !== null && x <= 0; });
+  if (hasExpired) return "🔴";
+  const hasExpiring = complianceDocs.some((d: any) => { const x = daysUntil(d.dueDate); return x !== null && x <= 20; });
+  if (hasExpiring) return "🟠";
+  return "🟢";
+}
 import { driverService } from "@/services/driverService";
 import { assignmentService } from "@/services/assignmentService";
+import { truckService } from "@/services/truckService";
 import { useNotifications } from "@/context/NotificationContext";
 
 interface OperationAssignmentDrawerProps {
@@ -30,6 +49,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
   const [drivers, setDrivers] = useState<any[]>([]);
   const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
   const [driverQueueInfo, setDriverQueueInfo] = useState<any[]>([]);
+  const [truckDocs, setTruckDocs] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     driver: "",
@@ -75,6 +95,16 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
         truckHealth: driver.assignedTruck?.health || "Good"
       });
 
+      // Fetch truck compliance docs
+      if (driver.assignedTruck?._id) {
+        try {
+          const truck = await truckService.getById(driver.assignedTruck._id);
+          setTruckDocs(truck?.complianceDocs || []);
+        } catch { setTruckDocs([]); }
+      } else {
+        setTruckDocs([]);
+      }
+
       // Fetch current queue for on_trip or returning drivers
       if (ds === "on_trip" || ds === "returning") {
         try {
@@ -98,6 +128,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
         truckNumber: "",
         truckHealth: "Excellent"
       });
+      setTruckDocs([]);
       setDriverQueueInfo([]);
     }
   };
@@ -306,14 +337,22 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                     <div className="bg-neutral-50 rounded-[28px] p-5 border border-neutral-100 shadow-sm space-y-5">
                       <div className="flex items-center gap-2 px-1">
                         <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                        <h4 className="text-[10px] font-bold text-slate-900 uppercase tracking-widest">components\admin\OperationAssignmentDrawer.tsx</h4>
+                        <h4 className="text-[10px] font-bold text-slate-900 uppercase tracking-widest">Driver & Truck</h4>
                       </div>
 
                       <div className="space-y-4">
                         <div className="space-y-1.5">
-                          <label className="text-[9px] font-semibold text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
-                            <Truck className="w-3 h-3 text-primary" /> Select Fleet Unit
-                          </label>
+                          <div className="flex items-center justify-between">
+                            <label className="text-[9px] font-semibold text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
+                              <Truck className="w-3 h-3 text-primary" /> Select Fleet Unit
+                            </label>
+                            <div className="flex items-center gap-2.5">
+                              <span className="flex items-center gap-1 text-[9px] font-semibold text-neutral-400">🟢 <span>Compliant</span></span>
+                              <span className="flex items-center gap-1 text-[9px] font-semibold text-neutral-400">🟠 <span>Expiring soon</span></span>
+                              <span className="flex items-center gap-1 text-[9px] font-semibold text-neutral-400">🔴 <span>Expired</span></span>
+                              <span className="flex items-center gap-1 text-[9px] font-semibold text-neutral-400">⚪ <span>No Docs</span></span>
+                            </div>
+                          </div>
                           <div className="relative">
                             <select
                               value={drivers.find(d => d.name === formData.driver)?._id || ""}
@@ -327,7 +366,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                                 <optgroup label="── Available ──">
                                   {availableDrivers.map((d) => (
                                     <option key={d._id} value={d._id}>
-                                      {d.name} · {d.assignedTruck?.truckId || "No Truck"} ({d.assignedTruck?.health || "N/A"}){d.driverStatus === "returning" ? " — RETURNING" : ""}
+                                      {complianceDot(d.assignedTruck?.complianceDocs)} {(d.name || "").replace(/\bnull\b/g, "").replace(/\s+/g, " ").trim()} · {d.assignedTruck?.truckId || "No Truck"}{d.driverStatus === "returning" ? " — RETURNING" : ""}
                                     </option>
                                   ))}
                                 </optgroup>
@@ -337,7 +376,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                                 <optgroup label="── On Trip — Will Queue ──">
                                   {onTripDrivers.map((d) => (
                                     <option key={d._id} value={d._id}>
-                                      {d.name} · {d.assignedTruck?.truckId || "No Truck"} — ON TRIP
+                                      {complianceDot(d.assignedTruck?.complianceDocs)} {(d.name || "").replace(/\bnull\b/g, "").replace(/\s+/g, " ").trim()} · {d.assignedTruck?.truckId || "No Truck"} — ON TRIP
                                     </option>
                                   ))}
                                 </optgroup>
@@ -356,12 +395,49 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                                 <span className="text-[10px] text-neutral-400 font-bold uppercase">Vehicle</span>
                                 <span className="text-[11px] font-bold text-slate-900">{formData.truckNumber}</span>
                               </div>
-                              <div className="flex justify-between">
-                                <span className="text-[10px] text-neutral-400 font-bold uppercase">Health</span>
-                                <span className={`text-[10px] font-bold uppercase ${formData.truckHealth === 'Excellent' ? 'text-emerald-500' : 'text-amber-500'}`}>
-                                  {formData.truckHealth}
-                                </span>
-                              </div>
+                              {/* Compliance status summary */}
+                              {(() => {
+                                if (!truckDocs.length) return (
+                                  <div className="flex justify-between items-center pt-1 border-t border-neutral-50">
+                                    <span className="text-[10px] text-neutral-400 font-bold uppercase">Compliance</span>
+                                    <span className="text-[10px] font-bold text-neutral-400">No docs on file</span>
+                                  </div>
+                                );
+                                const expired = truckDocs.filter((d: any) => { const x = daysUntil(d.dueDate); return x !== null && x <= 0; });
+                                const expiring = truckDocs.filter((d: any) => { const x = daysUntil(d.dueDate); return x !== null && x > 0 && x <= 20; });
+                                const isOk = expired.length === 0 && expiring.length === 0;
+                                return (
+                                  <div className="pt-1 border-t border-neutral-50 space-y-2">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-[10px] text-neutral-400 font-bold uppercase">Compliance</span>
+                                      <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg ${expired.length > 0 ? "bg-rose-50 text-rose-600" : expiring.length > 0 ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"}`}>
+                                        {expired.length > 0 ? <AlertTriangle className="w-3 h-3" /> : expiring.length > 0 ? <AlertTriangle className="w-3 h-3" /> : <ShieldCheck className="w-3 h-3" />}
+                                        {expired.length > 0 ? `${expired.length} Expired` : expiring.length > 0 ? `${expiring.length} Expiring Soon` : "Compliant"}
+                                      </span>
+                                    </div>
+                                    {/* Individual docs */}
+                                    <div className="space-y-1 pt-1">
+                                      {truckDocs.map((doc: any, i: number) => {
+                                        const d = daysUntil(doc.dueDate);
+                                        const isExp = d !== null && d <= 0;
+                                        const isCrit = d !== null && d > 0 && d <= 7;
+                                        const isWarn = d !== null && d > 7 && d <= 20;
+                                        return (
+                                          <div key={i} className={`flex items-center justify-between px-2 py-1.5 rounded-lg ${isExp ? "bg-rose-50" : isCrit ? "bg-rose-50/50" : isWarn ? "bg-amber-50/50" : "bg-neutral-50"}`}>
+                                            <div className="flex items-center gap-1.5">
+                                              <FileText className={`w-3 h-3 ${isExp || isCrit ? "text-rose-400" : isWarn ? "text-amber-400" : "text-neutral-300"}`} />
+                                              <span className="text-[10px] font-semibold text-slate-700">{doc.type}</span>
+                                            </div>
+                                            <span className={`text-[9px] font-bold ${isExp ? "text-rose-600" : isCrit ? "text-rose-500" : isWarn ? "text-amber-600" : "text-emerald-600"}`}>
+                                              {!doc.dueDate ? "No date" : isExp ? "Expired" : d !== null && d <= 20 ? `${d}d left` : `✓ ${doc.dueDate}`}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                );
+                              })()}
 
                               {/* Queue info for on_trip drivers; returning drivers get a simple note */}
                               {formData.driverStatus === "returning" && (

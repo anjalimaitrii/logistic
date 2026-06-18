@@ -7,18 +7,18 @@ import { ChevronRight, CreditCard, ArrowUpRight, ArrowDownRight, DollarSign } fr
 
 export default function FinancePage() {
   const financeKpis = [
-    { label: "Total Revenue", value: "₦12.4M", icon: "💰", subText: "Collected this month", trend: "↑ 12.5%", variant: "success" as const },
-    { label: "Total Expenses", value: "₦4.8M", icon: "📉", subText: "Fuel, repairs & roles", trend: "↑ 5.2%", variant: "danger" as const },
-    { label: "Net Profit", value: "₦7.6M", icon: "📊", subText: "Estimated margin: 61%", trend: "↑ 8.4%", variant: "primary" as const },
-    { label: "Pending Payouts", value: "₦1.2M", icon: "🕒", subText: "4 invoices awaiting", trend: "↓ 2.1%", variant: "warning" as const },
+    { label: "Total Revenue", value: "K 12.4M", icon: "💰", subText: "Collected this month", trend: "↑ 12.5%", variant: "success" as const },
+    { label: "Total Expenses", value: "K 4.8M", icon: "📉", subText: "Fuel, repairs & roles", trend: "↑ 5.2%", variant: "danger" as const },
+    { label: "Net Profit", value: "K 7.6M", icon: "📊", subText: "Estimated margin: 61%", trend: "↑ 8.4%", variant: "primary" as const },
+    { label: "Pending Payouts", value: "K 1.2M", icon: "🕒", subText: "4 invoices awaiting", trend: "↓ 2.1%", variant: "warning" as const },
   ];
 
   const transactions = [
-    { id: "TX-9021", category: "Fuel", amount: "₦450,000", status: "Completed", date: "Apr 08, 2026", method: "Fleet Card" },
-    { id: "TX-9018", category: "Maintenance", amount: "₦120,500", status: "Pending", date: "Apr 07, 2026", method: "Direct Bank" },
-    { id: "TX-8995", category: "Driver Salary", amount: "₦85,000", status: "Completed", date: "Apr 05, 2026", method: "Wallet Payout" },
-    { id: "TX-8982", category: "Permits", amount: "₦45,000", status: "Failed", date: "Apr 04, 2026", method: "Online Pay" },
-    { id: "TX-8981", category: "Fuel", amount: "₦41,000", status: "Completed", date: "Apr 04, 2026", method: "Online Pay" },
+    { id: "TX-9021", category: "Fuel", amount: "K450,000", status: "Completed", date: "Apr 08, 2026", method: "Fleet Card" },
+    { id: "TX-9018", category: "Maintenance", amount: "K120,500", status: "Pending", date: "Apr 07, 2026", method: "Direct Bank" },
+    { id: "TX-8995", category: "Driver Salary", amount: "K85,000", status: "Completed", date: "Apr 05, 2026", method: "Wallet Payout" },
+    { id: "TX-8982", category: "Permits", amount: "K45,000", status: "Failed", date: "Apr 04, 2026", method: "Online Pay" },
+    { id: "TX-8981", category: "Fuel", amount: "K41,000", status: "Completed", date: "Apr 04, 2026", method: "Online Pay" },
   ];
 
   const columns = [
@@ -124,7 +124,7 @@ export default function FinancePage() {
                   })}
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span className="text-xl font-bold text-slate-900">₦4.8M</span>
+                  <span className="text-xl font-bold text-slate-900">K4.8M</span>
                   <span className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest">Total cost</span>
                 </div>
               </div>

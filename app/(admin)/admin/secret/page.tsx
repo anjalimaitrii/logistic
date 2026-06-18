@@ -118,7 +118,7 @@ export default function SecretDashboard() {
       client: (b.clientId as any)?.name || b.metadata?.client || "—",
       route: `${city1} → ${city2}`,
       tax: b.withTax ? "With Tax" : "Without Tax",
-      price: b.finalAmount ? `₹${b.finalAmount.toLocaleString()}` : "TBD",
+      price: b.finalAmount ? `K${b.finalAmount.toLocaleString()}` : "TBD",
       status,
       raw: b,
     };

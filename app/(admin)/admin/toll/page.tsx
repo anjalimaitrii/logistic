@@ -35,7 +35,7 @@ export default function TollAccountPage() {
     if (!amt || amt <= 0) return;
     try {
       setIsSubmitting(true);
-      await tollService.addRecharge(amt, rechargeNote || `Recharge of ₹${amt.toLocaleString()}`);
+      await tollService.addRecharge(amt, rechargeNote || `Recharge of K${amt.toLocaleString()}`);
       setRechargeAmount("");
       setRechargeNote("");
       setShowRechargeForm(false);
@@ -90,7 +90,7 @@ export default function TollAccountPage() {
               <div className="h-7 w-32 bg-slate-100 animate-pulse rounded-lg" />
             ) : (
               <span className="text-[28px] font-bold text-slate-900 tracking-tight">
-                ₹{(account?.balance || 0).toLocaleString()}
+                K{(account?.balance || 0).toLocaleString()}
               </span>
             )}
           </div>
@@ -106,7 +106,7 @@ export default function TollAccountPage() {
               <div className="h-7 w-24 bg-slate-100 animate-pulse rounded-lg" />
             ) : (
               <span className="text-[28px] font-bold text-emerald-600 tracking-tight">
-                ₹{totalRecharged.toLocaleString()}
+                K{totalRecharged.toLocaleString()}
               </span>
             )}
           </div>
@@ -122,7 +122,7 @@ export default function TollAccountPage() {
               <div className="h-7 w-24 bg-slate-100 animate-pulse rounded-lg" />
             ) : (
               <span className="text-[28px] font-bold text-rose-500 tracking-tight">
-                ₹{totalDeducted.toLocaleString()}
+                K{totalDeducted.toLocaleString()}
               </span>
             )}
           </div>
@@ -137,7 +137,7 @@ export default function TollAccountPage() {
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div>
                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">
-                  Amount (₹) *
+                  Amount (K) *
                 </label>
                 <input
                   type="number"
@@ -225,7 +225,7 @@ export default function TollAccountPage() {
                     <p className={`text-[13px] font-bold ${
                       tx.type === "recharge" ? "text-emerald-600" : "text-rose-500"
                     }`}>
-                      {tx.type === "recharge" ? "+" : "-"}₹{Number(tx.amount).toLocaleString()}
+                      {tx.type === "recharge" ? "+" : "-"}K{Number(tx.amount).toLocaleString()}
                     </p>
                     <p className="text-[9px] text-slate-400 mt-0.5">
                       {tx.date ? format(new Date(tx.date), "dd MMM yyyy, hh:mm a") : "—"}

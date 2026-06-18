@@ -96,9 +96,9 @@ export default function EditJobDrawer({ isOpen, onClose, job, onUpdate }: EditJo
             {/* Amount Fields */}
             <div className="grid grid-cols-1 gap-5">
               <div className="space-y-2">
-                <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest ml-1">Final Deal Amount (₦)</label>
+                <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest ml-1">Final Deal Amount (K)</label>
                 <div className="relative group">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center text-[14px] font-bold shadow-lg shadow-slate-900/10">₦</div>
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center text-[14px] font-bold shadow-lg shadow-slate-900/10">K</div>
                   <input
                     type="number"
                     value={formData.finalAmount}
@@ -110,9 +110,9 @@ export default function EditJobDrawer({ isOpen, onClose, job, onUpdate }: EditJo
               </div>
 
               <div className="space-y-2">
-                <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest ml-1">Advance Paid to Driver (₦)</label>
+                <label className="text-[11px] font-bold text-neutral-500 uppercase tracking-widest ml-1">Advance Paid to Driver (K)</label>
                 <div className="relative group">
-                   <div className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-[14px] font-bold shadow-lg shadow-emerald-600/10">₦</div>
+                   <div className="absolute left-4 top-1/2 -translate-y-1/2 w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center text-[14px] font-bold shadow-lg shadow-emerald-600/10">K</div>
                   <input
                     type="number"
                     value={formData.advancePaid}

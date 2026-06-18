@@ -150,10 +150,10 @@ export default function ClientLedgerPage() {
           {/* KPI Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
-              { label: "Final Cost", value: `₹${stats.totalSpent.toLocaleString()}`, icon: Wallet, trend: "Statement", color: "text-blue-600", bg: "bg-blue-50" },
-              { label: "Paid Amount", value: `₹${stats.advancePaid.toLocaleString()}`, icon: CheckCircle2, trend: "Settled", color: "text-emerald-600", bg: "bg-emerald-50" },
+              { label: "Final Cost", value: `K${stats.totalSpent.toLocaleString()}`, icon: Wallet, trend: "Statement", color: "text-blue-600", bg: "bg-blue-50" },
+              { label: "Paid Amount", value: `K${stats.advancePaid.toLocaleString()}`, icon: CheckCircle2, trend: "Settled", color: "text-emerald-600", bg: "bg-emerald-50" },
               { label: "Completed Trips", value: stats.completedJobs, icon: Package, trend: "History", color: "text-amber-600", bg: "bg-amber-50" },
-              { label: "Balance Due", value: `₹${stats.outstandingBalance.toLocaleString()}`, icon: FileText, trend: "Pending", color: "text-rose-600", bg: "bg-rose-50" }
+              { label: "Balance Due", value: `K${stats.outstandingBalance.toLocaleString()}`, icon: FileText, trend: "Pending", color: "text-rose-600", bg: "bg-rose-50" }
             ].map((s, i) => (
               <div key={i} className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all group">
                 <div className="flex items-center justify-between mb-3">
@@ -288,13 +288,13 @@ export default function ClientLedgerPage() {
                         </td>
                         <td className="px-5 py-5 text-right">
                           <div className="flex flex-col">
-                            <span className="text-[13px] font-bold text-slate-900 tracking-tight">₹{(b.finalAmount || 0).toLocaleString()}</span>
+                            <span className="text-[13px] font-bold text-slate-900 tracking-tight">K{(b.finalAmount || 0).toLocaleString()}</span>
                             <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Total Invoice</span>
                           </div>
                         </td>
                         <td className="px-5 py-5 text-right">
                           <div className="flex flex-col">
-                            <span className="text-[13px] font-bold text-emerald-600 tracking-tight">₹{(b.advancePaid || 0).toLocaleString()}</span>
+                            <span className="text-[13px] font-bold text-emerald-600 tracking-tight">K{(b.advancePaid || 0).toLocaleString()}</span>
                             <span className="text-[9px] font-bold text-emerald-500/60 uppercase tracking-widest">Paid (Advance)</span>
                           </div>
                         </td>
@@ -302,7 +302,7 @@ export default function ClientLedgerPage() {
                           <div className="flex flex-col items-end">
                             <div className="flex items-center gap-1.5">
                               <span className={`text-[13px] font-bold tracking-tight ${balance > 0 ? 'text-rose-500' : 'text-slate-400'}`}>
-                                ₹{balance.toLocaleString()}
+                                K{balance.toLocaleString()}
                               </span>
                               {isFullyPaid && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
                             </div>

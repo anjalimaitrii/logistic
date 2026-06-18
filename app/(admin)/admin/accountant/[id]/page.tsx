@@ -639,7 +639,7 @@ export default function AccountantJobDetail() {
                             <div className="text-[12px] font-semibold text-slate-900">{toCity}</div>
                           </div>
                           <div className="text-right shrink-0">
-                            <div className={`text-[11px] font-bold ${textColor[color]}`}>₦{(calc?.amount || 0).toLocaleString()}</div>
+                            <div className={`text-[11px] font-bold ${textColor[color]}`}>K{(calc?.amount || 0).toLocaleString()}</div>
                             <div className="text-[8px] font-semibold text-neutral-400 uppercase">{(calc?.liters || 0).toFixed(1)}L</div>
                           </div>
                         </div>
@@ -690,7 +690,7 @@ export default function AccountantJobDetail() {
                   {/* Fuel Rate */}
                   <div className="flex items-center justify-between px-1 py-2 border-b border-neutral-100">
                     <label className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
-                      <Fuel className="w-3 h-3" /> Fuel Rate (₦/L)
+                      <Fuel className="w-3 h-3" /> Fuel Rate (K/L)
                     </label>
                     <input
                       type="number"
@@ -707,7 +707,7 @@ export default function AccountantJobDetail() {
                         <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Est. Fuel Cost</div>
                         <div className="text-[8px] font-bold text-amber-600 uppercase">{calculations.totalLiters}L total · {legData.length} leg{legData.length > 1 ? "s" : ""}</div>
                       </div>
-                      <span className="text-base md:text-xl font-bold text-amber-600">₦{calculations.fuelTotal.toLocaleString()}</span>
+                      <span className="text-base md:text-xl font-bold text-amber-600">K{calculations.fuelTotal.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>

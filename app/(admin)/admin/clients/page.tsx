@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
-import { ChevronRight, Eye, Plus, X, Building2, Mail, Phone, User, MapPin, CreditCard, ArrowRight, MoreVertical, Users, UserPlus, Check } from "lucide-react";
+import { ChevronRight, Eye, Plus, X, Building2, Mail, Phone, User, MapPin, CreditCard, ArrowRight, MoreVertical, Users, UserPlus, Check, BookOpen } from "lucide-react";
 import { companyService } from "@/services/companyService";
 import { clientService } from "@/services/clientService";
+import LedgerDrawer from "@/components/admin/LedgerDrawer";
 
 interface Client {
   id: string;
@@ -41,6 +42,9 @@ export default function AdminClients() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formStep, setFormStep] = useState(1);
+
+  // Ledger State
+  const [ledgerTarget, setLedgerTarget] = useState<{ id: string; name: string; type: "company" | "client" } | null>(null);
 
   // Relationship State
   const [targetCompanyForForm, setTargetCompanyForForm] = useState<any>(null);
@@ -389,9 +393,24 @@ export default function AdminClients() {
                           <Eye className="w-3 h-3" />
                           View Details
                         </button>
+                        <button
+                          onClick={() => setLedgerTarget({ id: item._id, name: item.companyName || item.name, type: "company" })}
+                          className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all cursor-pointer"
+                          title="View Ledger"
+                        >
+                          <BookOpen className="w-3 h-3" />
+                          Ledger
+                        </button>
                       </>
-                    ) : <div />}
-
+                    ) : (
+                      <button
+                        onClick={() => setLedgerTarget({ id: item._id, name: item.name, type: "client" })}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all cursor-pointer"
+                      >
+                        <BookOpen className="w-3 h-3" />
+                        Ledger
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -722,6 +741,13 @@ export default function AdminClients() {
           </div>
         </div>
       )}
+      <LedgerDrawer
+        isOpen={!!ledgerTarget}
+        onClose={() => setLedgerTarget(null)}
+        companyId={ledgerTarget?.type === "company" ? ledgerTarget.id : undefined}
+        clientId={ledgerTarget?.type === "client" ? ledgerTarget.id : undefined}
+        name={ledgerTarget?.name ?? ""}
+      />
     </AdminLayout>
   );
 }

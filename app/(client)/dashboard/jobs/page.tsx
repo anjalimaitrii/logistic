@@ -535,7 +535,7 @@ export default function JobsPage() {
                                     </td>
                                     <td className="px-6 py-4">
                                        {job.finalAmount ? (
-                                          <span className="text-[12px] font-bold text-slate-900">₹{job.finalAmount}</span>
+                                          <span className="text-[12px] font-bold text-slate-900">K{job.finalAmount}</span>
                                        ) : (
                                           <span className="text-[10px] font-bold text-slate-300 uppercase">---</span>
                                        )}

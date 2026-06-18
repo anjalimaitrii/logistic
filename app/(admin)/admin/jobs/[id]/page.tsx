@@ -500,6 +500,7 @@ export default function JobDetailReport() {
             item.title?.toLowerCase().includes("departed") ? <Truck className="w-3.5 h-3.5" /> :
             item.title?.toLowerCase().includes("offload") ? <ArrowDownCircle className="w-3.5 h-3.5" /> :
             item.title === "Driver Assigned" ? <Truck className="w-3.5 h-3.5" /> :
+            item.title === "New Job Assigned" ? <RotateCcw className="w-3.5 h-3.5" /> :
             item.title === "Booking Created" ? <Package className="w-3.5 h-3.5" /> :
             item.title === "Trip Approved" ? <CreditCard className="w-3.5 h-3.5" /> :
             <CheckCircle2 className="w-3.5 h-3.5" />
@@ -587,11 +588,11 @@ export default function JobDetailReport() {
   }, [booking, assignment, settlement]);
 
   const statCards = [
-    { label: "Total Cost", value: `₦${financialSummary.totalCost.toLocaleString()}`, icon: <TrendingUp className="w-4 h-4 text-emerald-500" />, color: "border-emerald-500" },
-    { label: "Fuel Total", value: `₦${financialSummary.fuelTotal.toLocaleString()}`, icon: <Fuel className="w-4 h-4 text-orange-500" />, color: "border-orange-500" },
-    { label: "Other Logs", value: `₦${financialSummary.otherLogs.toLocaleString()}`, icon: <Receipt className="w-4 h-4 text-blue-500" />, color: "border-blue-500" },
-    { label: "Allocation", value: `₦${financialSummary.allocationMoney.toLocaleString()}`, icon: <DollarSign className="w-4 h-4 text-violet-500" />, color: "border-violet-500" },
-    { label: "Council Levy", value: `₦${financialSummary.councilLevy.toLocaleString()}`, icon: <DollarSign className="w-4 h-4 text-slate-500" />, color: "border-slate-400" },
+    { label: "Total Cost", value: `K ${financialSummary.totalCost.toLocaleString()}`, icon: <TrendingUp className="w-4 h-4 text-emerald-500" />, color: "border-emerald-500" },
+    { label: "Fuel Total", value: `K ${financialSummary.fuelTotal.toLocaleString()}`, icon: <Fuel className="w-4 h-4 text-orange-500" />, color: "border-orange-500" },
+    { label: "Other Logs", value: `K ${financialSummary.otherLogs.toLocaleString()}`, icon: <Receipt className="w-4 h-4 text-blue-500" />, color: "border-blue-500" },
+    { label: "Allocation", value: `K ${financialSummary.allocationMoney.toLocaleString()}`, icon: <DollarSign className="w-4 h-4 text-violet-500" />, color: "border-violet-500" },
+    { label: "Council Levy", value: `K ${financialSummary.councilLevy.toLocaleString()}`, icon: <DollarSign className="w-4 h-4 text-slate-500" />, color: "border-slate-400" },
   ];
 
   if (isLoading) {
@@ -930,20 +931,20 @@ export default function JobDetailReport() {
                         <input type="number" value={newExpenseEntry.litres} onChange={(e) => setNewExpenseEntry({...newExpenseEntry, litres: e.target.value})} placeholder="0" className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Rate (₦/L)</label>
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Rate (K/L)</label>
                         <input type="number" value={newExpenseEntry.rate} onChange={(e) => setNewExpenseEntry({...newExpenseEntry, rate: e.target.value})} placeholder="0" className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Total (₦)</label>
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Total (K)</label>
                         <div className="w-full bg-amber-50 border border-amber-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-amber-700">
-                          ₦{((parseFloat(newExpenseEntry.litres) || 0) * (parseFloat(newExpenseEntry.rate) || 0)).toLocaleString()}
+                          K{((parseFloat(newExpenseEntry.litres) || 0) * (parseFloat(newExpenseEntry.rate) || 0)).toLocaleString()}
                         </div>
                       </div>
                     </div>
                   ) : (
                     <div className="grid grid-cols-1 mb-5">
                       <div className="space-y-1.5">
-                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Amount (₦)</label>
+                        <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Amount (K)</label>
                         <input type="number" value={newExpenseEntry.amount} onChange={(e) => setNewExpenseEntry({...newExpenseEntry, amount: e.target.value})} placeholder="0" className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
                       </div>
                     </div>
@@ -977,14 +978,14 @@ export default function JobDetailReport() {
                               "bg-slate-50 text-slate-400"
                             }`}>{entry.category}</span>
                             {entry.category === "Fuel" && (
-                              <span className="text-[9px] font-bold text-slate-400">{entry.litres}L @ ₦{entry.rate}</span>
+                              <span className="text-[9px] font-bold text-slate-400">{entry.litres}L @ K{entry.rate}</span>
                             )}
                             <span className="text-[9px] font-medium text-slate-300">· {entry.date}</span>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <div className="text-[14px] font-bold text-slate-900 tracking-tight">₦{entry.amount.toLocaleString()}</div>
+                        <div className="text-[14px] font-bold text-slate-900 tracking-tight">K{entry.amount.toLocaleString()}</div>
                         <button onClick={() => handleRemoveExpense(entry.id || entry._id)} className="p-1.5 text-slate-200 hover:text-rose-500 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                           <RotateCcw className="w-3.5 h-3.5" />
                         </button>
@@ -1002,7 +1003,7 @@ export default function JobDetailReport() {
                 {tripExpenses.length > 0 && (
                   <div className="mt-5 pt-5 border-t border-slate-100 flex items-center justify-between bg-slate-50/50 rounded-xl p-4">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total Trip Spend</span>
-                    <span className="text-lg font-bold text-slate-900">₦{tripExpenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}</span>
+                    <span className="text-lg font-bold text-slate-900">K{tripExpenses.reduce((s, e) => s + e.amount, 0).toLocaleString()}</span>
                   </div>
                 )}
               </div>
@@ -1097,6 +1098,10 @@ export default function JobDetailReport() {
                     const rawStatus = booking.tripStatus ? booking.tripStatus.toUpperCase() : "PENDING";
                     const currentIdx = statusOrder.indexOf(rawStatus);
 
+                    // Detect if a new job was assigned while this trip was still returning
+                    const newJobEntry = (booking.timeline || []).find((e: any) => e.title === "New Job Assigned");
+                    const newJobBlocked = !!newJobEntry && rawStatus === "RETURNING";
+
                     const btnCls = (id: string) => {
                       const idx = statusOrder.indexOf(id);
                       const isDone   = idx !== -1 && idx < currentIdx;
@@ -1110,11 +1115,15 @@ export default function JobDetailReport() {
 
                     const Btn = ({ id, label, icon, city, full }: { id: string; label: string; icon: React.ReactNode; city?: string; full?: boolean }) => {
                       const { cls, isDone, isActive, isNext } = btnCls(id);
+                      const isLockedByNewJob = id === "COMPLETED" && newJobBlocked;
+                      const effectiveCls = isLockedByNewJob
+                        ? "bg-amber-50 border-amber-200 text-amber-600 cursor-not-allowed"
+                        : cls;
                       return (
                         <button
-                          disabled={!isNext}
-                          onClick={() => isNext && handleStatusUpdate(id)}
-                          className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1 ${full ? "w-full" : "flex-1"} ${cls}`}
+                          disabled={(!isNext) || isLockedByNewJob}
+                          onClick={() => isNext && !isLockedByNewJob && handleStatusUpdate(id)}
+                          className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1 ${full ? "w-full" : "flex-1"} ${effectiveCls}`}
                         >
                           <div>{isDone ? <CheckCircle2 className="w-4 h-4" /> : icon}</div>
                           <span className="text-[9px] font-bold uppercase tracking-widest leading-tight text-center">{label}</span>
@@ -1123,9 +1132,10 @@ export default function JobDetailReport() {
                               {city}
                             </span>
                           )}
-                          {isDone  && <span className="text-[7px] font-bold uppercase tracking-widest text-emerald-500">Done</span>}
-                          {isNext  && <span className="text-[7px] font-bold uppercase tracking-widest text-white/80">Tap to Update</span>}
-                          {isActive && <span className="text-[7px] font-bold uppercase tracking-widest text-white/70">Current</span>}
+                          {isDone           && <span className="text-[7px] font-bold uppercase tracking-widest text-emerald-500">Done</span>}
+                          {isLockedByNewJob  && <span className="text-[7px] font-bold uppercase tracking-widest text-amber-500">New Job Assigned</span>}
+                          {isNext && !isLockedByNewJob && <span className="text-[7px] font-bold uppercase tracking-widest text-white/80">Tap to Update</span>}
+                          {isActive         && <span className="text-[7px] font-bold uppercase tracking-widest text-white/70">Current</span>}
                         </button>
                       );
                     };
@@ -1208,11 +1218,11 @@ export default function JobDetailReport() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 rounded-xl bg-slate-50/50 border border-slate-100">
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Allocation To Driver</span>
-                      <div className="text-[15px] font-bold text-slate-900 mt-0.5">₦{financialSummary.allocationMoney.toLocaleString()}</div>
+                      <div className="text-[15px] font-bold text-slate-900 mt-0.5">K{financialSummary.allocationMoney.toLocaleString()}</div>
                     </div>
                     <div className="p-3 rounded-xl bg-emerald-50/40 border border-emerald-100">
                       <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Council Levy</span>
-                      <div className="text-[15px] font-bold text-slate-900 mt-0.5">₦{financialSummary.councilLevy.toLocaleString()}</div>
+                      <div className="text-[15px] font-bold text-slate-900 mt-0.5">K{financialSummary.councilLevy.toLocaleString()}</div>
                     </div>
                   </div>
 
@@ -1226,13 +1236,13 @@ export default function JobDetailReport() {
                       <div>
                         <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Final Amount</div>
                         <div className="text-[18px] font-bold text-slate-900">
-                          {booking?.finalAmount ? `₦${Number(booking.finalAmount).toLocaleString()}` : <span className="text-slate-300 text-[13px]">Not set</span>}
+                          {booking?.finalAmount ? `K${Number(booking.finalAmount).toLocaleString()}` : <span className="text-slate-300 text-[13px]">Not set</span>}
                         </div>
                       </div>
                       <div>
                         <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Advance Paid</div>
                         <div className="text-[18px] font-bold text-slate-900">
-                          {booking?.advancePaid ? `₦${Number(booking.advancePaid).toLocaleString()}` : <span className="text-slate-300 text-[13px]">—</span>}
+                          {booking?.advancePaid ? `K${Number(booking.advancePaid).toLocaleString()}` : <span className="text-slate-300 text-[13px]">—</span>}
                         </div>
                       </div>
                     </div>
@@ -1240,7 +1250,7 @@ export default function JobDetailReport() {
                       <div className="mt-4 pt-3 border-t border-emerald-100 flex items-center justify-between">
                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Balance Due</span>
                         <span className="text-[14px] font-bold text-slate-900">
-                          ₦{(Number(booking.finalAmount) - Number(booking.advancePaid)).toLocaleString()}
+                          K{(Number(booking.finalAmount) - Number(booking.advancePaid)).toLocaleString()}
                         </span>
                       </div>
                     )}
@@ -1572,7 +1582,7 @@ export default function JobDetailReport() {
                     </div>
                   </div>
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">New Final Amount (₦)</label>
+                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1 block">New Final Amount (K)</label>
                     <input
                       type="number"
                       value={addressChangeData.newFinalAmount}

@@ -129,7 +129,7 @@ export default function BookingRequestsPage() {
     route: getRequestRoute(req),
     cargo: req.cargoDetails.goodsType,
     weight: `${req.cargoDetails.weight} KG`,
-    price: req.finalAmount ? `₹${req.finalAmount}` : "TBD",
+    price: req.finalAmount ? `K${req.finalAmount}` : "TBD",
     date: new Date(req.createdAt || req.metadata?.createdAt || Date.now()).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
     status: getStatusLabel(req.status),
     raw: req
