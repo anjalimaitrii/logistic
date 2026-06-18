@@ -102,7 +102,7 @@ export default function AdminJobsPage() {
 
   const getStatusStyles = (status: string) => {
     const s = status.toUpperCase();
-    if (s === 'FINALIZED' || s === 'DELIVERED') return 'bg-emerald-50 text-emerald-500 border-emerald-100';
+    if (s === 'FINALIZED' || s === 'DELIVERED' || s === 'COMPLETED') return 'bg-emerald-50 text-emerald-500 border-emerald-100';
     if (s === 'IN TRANSIT') return 'bg-orange-50 text-orange-500 border-orange-100';
     if (s === 'DELAYED') return 'bg-rose-50 text-rose-500 border-rose-100';
     return 'bg-blue-50 text-blue-500 border-blue-100';
@@ -140,12 +140,17 @@ export default function AdminJobsPage() {
     const truckNo = String(assignment?.truckNumber || "").toUpperCase();
     const gpsStatus = truckNo ? (gpsStatusMap[truckNo] || null) : null;
     const tripStatus = (b?.tripStatus || b?.status || "").toLowerCase();
-    const isComplete = tripStatus === "delivered" || tripStatus === "completed";
+    // A returning trip with a "New Job Assigned" marker is effectively done —
+    // the driver was reassigned, so the return leg concluded.
+    const hasNewJob = (b?.timeline || []).some((e: any) => e.title === "New Job Assigned");
+    const reassigned = hasNewJob && tripStatus === "returning";
+    const effectiveStatus = reassigned ? "completed" : (b?.tripStatus || b?.status);
+    const isComplete = effectiveStatus?.toLowerCase() === "delivered" || effectiveStatus?.toLowerCase() === "completed";
     return {
       id: b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
       client: (b?.clientId as any)?.name || "Direct Client",
       companyName: (b?.clientId as any)?.company?.companyName || "Direct Booking",
-      status: getStatusType(b?.tripStatus || b?.status),
+      status: getStatusType(effectiveStatus),
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Assign Driver",
       route,
       gpsStatus,

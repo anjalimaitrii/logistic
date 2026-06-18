@@ -50,45 +50,39 @@ async function getImeiForTruck(truckNumber: string): Promise<string | null> {
   }
 }
 
-// Format a date string or ISO date to "DD-MM-YYYY HH:MM:SS"
+const APP_TZ = "Africa/Lusaka"; // Zambia / CAT — the vehicles' timezone
+
+// Format a date to "DD-MM-YYYY HH:MM:SS" in Zambia time (CAT), matching
+// the timezone Trakzee logs vehicle events in. `endOfDay` forces 23:59:59.
 function toApiDate(raw: string, endOfDay = false): string {
   try {
     let d: Date;
-
-    // Already in DD-MM-YYYY format?
     const ddmm = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
     if (ddmm) {
       d = new Date(`${ddmm[3]}-${ddmm[2].padStart(2, "0")}-${ddmm[1].padStart(2, "0")}`);
     } else {
       d = new Date(raw);
     }
-
     if (isNaN(d.getTime())) throw new Error("invalid date");
 
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    const yyyy = d.getFullYear();
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: APP_TZ,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(d);
+    const get = (t: string) => parts.find(p => p.type === t)?.value || "00";
+    const datePart = `${get("day")}-${get("month")}-${get("year")}`;
 
-    // If it's an ISO timestamp (has time info) and we're not forcing end-of-day,
-    // preserve the actual time so stats start from exact trip start moment
-    let time: string;
-    if (endOfDay) {
-      time = "23:59:59";
-    } else if (raw.includes("T") || raw.includes(" ")) {
-      const hh  = String(d.getHours()).padStart(2, "0");
-      const min = String(d.getMinutes()).padStart(2, "0");
-      const sec = String(d.getSeconds()).padStart(2, "0");
-      time = `${hh}:${min}:${sec}`;
-    } else {
-      time = "00:00:00";
-    }
-    return `${dd}-${mm}-${yyyy} ${time}`;
+    const hasTime = raw.includes("T") || raw.includes(" ");
+    const time = endOfDay ? "23:59:59" : hasTime ? `${get("hour")}:${get("minute")}:${get("second")}` : "00:00:00";
+    return `${datePart} ${time}`;
   } catch {
-    // Fallback: today
-    const d = new Date();
-    const dd = String(d.getDate()).padStart(2, "0");
-    const mm = String(d.getMonth() + 1).padStart(2, "0");
-    return `${dd}-${mm}-${d.getFullYear()} ${endOfDay ? "23:59:59" : "00:00:00"}`;
+    const now = new Intl.DateTimeFormat("en-GB", {
+      timeZone: APP_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    }).formatToParts(new Date());
+    const g = (t: string) => now.find(p => p.type === t)?.value || "00";
+    return `${g("day")}-${g("month")}-${g("year")} ${endOfDay ? "23:59:59" : "00:00:00"}`;
   }
 }
 
@@ -118,9 +112,12 @@ export async function GET(req: Request) {
     // 2. Auth token
     const token = await getToken();
 
-    // 3. Date range
+    // 3. Date range — start = trip start moment, end = actual "to" (now, or trip end).
+    //    Use the real end time (NOT end-of-day) so an in-progress trip's window is
+    //    start → now, not start → 23:59 (which would inflate the durations).
     const startDt = toApiDate(from, false);
-    const endDt   = toApiDate(to || new Date().toISOString(), true);
+    const endDt   = toApiDate(to || new Date().toISOString(), false);
+    console.log("[trip-stats] truck:", truck, "imei:", imei, "range:", startDt, "→", endDt);
 
     // 4. Call travelsummaryreport
     const res = await fetch(
@@ -147,6 +144,7 @@ export async function GET(req: Request) {
     }
 
     const data = await res.json();
+    console.log("[trip-stats] RAW Trakzee response:", JSON.stringify(data).slice(0, 800));
 
     if (data.status === "fail") {
       // Rate limit or other error — return empty but don't crash
@@ -170,6 +168,8 @@ export async function GET(req: Request) {
         runningDuration:  row.running_duration ?? "--",
         idleDuration:     row.idle_duration ?? "--",
         stopDuration:     row.stop_duration ?? "--",
+        inactiveDuration: row.inactive_duration ?? "--",
+        totalDuration:    row.total_duration ?? "--",
         runningKm:        row.running_km ?? 0,
         maxSpeed:         row.max_speed ?? 0,
         avgSpeed:         row.avg_spped ?? 0,

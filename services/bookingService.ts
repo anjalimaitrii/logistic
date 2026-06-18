@@ -66,6 +66,14 @@ export const bookingService = {
     });
   },
 
+  // Cache the latest Trakzee GPS stats so the page can show them instantly on reload
+  saveTripStats: async (id: string, tripStats: any) => {
+    return await fetchApi(`/api/bookings/${id}/trip-stats`, {
+      method: 'PATCH',
+      body: JSON.stringify({ tripStats }),
+    });
+  },
+
   update: async (id: string, payload: any) => {
     return await fetchApi(`/api/bookings/${id}`, {
       method: 'PATCH',

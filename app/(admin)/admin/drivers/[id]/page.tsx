@@ -18,7 +18,6 @@ import {
 } from "lucide-react";
 import { driverService } from "@/services/driverService";
 import { assignmentService } from "@/services/assignmentService";
-import { format } from "date-fns";
 import { formatDate } from "@/lib/datetime";
 import { cleanDriverName } from "@/services/liveTrackingService";
 
@@ -54,21 +53,42 @@ export default function DriverProfilePage() {
     }
   };
 
+  // ── Dynamic stats from real data ──
+  const activeTrips = assignments.filter((a: any) =>
+    ["active", "queued", "in-progress", "transit"].includes((a.status || "").toLowerCase())
+  ).length;
+  // Current duty state from driverStatus (available / on_trip / returning)
+  const dutyMap: Record<string, { label: string; variant: "success" | "warning" | "primary" }> = {
+    available:         { label: "Available", variant: "success" },
+    on_trip:           { label: "On Trip",   variant: "primary" },
+    returning:         { label: "Returning", variant: "warning" },
+    under_inspection:  { label: "Inspection", variant: "warning" },
+  };
+  const duty = dutyMap[(driver?.driverStatus || "available").toLowerCase()] || { label: driver?.driverStatus || "—", variant: "primary" as const };
+
   const kpis = [
-    { label: "Total Trips", value: assignments.length.toString(), icon: "🛣️", subText: "Lifetime completions", trend: "Live", variant: "primary" as const },
-    { label: "On-Time Delivery", value: "98%", icon: "⏱️", subText: "Scheduled precision", trend: "Stable", variant: "success" as const },
-    { label: "Experience", value: driver?.experience ? `${driver.experience} Years` : "N/A", icon: "📏", subText: "Career depth", trend: "—", variant: "warning" as const },
-    { label: "Status", value: driver?.status || "Active", icon: "🛡️", subText: "Current standing", trend: "Normal", variant: "success" as const },
+    { label: "Total Trips", value: assignments.length.toString(), icon: "🛣️", subText: "Lifetime assignments", trend: "Live", variant: "primary" as const },
+    { label: "Active Trips", value: activeTrips.toString(), icon: "🚚", subText: "Currently assigned", trend: activeTrips > 0 ? "Live" : "Idle", variant: "warning" as const },
+    { label: "Experience", value: driver?.experience ? `${driver.experience} Years` : "N/A", icon: "📏", subText: "Career depth", trend: "—", variant: "success" as const },
+    { label: "Duty Status", value: duty.label, icon: "🛡️", subText: "Current state", trend: "Live", variant: duty.variant },
   ];
 
-  const tripHistory = assignments.map(a => ({
-    id: a.bookingId?.tripId || "N/A",
-    date: a.assignedAt ? format(new Date(a.assignedAt), "yyyy-MM-dd") : "N/A",
-    route: `${a.bookingId?.pickup?.address?.city || 'N/A'} → ${a.bookingId?.dropoff?.address?.city || 'N/A'}`,
-    truck: a.truckNumber,
-    status: a.status,
-    distance: "TBD"
-  }));
+  const tripHistory = assignments.map(a => {
+    const b = a.bookingId || {};
+    const fromCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "N/A";
+    const toCity = b.dropoffLocations?.[b.dropoffLocations.length - 1]?.address?.city || b.dropoff?.address?.city || "N/A";
+    const cargo = b.cargoDetails?.goodsType
+      ? `${b.cargoDetails.goodsType}${b.cargoDetails.weight ? ` · ${b.cargoDetails.weight} kg` : ""}`
+      : "—";
+    return {
+      id: b.tripId || "N/A",
+      date: a.assignedAt ? formatDate(a.assignedAt) : "N/A",
+      route: `${fromCity} → ${toCity}`,
+      truck: a.truckNumber || "—",
+      status: a.status || "—",
+      cargo,
+    };
+  });
 
   const columns = [
     { label: "Date", key: "date", render: (val: string) => (
@@ -92,16 +112,26 @@ export default function DriverProfilePage() {
           <span className="font-semibold text-slate-700">{val}</span>
        </div>
     )},
-    { label: "Distance", key: "distance", render: (val: string) => <span className="font-medium text-slate-400 text-[11px]">{val}</span> },
-    { 
-      label: "Status", 
-      key: "status", 
-      render: (val: string) => (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[9px] font-bold uppercase tracking-widest border border-emerald-100">
-           <div className="w-1 h-1 rounded-full bg-emerald-500" />
-           {val}
-        </span>
-      )
+    { label: "Cargo", key: "cargo", render: (val: string) => <span className="font-medium text-slate-500 text-[11px]">{val}</span> },
+    {
+      label: "Status",
+      key: "status",
+      render: (val: string) => {
+        const s = (val || "").toLowerCase();
+        const st = ["completed", "paid", "delivered"].includes(s)
+          ? { box: "bg-emerald-50 text-emerald-600 border-emerald-100", dot: "bg-emerald-500" }
+          : ["active", "transit", "in-progress"].includes(s)
+            ? { box: "bg-blue-50 text-blue-600 border-blue-100", dot: "bg-blue-500 animate-pulse" }
+            : s === "queued"
+              ? { box: "bg-amber-50 text-amber-600 border-amber-100", dot: "bg-amber-500" }
+              : { box: "bg-neutral-50 text-neutral-400 border-neutral-100", dot: "bg-neutral-300" };
+        return (
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${st.box}`}>
+            <div className={`w-1 h-1 rounded-full ${st.dot}`} />
+            {val}
+          </span>
+        );
+      }
     },
   ];
 
@@ -163,7 +193,7 @@ export default function DriverProfilePage() {
                        </span>
                     </div>
                     <div className="flex items-center gap-4 mt-1.5 text-[11px] text-neutral-400 font-medium">
-                       <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-amber-500" /> {driver.experience} Yrs Exp</span>
+                       <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-amber-500" /> {driver.experience || 0} Yrs Exp</span>
                        <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Registered {formatDate(driver.createdAt, { day: undefined })}</span>
                        <span className="text-neutral-200">|</span>
                        <span>ID: <span className="text-slate-900 font-bold tracking-wider">{driverId}</span></span>

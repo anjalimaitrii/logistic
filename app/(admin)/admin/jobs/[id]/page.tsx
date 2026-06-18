@@ -143,6 +143,9 @@ export default function JobDetailReport() {
       const bookingData = await bookingService.getById(id);
       setBooking(bookingData);
 
+      // Show last-cached GPS stats instantly (Trakzee fetch below refreshes them)
+      if (bookingData?.tripStats) setGpsStats(bookingData.tripStats);
+
       // Fetch assignment & settlement independently so their failures don't hide the booking
       const [assignmentData, settlementData] = await Promise.all([
         assignmentService.getByBookingId(id).catch(() => null),
@@ -169,7 +172,10 @@ export default function JobDetailReport() {
 
   const fetchGpsStats = async (bookingData: any, truckNumber: string) => {
     const from = bookingData?.tripStartedAt || bookingData?.cargoDetails?.loadingDate;
-    if (!from || !truckNumber || truckNumber === "N/A") return;
+    if (!from || !truckNumber || truckNumber === "N/A") {
+      console.warn("[GPS] skipped — from:", from, "truck:", truckNumber);
+      return;
+    }
     setGpsLoading(true);
     try {
       const tripStatus = (bookingData?.tripStatus || "").toLowerCase();
@@ -183,11 +189,24 @@ export default function JobDetailReport() {
         from: String(from),
         to: toDate,
       });
+      console.log("[GPS] fetching trip-stats:", { truck: truckNumber, from: String(from), to: toDate });
       const res = await fetch(`/api/trip-stats?${params}`);
       const json = await res.json();
-      if (json.success && json.data) setGpsStats(json.data);
-    } catch {
-      // non-critical
+      console.log("[GPS] trip-stats response:", json);
+      if (json.success && json.data) {
+        setGpsStats(json.data);
+        // Persist the fresh stats so a reload shows them immediately next time
+        try {
+          const saved = await bookingService.saveTripStats(id, json.data);
+          console.log("[GPS] saved to DB:", saved);
+        } catch (saveErr) {
+          console.error("[GPS] saveTripStats FAILED — is backend redeployed?", saveErr);
+        }
+      } else {
+        console.warn("[GPS] no data to save. success:", json.success, "error:", json.error);
+      }
+    } catch (err) {
+      console.error("[GPS] trip-stats fetch failed:", err);
     } finally {
       setGpsLoading(false);
     }
@@ -199,7 +218,12 @@ export default function JobDetailReport() {
       id: booking.tripId || `#FL-${booking._id.substring(booking._id.length - 4).toUpperCase()}`,
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Not Assigned",
       truckNumber: assignment?.truckNumber || "N/A",
-      status: (booking.tripStatus || booking.status || "PENDING").toUpperCase(),
+      status: (() => {
+        const raw = (booking.tripStatus || booking.status || "PENDING").toUpperCase();
+        // Returning trip with a new job assigned → the return leg is concluded
+        const hasNewJob = (booking.timeline || []).some((e: any) => e.title === "New Job Assigned");
+        return (raw === "RETURNING" && hasNewJob) ? "COMPLETED" : raw;
+      })(),
       truckHealth: assignment?.truckHealth || "N/A",
       pickupLocations: booking.pickupLocations?.length > 0 ? booking.pickupLocations : (booking.pickup ? [booking.pickup] : [{ address: {} }]),
       dropoffLocations: booking.dropoffLocations?.length > 0 ? booking.dropoffLocations : (booking.dropoff ? [booking.dropoff] : [{ address: {} }]),
@@ -288,6 +312,29 @@ export default function JobDetailReport() {
     }
   };
 
+  // Capture the truck's live GPS position at this exact moment (for trip start/end points)
+  const captureTruckCoords = async (truckNumber?: string): Promise<{ lat: number; lng: number; location?: string } | undefined> => {
+    if (!truckNumber) return undefined;
+    try {
+      const liveRes = await fetch("/api/livetrack");
+      const liveData = await liveRes.json();
+      const normalized = String(truckNumber).trim().toUpperCase();
+      const vehicle = (liveData.vehicles || []).find(
+        (v: any) =>
+          String(v.Vehicle_No || "").trim().toUpperCase() === normalized ||
+          String(v.Vehicle_Name || "").trim().toUpperCase() === normalized
+      );
+      const lat = parseFloat(vehicle?.Latitude);
+      const lng = parseFloat(vehicle?.Longitude);
+      if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+        return { lat, lng, location: vehicle.Location || undefined };
+      }
+    } catch (err) {
+      console.warn("[TripCoords] capture failed:", err);
+    }
+    return undefined;
+  };
+
   const handleStatusUpdate = async (newStatus: string) => {
     if (newStatus === "COMPLETED") {
       setShowCompletionModal(true);
@@ -295,27 +342,8 @@ export default function JobDetailReport() {
     }
     try {
       if (newStatus === "STARTED" && assignment?.truckNumber) {
-        // Capture truck GPS coordinates at the moment of trip start
-        let tripStartCoords: { lat: number; lng: number; location?: string } | undefined;
-        try {
-          const liveRes = await fetch("/api/livetrack");
-          const liveData = await liveRes.json();
-          const normalized = String(assignment.truckNumber).trim().toUpperCase();
-          const vehicle = (liveData.vehicles || []).find(
-            (v: any) =>
-              String(v.Vehicle_No || "").trim().toUpperCase() === normalized ||
-              String(v.Vehicle_Name || "").trim().toUpperCase() === normalized
-          );
-          if (vehicle?.Latitude && vehicle?.Longitude) {
-            tripStartCoords = {
-              lat: parseFloat(vehicle.Latitude),
-              lng: parseFloat(vehicle.Longitude),
-              location: vehicle.Location || undefined,
-            };
-          }
-        } catch {
-          // non-critical — status update still proceeds
-        }
+        // Freeze the truck's position at the moment "Trip Start" is clicked
+        const tripStartCoords = await captureTruckCoords(assignment.truckNumber);
         await bookingService.updateTripStatus(id, newStatus.toLowerCase(), { tripStartCoords });
       } else {
         await bookingService.updateTripStatus(id, newStatus.toLowerCase());
@@ -347,7 +375,9 @@ export default function JobDetailReport() {
       if (tollAmt > 0) {
         await settlementService.process({ bookingId: id, tollAmount: tollAmt });
       }
-      await bookingService.updateTripStatus(id, "completed");
+      // Freeze the truck's position at the moment the trip is completed (end point)
+      const tripEndCoords = await captureTruckCoords(assignment?.truckNumber);
+      await bookingService.updateTripStatus(id, "completed", { tripEndCoords });
       setShowCompletionModal(false);
       setCompletionFiles([]);
       await loadData();
@@ -740,7 +770,14 @@ export default function JobDetailReport() {
                   </div>
 
                   {/* Speed + days row */}
-                  <div className="grid grid-cols-3 gap-3 mb-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    <div className="p-3 rounded-2xl bg-slate-100/70 border border-slate-200">
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Inactive / Off</span>
+                      </div>
+                      <span className="text-[15px] font-bold text-slate-800">{gpsStats.inactiveDuration || "--"} <span className="text-[9px] font-medium text-slate-400">hrs</span></span>
+                    </div>
                     <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100">
                       <div className="flex items-center gap-1.5 mb-1">
                         <Gauge className="w-3 h-3 text-slate-400" />
@@ -768,19 +805,57 @@ export default function JobDetailReport() {
                   {(() => {
                     const ts = (booking?.tripStatus || "").toLowerCase();
                     const isDone = ts === "completed" || ts === "delivered";
+                    // Start location = exact spot the truck was at the moment "Trip Start"
+                    // was clicked (captured into tripStartCoords). NOT from the travel API.
+                    const sc = booking?.tripStartCoords;
+                    const hasCoords = sc?.lat != null && sc?.lng != null;
+                    const startText =
+                      sc?.location
+                      || (hasCoords ? `${Number(sc.lat).toFixed(5)}, ${Number(sc.lng).toFixed(5)}` : null)
+                      || (booking?.tripStartedAt ? "GPS unavailable at start" : "Not started yet");
+                    // End location = exact spot captured when the trip was completed
+                    const ec = booking?.tripEndCoords;
+                    const hasEnd = ec?.lat != null && ec?.lng != null;
+                    const endText =
+                      ec?.location
+                      || (hasEnd ? `${Number(ec.lat).toFixed(5)}, ${Number(ec.lng).toFixed(5)}` : null)
+                      || "GPS unavailable at end";
                     return (
                       <div className="p-4 rounded-2xl bg-slate-50/70 border border-slate-100 flex items-start gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">Start Location</div>
-                          <div className="text-[11px] font-semibold text-slate-700">{gpsStats.startLocation}</div>
+                          <div className="text-[11px] font-semibold text-slate-700">{startText}</div>
+                          {sc?.lat != null && sc?.lng != null && (
+                            <a
+                              href={`https://www.google.com/maps?q=${sc.lat},${sc.lng}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[8px] font-bold text-primary uppercase tracking-widest hover:underline"
+                            >
+                              View on map ↗
+                            </a>
+                          )}
                         </div>
                         <div className="text-slate-200 font-bold text-lg self-center">→</div>
                         <div className="flex-1 min-w-0 text-right">
                           <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">End Location</div>
-                          {isDone
-                            ? <div className="text-[11px] font-semibold text-slate-700">{gpsStats.endLocation}</div>
-                            : <div className="text-[10px] font-bold text-amber-500 italic">Trip in progress…</div>
-                          }
+                          {isDone ? (
+                            <>
+                              <div className="text-[11px] font-semibold text-slate-700">{endText}</div>
+                              {hasEnd && (
+                                <a
+                                  href={`https://www.google.com/maps?q=${ec.lat},${ec.lng}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[8px] font-bold text-primary uppercase tracking-widest hover:underline"
+                                >
+                                  View on map ↗
+                                </a>
+                              )}
+                            </>
+                          ) : (
+                            <div className="text-[10px] font-bold text-amber-500 italic">Trip in progress…</div>
+                          )}
                         </div>
                       </div>
                     );
