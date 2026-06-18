@@ -14,7 +14,6 @@ interface BookingChatPanelProps {
 export default function BookingChatPanel({ isOpen, onClose, request, clientId, onFinalize }: BookingChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [connected, setConnected] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -23,13 +22,11 @@ export default function BookingChatPanel({ isOpen, onClose, request, clientId, o
     const socket = chatService.connect();
 
     socket.on("connect", () => {
-      setConnected(true);
       chatService.joinRoom(clientId);
       chatService.loadHistory(clientId);
     });
 
     if (socket.connected) {
-      setConnected(true);
       chatService.joinRoom(clientId);
       chatService.loadHistory(clientId);
     }
@@ -80,10 +77,6 @@ export default function BookingChatPanel({ isOpen, onClose, request, clientId, o
             </div>
             <div>
               <div className="text-[14px] font-bold text-neutral-900">{request?.customer || "Customer"}</div>
-              <div className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 mt-0.5" style={{ color: connected ? "#22c55e" : "#f59e0b" }}>
-                <span className="w-1.5 h-1.5 rounded-full ring-4" style={{ background: connected ? "#22c55e" : "#f59e0b", ["--tw-ring-color" as any]: connected ? "rgb(34 197 94 / 0.1)" : "rgb(245 158 11 / 0.1)" }} />
-                {connected ? "Online" : "Connecting..."}
-              </div>
             </div>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-neutral-100 rounded-lg text-neutral-400 transition-colors">
