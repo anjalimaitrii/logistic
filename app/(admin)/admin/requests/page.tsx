@@ -13,7 +13,7 @@ import { bookingService } from "@/services/bookingService";
 import { useRouter } from "next/navigation";
 import CreateBookingDrawer from "@/components/admin/CreateBookingDrawer";
 
-type RequestStatus = "Active" | "Finalized";
+type RequestStatus = "Active" | "Finalized" | "Paid";
 
 export default function BookingRequestsPage() {
   const router = useRouter();
@@ -88,11 +88,24 @@ export default function BookingRequestsPage() {
     }
   };
 
-  const getStatusLabel = (status: string): RequestStatus => {
-    const s = (status || "").toLowerCase();
-    if (s === 'finalized' || s === 'delivered' || s === 'completed') return 'Finalized';
-    return 'Active';
+  // Fully paid — payment covers the full billed amount.
+  const isPaid = (req: any): boolean => {
+    const s = (req?.status || "").toLowerCase();
+    const billed = req?.finalAmount || 0;
+    const paid = req?.advancePaid || 0;
+    return s === 'paid' || (billed > 0 && paid >= billed);
   };
+
+  // A deal is finalized once a price is agreed (finalAmount set) or it has moved
+  // past finalization. Such bookings should NOT show "Finalize Deal" again.
+  const isFinalized = (req: any): boolean => {
+    const s = (req?.status || "").toLowerCase();
+    return (req?.finalAmount || 0) > 0
+      || ['finalized', 'paid', 'transit', 'delivered', 'completed'].includes(s);
+  };
+
+  const getStatusLabel = (req: any): RequestStatus =>
+    isPaid(req) ? 'Paid' : isFinalized(req) ? 'Finalized' : 'Active';
 
   const getRequestRoute = (req: any): string[] => {
     const pickups = (req.pickupLocations?.length ? req.pickupLocations : req.pickup ? [req.pickup] : [])
@@ -135,7 +148,7 @@ export default function BookingRequestsPage() {
     weight: `${req.cargoDetails.weight} KG`,
     price: req.finalAmount ? `K${req.finalAmount}` : "TBD",
     date: formatDate(req.createdAt || req.metadata?.createdAt || Date.now()),
-    status: getStatusLabel(req.status),
+    status: getStatusLabel(req),
     raw: req
   }));
 
@@ -197,14 +210,18 @@ export default function BookingRequestsPage() {
     {
       label: "Status",
       key: "status",
-      render: (val: RequestStatus) => (
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${
-          val === 'Finalized' ? 'bg-emerald-50 text-emerald-600' : 'bg-blue-50 text-blue-600'
-        }`}>
-          <div className={`w-1 h-1 rounded-full ${val === 'Finalized' ? 'bg-emerald-600' : 'bg-blue-600'}`} />
-          {val}
-        </span>
-      )
+      render: (val: RequestStatus) => {
+        const styles =
+          val === 'Paid'      ? { box: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-600' } :
+          val === 'Finalized' ? { box: 'bg-violet-50 text-violet-600',   dot: 'bg-violet-600' } :
+                                { box: 'bg-blue-50 text-blue-600',       dot: 'bg-blue-600' };
+        return (
+          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${styles.box}`}>
+            <div className={`w-1 h-1 rounded-full ${styles.dot}`} />
+            {val}
+          </span>
+        );
+      }
     },
     {
       label: "Actions",
@@ -238,9 +255,15 @@ export default function BookingRequestsPage() {
             </>
           )}
           {row.status === "Finalized" && (
-            <div className="flex items-center gap-1 text-[9px] font-semibold text-emerald-600 uppercase tracking-widest bg-emerald-50 px-3 py-1 rounded-full">
+            <div className="flex items-center gap-1 text-[9px] font-semibold text-violet-600 uppercase tracking-widest bg-violet-50 px-3 py-1 rounded-full">
               <CheckCircle className="w-3 h-3" />
               Done
+            </div>
+          )}
+          {row.status === "Paid" && (
+            <div className="flex items-center gap-1 text-[9px] font-semibold text-emerald-700 uppercase tracking-widest bg-emerald-100 px-3 py-1 rounded-full">
+              <CheckCircle className="w-3 h-3" />
+              Fully Paid
             </div>
           )}
         </div>
@@ -250,8 +273,8 @@ export default function BookingRequestsPage() {
 
   const stats = [
     { label: "Total Submissions", value: requests.length.toString(), icon: "📩", subText: "Overall Requests", trend: "Live", variant: "primary" as const },
-    { label: "Active Bookings", value: requests.filter(r => !['finalized','delivered','completed','transit'].includes(r.status)).length.toString(), icon: "🤝", subText: "Awaiting Finalization", trend: "Live", variant: "success" as const },
-    { label: "Finalized", value: requests.filter(r => ['finalized','delivered','completed'].includes(r.status)).length.toString(), icon: "✅", subText: "Deals Closed", trend: "Sync", variant: "warning" as const },
+    { label: "Active Bookings", value: requests.filter(r => !isFinalized(r)).length.toString(), icon: "🤝", subText: "Awaiting Finalization", trend: "Live", variant: "success" as const },
+    { label: "Finalized", value: requests.filter(r => isFinalized(r)).length.toString(), icon: "✅", subText: "Deals Closed", trend: "Sync", variant: "warning" as const },
     { label: "In Transit", value: requests.filter(r => r.status === 'transit').length.toString(), icon: "🚛", subText: "On The Road", trend: "Live", variant: "danger" as const },
   ];
 
@@ -356,7 +379,7 @@ export default function BookingRequestsPage() {
             cargo: selectedRequest.cargoDetails.goodsType,
             price: "TBD",
             date: formatDate(selectedRequest.createdAt || Date.now()),
-            status: getStatusLabel(selectedRequest.status) as any
+            status: getStatusLabel(selectedRequest) as any
           } : null}
           onFinalize={() => {
             setIsChatOpen(false);
@@ -375,7 +398,7 @@ export default function BookingRequestsPage() {
             cargo: selectedRequest.cargoDetails.goodsType,
             price: "TBD",
             date: formatDate(selectedRequest.createdAt || Date.now()),
-            status: getStatusLabel(selectedRequest.status) as any
+            status: getStatusLabel(selectedRequest) as any
           } : null}
           onSubmit={async (data) => {
             if (selectedRequest) {
