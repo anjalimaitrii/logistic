@@ -34,6 +34,7 @@ function complianceDot(complianceDocs: any[]): string {
 import { driverService } from "@/services/driverService";
 import { assignmentService } from "@/services/assignmentService";
 import { truckService } from "@/services/truckService";
+import { cleanDriverName } from "@/services/liveTrackingService";
 import { useNotifications } from "@/context/NotificationContext";
 
 interface OperationAssignmentDrawerProps {
@@ -250,7 +251,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                             {String.fromCharCode(65 + idx)}
                           </div>
                           <div className="flex-1">
-                            <div className="text-[12px] font-semibold text-neutral-900">{[loc.address?.city, loc.address?.country].filter(Boolean).join(", ") || "—"}</div>
+                            <div className="text-[12px] font-semibold text-neutral-900">{[loc.address?.city, loc.address?.state, loc.address?.country].filter(Boolean).join(", ") || "—"}</div>
                             {(loc.address?.plotNo || loc.address?.street) && (
                               <div className="text-[11px] text-neutral-500 mt-0.5">
                                 {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}
@@ -278,7 +279,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                             {String.fromCharCode(65 + (job?.pickupLocations?.length || 0) + idx)}
                           </div>
                           <div className="flex-1">
-                            <div className="text-[12px] font-semibold text-neutral-900">{[loc.address?.city, loc.address?.country].filter(Boolean).join(", ") || "—"}</div>
+                            <div className="text-[12px] font-semibold text-neutral-900">{[loc.address?.city, loc.address?.state, loc.address?.country].filter(Boolean).join(", ") || "—"}</div>
                             {(loc.address?.plotNo || loc.address?.street) && (
                               <div className="text-[11px] text-neutral-500 mt-0.5">
                                 {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}
@@ -366,7 +367,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                                 <optgroup label="── Available ──">
                                   {availableDrivers.map((d) => (
                                     <option key={d._id} value={d._id}>
-                                      {complianceDot(d.assignedTruck?.complianceDocs)} {(d.name || "").replace(/\bnull\b/g, "").replace(/\s+/g, " ").trim()} · {d.assignedTruck?.truckId || "No Truck"}{d.driverStatus === "returning" ? " — RETURNING" : ""}
+                                      {complianceDot(d.assignedTruck?.complianceDocs)} {cleanDriverName(d.name)} · {d.assignedTruck?.truckId || "No Truck"}{d.driverStatus === "returning" ? " — RETURNING" : ""}
                                     </option>
                                   ))}
                                 </optgroup>
@@ -376,7 +377,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                                 <optgroup label="── On Trip — Will Queue ──">
                                   {onTripDrivers.map((d) => (
                                     <option key={d._id} value={d._id}>
-                                      {complianceDot(d.assignedTruck?.complianceDocs)} {(d.name || "").replace(/\bnull\b/g, "").replace(/\s+/g, " ").trim()} · {d.assignedTruck?.truckId || "No Truck"} — ON TRIP
+                                      {complianceDot(d.assignedTruck?.complianceDocs)} {cleanDriverName(d.name)} · {d.assignedTruck?.truckId || "No Truck"} — ON TRIP
                                     </option>
                                   ))}
                                 </optgroup>
@@ -389,7 +390,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                             <div className="mt-3 p-3 bg-white rounded-xl border border-neutral-100 space-y-2">
                               <div className="flex justify-between">
                                 <span className="text-[10px] text-neutral-400 font-bold uppercase">Driver</span>
-                                <span className="text-[11px] font-bold text-slate-900">{formData.driver}</span>
+                                <span className="text-[11px] font-bold text-slate-900">{cleanDriverName(formData.driver)}</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-[10px] text-neutral-400 font-bold uppercase">Vehicle</span>

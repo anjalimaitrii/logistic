@@ -9,7 +9,7 @@ import CreateDriverModal from "@/components/admin/CreateDriverModal";
 import { ChevronRight, Eye, Phone, Plus, Edit2, Trash2 } from "lucide-react";
 import { driverService } from "@/services/driverService";
 import { truckService } from "@/services/truckService";
-import { fetchLiveVehicles, getDriverName } from "@/services/liveTrackingService";
+import { fetchLiveVehicles, getDriverName, cleanDriverName } from "@/services/liveTrackingService";
 
 export default function AdminDrivers() {
   const [isModalOpen, setModalOpen] = useState(false);
@@ -154,7 +154,7 @@ export default function AdminDrivers() {
 
   const tableData = drivers.map(d => ({
     id: (d.licenseNo || "").substring(0, 7).toUpperCase(),
-    name: d.name,
+    name: cleanDriverName(d.name),
     status: d.status || "Active",
     truck: d.assignedTruck ? d.assignedTruck.truckId : "Not Assigned",
     contact: d.phone,

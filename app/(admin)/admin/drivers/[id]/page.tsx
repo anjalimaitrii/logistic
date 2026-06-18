@@ -20,6 +20,7 @@ import { driverService } from "@/services/driverService";
 import { assignmentService } from "@/services/assignmentService";
 import { format } from "date-fns";
 import { formatDate } from "@/lib/datetime";
+import { cleanDriverName } from "@/services/liveTrackingService";
 
 
 export default function DriverProfilePage() {
@@ -148,7 +149,7 @@ export default function DriverProfilePage() {
                  </button>
                  <div>
                     <div className="flex items-center gap-3">
-                       <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{driver.name}</h1>
+                       <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{cleanDriverName(driver.name)}</h1>
                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 border ${
                           driver.status === 'Active' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
                           driver.status === 'On Leave' ? 'bg-amber-50 text-amber-500 border-amber-100' :

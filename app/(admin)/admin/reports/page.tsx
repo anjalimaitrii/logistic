@@ -11,6 +11,7 @@ import { settlementService }      from "@/services/settlementService";
 import { truckInspectionService } from "@/services/truckInspectionService";
 import { assignmentService }      from "@/services/assignmentService";
 import { formatDate } from "@/lib/datetime";
+import { cleanDriverName } from "@/services/liveTrackingService";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const N = (v: any) => parseFloat(String(v ?? 0).replace(/[^\d.-]/g, "")) || 0;
@@ -80,7 +81,7 @@ function exportReport(
     const bId = b._id ?? "";
     const tripLabel = b.tripId || bId.slice(-7).toUpperCase();
     const driver = cleanName(driverByBooking[bId]);
-    const locStr  = (v: any): string => { if (!v) return "-"; if (typeof v === "string") return v; return v?.address || [v?.plotNo, v?.street, v?.city].filter(Boolean).join(", ") || "-"; };
+    const locStr  = (v: any): string => { if (!v) return "-"; if (typeof v === "string") return v; return v?.address || [v?.plotNo, v?.street, v?.city, v?.state, v?.country].filter(Boolean).join(", ") || "-"; };
     const pickup  = locStr(Array.isArray(b.pickupLocations)  ? b.pickupLocations[0]  : (b.pickupLocations  || b.pickupLocation));
     const dropoff = locStr(Array.isArray(b.dropoffLocations) ? b.dropoffLocations[0] : (b.dropoffLocations || b.dropoffLocation));
     const balance = Math.round(N(b.finalAmount) - N(b.advancePaid));
@@ -278,7 +279,7 @@ export default function ReportsPage() {
     const map: Record<string, string> = {};
     assignments.forEach((a: any) => {
       const bId = typeof a.bookingId === "string" ? a.bookingId : a.bookingId?._id;
-      if (bId && a.driverName) map[bId] = a.driverName;
+      if (bId && a.driverName) map[bId] = cleanDriverName(a.driverName);
     });
     return map;
   }, [assignments]);
@@ -835,7 +836,7 @@ export default function ReportsPage() {
                   )}
                   {filteredInspections.filter(i => Array.isArray(i.damages) && i.damages.length > 0).map((insp, idx) => {
                     const dmgTotal = (insp.damages as any[]).reduce((s: number, d: any) => s + N(d.amount), 0);
-                    const driverName = insp.driverId?.name || "—";
+                    const driverName = insp.driverId?.name ? cleanDriverName(insp.driverId.name) : "—";
                     const truckLabel = insp.truckId?.truckId || insp.truckId || "—";
                     return (
                       <div key={idx} className="bg-rose-50/40 border border-rose-100 rounded-2xl p-4 space-y-3">

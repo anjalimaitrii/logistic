@@ -55,8 +55,16 @@ export function hasValidCoords(v: LiveVehicle): boolean {
 
 export function getDriverName(v: LiveVehicle): string {
   const parts = [v.Driver_First_Name, v.Driver_Middle_Name, v.Driver_Last_Name]
-    .filter((s) => s && s !== '--');
+    .filter((s) => s && s !== '--' && String(s).trim().toLowerCase() !== 'null');
   return parts.length > 0 ? parts.join(' ') : 'No Driver';
+}
+
+/** Strips literal "null" tokens & extra spaces from stored driver names */
+export function cleanDriverName(name?: string): string {
+  return (name || '')
+    .replace(/\bnull\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim() || 'Unknown Driver';
 }
 
 export async function fetchLiveVehicles(): Promise<LiveVehicle[]> {

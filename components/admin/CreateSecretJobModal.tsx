@@ -532,7 +532,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                               <button key={i} type="button" onMouseDown={(e) => { e.preventDefault(); fillPickup(idx, s); setFocusedAddr(null); }} className="w-full text-left px-3 py-2.5 hover:bg-neutral-50 transition-colors border-b border-neutral-50 last:border-0 flex items-center gap-2.5">
                                 <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-[11px] font-semibold text-slate-700 truncate">{[s.plotNo, s.street, s.city, s.country].filter(Boolean).join(", ")}</p>
+                                  <p className="text-[11px] font-semibold text-slate-700 truncate">{[s.plotNo, s.street, s.city, s.state, s.country].filter(Boolean).join(", ")}</p>
                                   {s.contactPerson && <p className="text-[10px] text-neutral-400 mt-0.5 truncate">{s.contactPerson} · {s.contact}</p>}
                                 </div>
                               </button>
@@ -631,7 +631,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                               <button key={i} type="button" onMouseDown={(e) => { e.preventDefault(); fillDropoff(idx, s); setFocusedAddr(null); }} className="w-full text-left px-3 py-2.5 hover:bg-neutral-50 transition-colors border-b border-neutral-50 last:border-0 flex items-center gap-2.5">
                                 <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
                                 <div className="min-w-0 flex-1">
-                                  <p className="text-[11px] font-semibold text-slate-700 truncate">{[s.plotNo, s.street, s.city, s.country].filter(Boolean).join(", ")}</p>
+                                  <p className="text-[11px] font-semibold text-slate-700 truncate">{[s.plotNo, s.street, s.city, s.state, s.country].filter(Boolean).join(", ")}</p>
                                   {s.contactPerson && <p className="text-[10px] text-neutral-400 mt-0.5 truncate">{s.contactPerson} · {s.contact}</p>}
                                 </div>
                               </button>

@@ -20,6 +20,7 @@ import {
 import { truckService } from "@/services/truckService";
 import { assignmentService } from "@/services/assignmentService";
 import { format } from "date-fns";
+import { cleanDriverName } from "@/services/liveTrackingService";
 
 export default function TruckProfilePage() {
    const params = useParams();
@@ -68,7 +69,7 @@ export default function TruckProfilePage() {
       id: a.bookingId?.tripId || "N/A",
       date: a.assignedAt ? format(new Date(a.assignedAt), "yyyy-MM-dd") : "N/A",
       route: `${a.bookingId?.pickup?.address?.city || 'N/A'} → ${a.bookingId?.dropoff?.address?.city || 'N/A'}`,
-      driver: a.driverName,
+      driver: cleanDriverName(a.driverName),
       status: a.status,
       fuelUsed: "TBD"
    }));
@@ -187,7 +188,7 @@ export default function TruckProfilePage() {
                   <div className="flex flex-col">
                      <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-[0.2em] leading-none mb-1">Active Pilot</span>
                      <span className="text-[16px] font-bold text-slate-900 tracking-tight leading-none">
-                        {assignments[0]?.driverName || "No active driver"}
+                        {assignments[0]?.driverName ? cleanDriverName(assignments[0].driverName) : "No active driver"}
                      </span>
                   </div>
                </div>

@@ -146,7 +146,7 @@ function BookingDetailModal({ booking, onClose }: ModalProps) {
                               {loc.address?.city && (
                                  <p className="text-slate-600 col-span-2">
                                     <span className="text-slate-400">Address:</span>{" "}
-                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.country].filter(Boolean).join(", ")}
+                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.state, loc.address.country].filter(Boolean).join(", ")}
                                  </p>
                               )}
                            </div>
@@ -186,7 +186,7 @@ function BookingDetailModal({ booking, onClose }: ModalProps) {
                               {loc.address?.city && (
                                  <p className="text-slate-600 col-span-2">
                                     <span className="text-slate-400">Address:</span>{" "}
-                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.country].filter(Boolean).join(", ")}
+                                    {[loc.address.plotNo, loc.address.street, loc.address.city, loc.address.state, loc.address.country].filter(Boolean).join(", ")}
                                  </p>
                               )}
                            </div>

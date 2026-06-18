@@ -9,7 +9,7 @@ import CreateTruckModal from "@/components/admin/CreateTruckModal";
 import TruckComplianceDrawer from "@/components/admin/TruckComplianceDrawer";
 import { ChevronRight, Eye, Settings, Plus, Package, X, Trash2, AlertTriangle } from "lucide-react";
 import { truckService } from "@/services/truckService";
-import { fetchLiveVehicles } from "@/services/liveTrackingService";
+import { fetchLiveVehicles, cleanDriverName } from "@/services/liveTrackingService";
 import { driverService } from "@/services/driverService";
 import { formatDate } from "@/lib/datetime";
 
@@ -79,7 +79,7 @@ export default function AdminTrucks() {
       (drivers || []).forEach((d: any) => {
         const truckId = d.assignedTruck?.truckId;
         if (truckId && d.name) {
-          map[truckId] = d.name;
+          map[truckId] = cleanDriverName(d.name);
         }
       });
       setDriverMap(map);

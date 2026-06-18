@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
+import { cleanDriverName } from "@/services/liveTrackingService";
 import { settlementService } from "@/services/settlementService";
 import JobRouteMap from "@/components/admin/JobRouteMap";
 import { uploadService } from "@/services/uploadService";
@@ -196,7 +197,7 @@ export default function JobDetailReport() {
     if (!booking) return null;
     return {
       id: booking.tripId || `#FL-${booking._id.substring(booking._id.length - 4).toUpperCase()}`,
-      driver: assignment?.driverName || "Not Assigned",
+      driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Not Assigned",
       truckNumber: assignment?.truckNumber || "N/A",
       status: (booking.tripStatus || booking.status || "PENDING").toUpperCase(),
       truckHealth: assignment?.truckHealth || "N/A",
@@ -827,7 +828,7 @@ export default function JobDetailReport() {
                           <div className="flex-1 min-w-0">
                             <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{label}</div>
                             <h3 className="text-base font-bold text-slate-900 mb-1">
-                              {[loc?.address?.plotNo, loc?.address?.street, loc?.address?.city, loc?.address?.country].filter(Boolean).join(', ') || 'N/A'}
+                              {[loc?.address?.plotNo, loc?.address?.street, loc?.address?.city, loc?.address?.state, loc?.address?.country].filter(Boolean).join(', ') || 'N/A'}
                             </h3>
                             {loc?.contactPerson && (
                               <div className="text-[10px] font-medium text-slate-400 mt-0.5">
@@ -1288,7 +1289,7 @@ export default function JobDetailReport() {
                 <div>
                   <h2 className="text-[15px] font-bold text-slate-900">Complete Job — Final Inspection</h2>
                   <p className="text-[11px] text-neutral-400 font-medium">
-                    {assignment?.driverName || "Driver"} · {assignment?.truckNumber || "N/A"}
+                    {assignment?.driverName ? cleanDriverName(assignment.driverName) : "Driver"} · {assignment?.truckNumber || "N/A"}
                     {booking?.tripId && <span className="text-primary ml-1">· {booking.tripId}</span>}
                   </p>
                 </div>

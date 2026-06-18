@@ -458,7 +458,7 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                                     <MapPin className="w-3 h-3 text-slate-300 shrink-0" />
                                     <div className="min-w-0 flex-1">
                                        <p className="text-[11px] font-medium text-slate-700 truncate">
-                                          {[prev.plotNo, prev.street, prev.city, prev.state].filter(Boolean).join(", ")}
+                                          {[prev.plotNo, prev.street, prev.city, prev.state, prev.country].filter(Boolean).join(", ")}
                                        </p>
                                        {(prev.contactPerson || prev.contact) && (
                                           <p className="text-[9px] text-slate-400 mt-0.5 truncate">

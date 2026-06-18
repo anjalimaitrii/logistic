@@ -17,6 +17,7 @@ import {
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
+import { cleanDriverName } from "@/services/liveTrackingService";
 import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
 
@@ -145,7 +146,7 @@ export default function AdminJobsPage() {
       client: (b?.clientId as any)?.name || "Direct Client",
       companyName: (b?.clientId as any)?.company?.companyName || "Direct Booking",
       status: getStatusType(b?.tripStatus || b?.status),
-      driver: assignment?.driverName || "Assign Driver",
+      driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Assign Driver",
       route,
       gpsStatus,
       isComplete,

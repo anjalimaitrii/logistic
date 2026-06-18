@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
+import { cleanDriverName } from "@/services/liveTrackingService";
 import { settlementService } from "@/services/settlementService";
 
 export default function AdminAccountant() {
@@ -139,7 +140,7 @@ export default function AdminAccountant() {
       clientName: (b.clientId as any)?.name || "N/A",
       route: routeStops.length ? routeStops : ["N/A"],
       status: isApproved ? "Approved" : "Assigned",
-      driver: assignment?.driverName || "Unassigned",
+      driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Unassigned",
       truckNumber: assignment?.truckNumber || "N/A",
       collection: assignment?.collectionArea || "N/A",
       raw: b

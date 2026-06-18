@@ -14,6 +14,7 @@ import {
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
+import { cleanDriverName } from "@/services/liveTrackingService";
 import { routeService } from "@/services/routeService";
 import { mileageService } from "@/services/mileageService";
 import { useNotifications } from "@/context/NotificationContext";
@@ -247,7 +248,7 @@ export default function AccountantJobDetail() {
       if (!silent) {
         setIsApproved(true);
         const tripId = jobData?.tripId || `#${jobData?._id?.slice(-4).toUpperCase()}`;
-        const driver = jobData?.assignment?.driverName || "Driver";
+        const driver = cleanDriverName(jobData?.assignment?.driverName) || "Driver";
         const pickup = allStops[0]?.address?.city || "—";
         const dropoff = allStops[allStops.length - 1]?.address?.city || "—";
         addNotification(
@@ -270,7 +271,7 @@ export default function AccountantJobDetail() {
         status: jobData.status,
         client: jobData.clientId?.name || "N/A",
         company: jobData.clientId?.company?.companyName || "Direct Booking",
-        driver: jobData.assignment?.driverName || "Unassigned",
+        driver: jobData.assignment?.driverName ? cleanDriverName(jobData.assignment.driverName) : "Unassigned",
         truckNumber: jobData.assignment?.truckNumber || "N/A",
         truckHealth: jobData.assignment?.truckHealth || "Good",
         pickupLocations: jobData.pickupLocations || [],
@@ -426,7 +427,7 @@ export default function AccountantJobDetail() {
                         </div>
                         <div className="flex-1 min-w-0 pt-1">
                           <div className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mb-0.5">Pickup Stop</div>
-                          <div className="text-sm font-semibold text-slate-900 leading-tight">{[loc.address?.city, loc.address?.country].filter(Boolean).join(", ") || "—"}</div>
+                          <div className="text-sm font-semibold text-slate-900 leading-tight">{[loc.address?.city, loc.address?.state, loc.address?.country].filter(Boolean).join(", ") || "—"}</div>
                           {(loc.address?.plotNo || loc.address?.street) && (
                             <div className="text-[11px] text-neutral-500 mt-0.5">
                               {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}
@@ -464,7 +465,7 @@ export default function AccountantJobDetail() {
                             <div className="text-[9px] font-bold text-rose-500 uppercase tracking-widest mb-0.5">
                               {isLast ? "Final Destination" : "Drop-off Stop"}
                             </div>
-                            <div className="text-sm font-semibold text-slate-900 leading-tight">{[loc.address?.city, loc.address?.country].filter(Boolean).join(", ") || "—"}</div>
+                            <div className="text-sm font-semibold text-slate-900 leading-tight">{[loc.address?.city, loc.address?.state, loc.address?.country].filter(Boolean).join(", ") || "—"}</div>
                             {(loc.address?.plotNo || loc.address?.street) && (
                               <div className="text-[11px] text-neutral-500 mt-0.5">
                                 {[loc.address?.plotNo, loc.address?.street].filter(Boolean).join(", ")}

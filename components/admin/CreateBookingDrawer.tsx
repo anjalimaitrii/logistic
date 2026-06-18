@@ -281,7 +281,7 @@ function LocationCard({
                 <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="text-[11px] font-semibold text-slate-700 truncate">
-                    {[s.plotNo, s.street, s.city, s.country].filter(Boolean).join(", ")}
+                    {[s.plotNo, s.street, s.city, s.state, s.country].filter(Boolean).join(", ")}
                   </p>
                   {s.contactPerson && (
                     <p className="text-[10px] text-neutral-400 mt-0.5 truncate">{s.contactPerson} · {s.contact}</p>
