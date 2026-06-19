@@ -6,7 +6,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateDriverModal from "@/components/admin/CreateDriverModal";
-import { ChevronRight, Eye, Phone, Plus, Edit2, Trash2 } from "lucide-react";
+import { ChevronRight, Eye, Phone, Plus, Edit2 } from "lucide-react";
 import { driverService } from "@/services/driverService";
 import { truckService } from "@/services/truckService";
 import { fetchLiveVehicles, getDriverName, cleanDriverName } from "@/services/liveTrackingService";
@@ -124,17 +124,6 @@ export default function AdminDrivers() {
     }
   };
 
-  const handleDeleteDriver = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this driver?")) return;
-    try {
-      await driverService.delete(id);
-      loadDrivers();
-    } catch (error) {
-      console.error("Failed to delete driver:", error);
-      alert("Failed to delete driver");
-    }
-  };
-
     const handleStatusToggle = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === "Active" ? "Inactive" : "Active";
     try {
@@ -222,15 +211,6 @@ export default function AdminDrivers() {
             className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-primary transition-all shadow-sm"
           >
             <Edit2 className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDeleteDriver(row.raw._id);
-            }}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-rose-500 transition-all shadow-sm"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
       ),

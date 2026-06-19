@@ -20,6 +20,8 @@ export default function CreateDriverModal({ isOpen, onClose, onSubmit, initialDa
     assignedTruck: ""
   });
   const [trucks, setTrucks] = useState<any[]>([]);
+  // Editing an existing driver? Trakzee-sourced fields are locked so they stay in sync.
+  const isEdit = !!initialData;
 
   useEffect(() => {
     if (isOpen) {
@@ -124,13 +126,17 @@ export default function CreateDriverModal({ isOpen, onClose, onSubmit, initialDa
 
                   <div className="grid grid-cols-1 gap-4 bg-neutral-50 p-4 rounded-2xl border border-neutral-100 shadow-sm">
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest ml-1">Full Name</label>
+                      <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                        Full Name
+                        {isEdit && <span className="normal-case tracking-normal text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">🔒 Trakzee · locked</span>}
+                      </label>
                       <input
                         type="text"
                         value={formData.name}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         placeholder="e.g. Adebayo Okafor"
-                        className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-slate-900 focus:border-primary/20 outline-none transition-all shadow-sm"
+                        disabled={isEdit}
+                        className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-slate-900 focus:border-primary/20 outline-none transition-all shadow-sm disabled:bg-neutral-100 disabled:text-neutral-400 disabled:cursor-not-allowed"
                       />
                     </div>
                     <div className="space-y-1.5">
@@ -187,26 +193,30 @@ export default function CreateDriverModal({ isOpen, onClose, onSubmit, initialDa
                   </div>
 
                   <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100 space-y-1.5">
-                    <label className="text-[9px] font-bold text-neutral-400 uppercase mb-1">
+                    <label className="text-[9px] font-bold text-neutral-400 uppercase mb-1 flex items-center gap-1.5">
                       License Number
+                      {isEdit && <span className="normal-case text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">🔒 Trakzee · locked</span>}
                     </label>
                     <input
                       type="text"
-                      className="bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full"
+                      className="bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full disabled:text-neutral-400 disabled:cursor-not-allowed"
                       placeholder="ABC-12345-XYZ"
                       value={formData.licenseNo}
                       onChange={(e) => setFormData({ ...formData, licenseNo: e.target.value })}
+                      disabled={isEdit}
                     />
                   </div>
 
                   <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100 space-y-1.5">
-                    <label className="text-[9px] font-bold text-neutral-400 uppercase mb-1">
+                    <label className="text-[9px] font-bold text-neutral-400 uppercase mb-1 flex items-center gap-1.5">
                       Assigned Truck
+                      {isEdit && <span className="normal-case text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">🔒 Trakzee · locked</span>}
                     </label>
                     <select
-                      className="bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full cursor-pointer"
+                      className="bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full cursor-pointer disabled:text-neutral-400 disabled:cursor-not-allowed"
                       value={formData.assignedTruck}
                       onChange={(e) => setFormData({ ...formData, assignedTruck: e.target.value })}
+                      disabled={isEdit}
                     >
                       <option value="">Select Truck (Optional)</option>
                       {trucks.map((truck) => (
