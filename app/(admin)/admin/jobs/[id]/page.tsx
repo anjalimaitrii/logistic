@@ -97,6 +97,13 @@ export default function JobDetailReport() {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [isCancelling, setIsCancelling] = useState(false);
 
+  // Earlier trips auto-completed while this driver was returning (truck never came
+  // back for inspection) — their damages/DO are collected in this completion modal.
+  const [pendingTrips, setPendingTrips] = useState<any[]>([]);
+  const [pastTripForms, setPastTripForms] = useState<
+    Record<string, { deliveryOrders: string[]; damages: { quantity: string; amount: string }[] }>
+  >({});
+
   // Address Change Modal State
   const [showAddressModal, setShowAddressModal] = useState(false);
   const [addressChangeData, setAddressChangeData] = useState({
@@ -337,6 +344,24 @@ export default function JobDetailReport() {
 
   const handleStatusUpdate = async (newStatus: string) => {
     if (newStatus === "COMPLETED") {
+      // Pull this truck's earlier trips auto-completed while returning that still need damages/DO
+      if (assignment?.truckNumber && assignment.truckNumber !== "N/A") {
+        try {
+          const pending = (await assignmentService.getPendingInspections(assignment.truckNumber)) || [];
+          // Never list the trip currently being completed
+          const others = pending.filter((t: any) => String(t.bookingId) !== String(id));
+          setPendingTrips(others);
+          const init: Record<string, { deliveryOrders: string[]; damages: { quantity: string; amount: string }[] }> = {};
+          others.forEach((t: any) => {
+            init[t.bookingId] = { deliveryOrders: [""], damages: [{ quantity: "", amount: "" }] };
+          });
+          setPastTripForms(init);
+        } catch (err) {
+          console.warn("[PendingInspections] fetch failed:", err);
+          setPendingTrips([]);
+          setPastTripForms({});
+        }
+      }
       setShowCompletionModal(true);
       return;
     }
@@ -363,12 +388,26 @@ export default function JobDetailReport() {
         : [];
 
       const { tollAmount, deliveryOrders, damages, ...inspectionData } = completionForm;
+      // Damages/DO entered for earlier auto-completed trips — skip any left blank
+      const pastTrips = pendingTrips
+        .map((t: any) => {
+          const f = pastTripForms[t.bookingId] || { deliveryOrders: [], damages: [] };
+          return {
+            bookingId: t.bookingId,
+            deliveryOrders: (f.deliveryOrders || []).filter(d => d.trim()),
+            damages: (f.damages || []).filter(d => d.quantity.trim()),
+          };
+        })
+        .filter(t => t.deliveryOrders.length > 0 || t.damages.length > 0);
+
       if (assignment?.driverId) {
         await assignmentService.markTruckInspected(assignment.driverId, {
           ...inspectionData,
+          bookingId: id,
           deliveryOrders: deliveryOrders.filter(d => d.trim()),
           damages: damages.filter(d => d.quantity.trim()),
           attachments,
+          ...(pastTrips.length > 0 ? { pastTrips } : {}),
         });
       }
       const tollAmt = parseFloat(tollAmount);
@@ -380,6 +419,8 @@ export default function JobDetailReport() {
       await bookingService.updateTripStatus(id, "completed", { tripEndCoords });
       setShowCompletionModal(false);
       setCompletionFiles([]);
+      setPendingTrips([]);
+      setPastTripForms({});
       await loadData();
     } catch (error) {
       console.error("Completion failed:", error);
@@ -1174,9 +1215,12 @@ export default function JobDetailReport() {
                     const rawStatus = booking.tripStatus ? booking.tripStatus.toUpperCase() : "PENDING";
                     const currentIdx = statusOrder.indexOf(rawStatus);
 
-                    // Detect if a new job was assigned while this trip was still returning
+                    // A "New Job Assigned" entry means this trip was auto-completed because
+                    // the driver/truck picked up a new trip while returning. The trip is already
+                    // "completed" in the DB (with its end point); show the Completed button locked
+                    // with that as the reason, instead of a tappable / generic "current" state.
                     const newJobEntry = (booking.timeline || []).find((e: any) => e.title === "New Job Assigned");
-                    const newJobBlocked = !!newJobEntry && rawStatus === "RETURNING";
+                    const newJobBlocked = !!newJobEntry;
 
                     const btnCls = (id: string) => {
                       const idx = statusOrder.indexOf(id);
@@ -1211,7 +1255,7 @@ export default function JobDetailReport() {
                           {isDone           && <span className="text-[7px] font-bold uppercase tracking-widest text-emerald-500">Done</span>}
                           {isLockedByNewJob  && <span className="text-[7px] font-bold uppercase tracking-widest text-amber-500">New Job Assigned</span>}
                           {isNext && !isLockedByNewJob && <span className="text-[7px] font-bold uppercase tracking-widest text-white/80">Tap to Update</span>}
-                          {isActive         && <span className="text-[7px] font-bold uppercase tracking-widest text-white/70">Current</span>}
+                          {isActive && !isLockedByNewJob && <span className="text-[7px] font-bold uppercase tracking-widest text-white/70">Current</span>}
                         </button>
                       );
                     };
@@ -1404,6 +1448,14 @@ export default function JobDetailReport() {
                 <p className="text-[9px] text-neutral-400 italic">Deducted from toll wallet on submission</p>
               </div>
 
+              {/* Which trip the Delivery Orders / Damages below belong to */}
+              <div className="flex items-center gap-2 pt-1">
+                <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest">
+                  {booking?.tripId || `#${id.slice(-6).toUpperCase()}`}
+                </span>
+                <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Current Trip</span>
+              </div>
+
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Delivery Orders</label>
@@ -1430,6 +1482,63 @@ export default function JobDetailReport() {
                   </div>
                 ))}
               </div>
+
+              {/* Earlier trips closed while returning — record their Damages & DO here too */}
+              {pendingTrips.length > 0 && (
+                <div className="space-y-3 p-4 rounded-2xl bg-amber-50/50 border border-amber-100">
+                  <div className="flex items-start gap-2">
+                    <RotateCcw className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest leading-relaxed">
+                      {pendingTrips.length} earlier trip{pendingTrips.length > 1 ? "s" : ""} closed while returning — record their damages & DO too
+                    </p>
+                  </div>
+                  {pendingTrips.map((t: any) => {
+                    const f = pastTripForms[t.bookingId] || { deliveryOrders: [""], damages: [{ quantity: "", amount: "" }] };
+                    const setF = (upd: Partial<typeof f>) =>
+                      setPastTripForms(prev => {
+                        const cur = prev[t.bookingId] || { deliveryOrders: [""], damages: [{ quantity: "", amount: "" }] };
+                        return { ...prev, [t.bookingId]: { ...cur, ...upd } };
+                      });
+                    return (
+                      <div key={t.bookingId} className="p-3 bg-white rounded-xl border border-amber-100 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest">{t.tripId}</span>
+                          <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Past Trip</span>
+                        </div>
+
+                        {/* Delivery Orders */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Delivery Orders</label>
+                            <button type="button" onClick={() => setF({ deliveryOrders: [...f.deliveryOrders, ""] })} className="text-[9px] font-bold text-primary uppercase tracking-widest hover:underline">+ Add</button>
+                          </div>
+                          {f.deliveryOrders.map((do_, i) => (
+                            <div key={i} className="flex gap-2">
+                              <input type="text" value={do_} onChange={e => { const arr = [...f.deliveryOrders]; arr[i] = e.target.value; setF({ deliveryOrders: arr }); }} placeholder={`DO #${i + 1}`} className="flex-1 bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
+                              {f.deliveryOrders.length > 1 && <button type="button" onClick={() => setF({ deliveryOrders: f.deliveryOrders.filter((_, idx) => idx !== i) })} className="px-2 text-rose-400 hover:text-rose-600 text-[11px] font-bold">✕</button>}
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Damages */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Damages</label>
+                            <button type="button" onClick={() => setF({ damages: [...f.damages, { quantity: "", amount: "" }] })} className="text-[9px] font-bold text-rose-500 uppercase tracking-widest hover:underline">+ Add</button>
+                          </div>
+                          {f.damages.map((dmg, i) => (
+                            <div key={i} className="flex gap-2 items-start">
+                              <input type="text" value={dmg.quantity} onChange={e => { const arr = f.damages.map((d, idx) => idx === i ? { ...d, quantity: e.target.value } : d); setF({ damages: arr }); }} placeholder="Qty with units (e.g. 2 tyres)" className="flex-1 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-rose-300 transition-all" />
+                              <input type="number" value={dmg.amount} onChange={e => { const arr = f.damages.map((d, idx) => idx === i ? { ...d, amount: e.target.value } : d); setF({ damages: arr }); }} placeholder="Amount" className="w-24 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-rose-300 transition-all" />
+                              {f.damages.length > 1 && <button type="button" onClick={() => setF({ damages: f.damages.filter((_, idx) => idx !== i) })} className="px-2 pt-2 text-rose-400 hover:text-rose-600 text-[11px] font-bold">✕</button>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Notes</label>

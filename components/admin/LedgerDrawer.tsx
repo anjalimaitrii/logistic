@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, Wallet, TrendingDown, CheckCircle2, Plus, Trash2, ArrowRight, Receipt, AlertCircle } from "lucide-react";
+import { X, Wallet, TrendingDown, CheckCircle2, Plus, Trash2, ArrowRight, Receipt, AlertCircle, KeyRound } from "lucide-react";
 import { ledgerService } from "@/services/ledgerService";
 import { formatDate } from "@/lib/datetime";
 
@@ -21,6 +21,10 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
   const [payForm, setPayForm] = useState({ amount: "", note: "", paidAt: "" });
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Password-gated delete confirmation
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deletePwError, setDeletePwError] = useState(false);
 
   useEffect(() => {
     if (isOpen) loadLedger();
@@ -52,14 +56,40 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
     finally { setIsSaving(false); }
   };
 
-  const handleDelete = async (paymentId: string) => {
-    if (!confirm("Delete this payment record?")) return;
+  // Open the password prompt for the chosen payment
+  const requestDelete = (paymentId: string) => {
+    setPendingDeleteId(paymentId);
+    setDeletePassword("");
+    setDeletePwError(false);
+  };
+
+  const cancelDelete = () => {
+    setPendingDeleteId(null);
+    setDeletePassword("");
+    setDeletePwError(false);
+  };
+
+  // Send the password to the backend, which verifies it before deleting from the DB
+  const confirmDelete = async () => {
+    const paymentId = pendingDeleteId;
+    if (!paymentId || !deletePassword) return;
     setDeletingId(paymentId);
     try {
-      await ledgerService.deletePayment(paymentId);
+      await ledgerService.deletePayment(paymentId, deletePassword);
+      // Verified & deleted — close the prompt and refresh
+      setPendingDeleteId(null);
+      setDeletePassword("");
+      setDeletePwError(false);
       await loadLedger();
-    } catch { alert("Failed to delete payment."); }
-    finally { setDeletingId(null); }
+    } catch (err: any) {
+      if (err?.status === 403) {
+        setDeletePwError(true); // wrong password — keep the prompt open
+      } else {
+        alert("Failed to delete payment.");
+      }
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   if (!isOpen) return null;
@@ -179,7 +209,7 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
                       </div>
                     </div>
                     <button
-                      onClick={() => handleDelete(p._id)}
+                      onClick={() => requestDelete(p._id)}
                       disabled={deletingId === p._id}
                       className="p-1.5 text-neutral-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors disabled:opacity-40"
                     >
@@ -252,6 +282,55 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
           </div>
         )}
       </div>
+
+      {/* Password-gated delete confirmation */}
+      {pendingDeleteId && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center p-6 pointer-events-auto">
+          <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={cancelDelete} />
+          <div className="relative w-full max-w-[360px] bg-white rounded-2xl shadow-2xl p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-100 flex items-center justify-center">
+                <KeyRound className="w-5 h-5 text-rose-500" />
+              </div>
+              <div>
+                <h3 className="text-[14px] font-bold text-slate-900">Confirm Deletion</h3>
+                <p className="text-[11px] text-neutral-400 font-medium">Enter the admin password to delete this payment.</p>
+              </div>
+            </div>
+
+            <input
+              type="password"
+              autoFocus
+              value={deletePassword}
+              onChange={e => { setDeletePassword(e.target.value); if (deletePwError) setDeletePwError(false); }}
+              onKeyDown={e => e.key === "Enter" && confirmDelete()}
+              placeholder="Admin password"
+              className={`w-full bg-neutral-50 border rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none transition-all ${
+                deletePwError ? "border-rose-400 ring-2 ring-rose-50" : "border-neutral-200 focus:border-primary/40"
+              }`}
+            />
+            {deletePwError && (
+              <p className="text-[11px] font-bold text-rose-500 mt-2">Incorrect password.</p>
+            )}
+
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={cancelDelete}
+                className="flex-1 py-2.5 border border-neutral-200 rounded-xl text-[11px] font-bold text-neutral-400 uppercase tracking-widest hover:bg-neutral-50 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={!deletePassword || deletingId === pendingDeleteId}
+                className="flex-1 py-2.5 bg-rose-500 text-white rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-rose-600 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> {deletingId === pendingDeleteId ? "Deleting…" : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

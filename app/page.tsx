@@ -34,17 +34,22 @@ export default function Home() {
       return;
     }
 
-    // Admin hardcoded credentials
-    if (identifier === "admin@gmail.com" && password === "admin123") {
-      document.cookie = 'role=admin; path=/; SameSite=Strict';
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      router.push("/admin/dashboard");
-      return;
-    }
-
     setIsLoading(true);
     setError("");
+
+    // Admin login — credentials verified server-side against env (ADMIN_EMAIL / ADMIN_PASSWORD)
+    try {
+      const adminRes = await clientService.adminLogin({ identifier, password });
+      if (adminRes?.role === "admin") {
+        document.cookie = 'role=admin; path=/; SameSite=Strict';
+        localStorage.setItem('token', adminRes.token);
+        localStorage.removeItem('user');
+        router.push("/admin/dashboard");
+        return;
+      }
+    } catch {
+      // Not admin credentials — fall through to client login
+    }
 
     try {
       const response = await clientService.login({ identifier, password });

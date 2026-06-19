@@ -204,6 +204,11 @@ export default function AccountantJobDetail() {
       alert("Please enter the Cash Allocation amount");
       return;
     }
+    // Fuel rate (petrol price) is required before approving — without it fuel cost is 0
+    if (!fuelRate || parseFloat(fuelRate) <= 0) {
+      alert("Please enter the Fuel Rate (petrol price) before approving");
+      return;
+    }
     try {
       const bookingId = (Array.isArray(id) ? id[0] : id) as string;
       if (!jobData?.assignment || (!jobData.assignment._id && !jobData.assignment.driverName)) {

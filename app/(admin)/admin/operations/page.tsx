@@ -48,9 +48,42 @@ export default function AdminOperations() {
     }
   };
 
+  // Capture the truck's live GPS position right now (used as the end point of a
+  // returning trip when a new job is assigned to a driver who is still returning).
+  const captureTruckCoords = async (
+    truckNumber?: string
+  ): Promise<{ lat: number; lng: number; location?: string } | undefined> => {
+    if (!truckNumber || truckNumber === "N/A") return undefined;
+    try {
+      const liveRes = await fetch("/api/livetrack");
+      const liveData = await liveRes.json();
+      const normalized = String(truckNumber).trim().toUpperCase();
+      const vehicle = (liveData.vehicles || []).find(
+        (v: any) =>
+          String(v.Vehicle_No || "").trim().toUpperCase() === normalized ||
+          String(v.Vehicle_Name || "").trim().toUpperCase() === normalized
+      );
+      const lat = parseFloat(vehicle?.Latitude);
+      const lng = parseFloat(vehicle?.Longitude);
+      if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+        return { lat, lng, location: vehicle.Location || undefined };
+      }
+    } catch (err) {
+      console.warn("[TripCoords] capture failed:", err);
+    }
+    return undefined;
+  };
+
   const handleAssignJob = async (assignmentData: any) => {
     if (!selectedJob) return;
     try {
+      // Assigning a new job to a returning driver ends their return leg — freeze the
+      // truck's current position so the prior trip gets a real GPS end point.
+      const returningEndCoords =
+        assignmentData.driverStatus === "returning"
+          ? await captureTruckCoords(assignmentData.truckNumber)
+          : undefined;
+
       const payload = {
         bookingId: selectedJob._id,
         truckId: assignmentData.truckId,
@@ -58,7 +91,8 @@ export default function AdminOperations() {
         driverName: assignmentData.driver,
         truckNumber: assignmentData.truckNumber,
         truckHealth: assignmentData.truckHealth,
-        collectionArea: assignmentData.collection
+        collectionArea: assignmentData.collection,
+        ...(returningEndCoords ? { returningEndCoords } : {})
       };
 
       if (selectedJob.assignment) {

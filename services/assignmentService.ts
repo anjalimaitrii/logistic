@@ -47,6 +47,7 @@ export const assignmentService = {
 
   // Mark truck as inspected — driver becomes available again
   markTruckInspected: async (driverId: string, inspectionData?: {
+    bookingId?: string;
     vehicleCondition: string;
     tyreCondition: string;
     tyreNumber?: string;
@@ -55,11 +56,23 @@ export const assignmentService = {
     damages?: { quantity: string; amount: string }[];
     notes?: string;
     attachments?: { name: string; url: string; size: number; type: string }[];
+    // Damages/DO for earlier trips auto-completed while returning (never inspected)
+    pastTrips?: {
+      bookingId: string;
+      deliveryOrders?: string[];
+      damages?: { quantity: string; amount: string }[];
+    }[];
   }) => {
     return await fetchApi(`/api/assignments/driver/${driverId}/mark-inspected`, {
       method: 'PATCH',
       body: JSON.stringify(inspectionData || {}),
     });
+  },
+
+  // Earlier trips for this TRUCK that were auto-completed while returning and
+  // still have no damages/DO recorded
+  getPendingInspections: async (truckNumber: string) => {
+    return await fetchApi(`/api/assignments/truck/${encodeURIComponent(truckNumber)}/pending-inspections`);
   },
 
   // Get drivers currently returning or under inspection

@@ -4,12 +4,13 @@ import { useState, useEffect, useMemo } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import {
   ChevronRight, RefreshCw, TrendingUp, TrendingDown,
-  Fuel, ShieldAlert, Wallet, ReceiptText, Landmark, Truck, X, Download,
+  Fuel, ShieldAlert, Wallet, ReceiptText, Landmark, Truck, X, Download, Scale,
 } from "lucide-react";
 import { bookingService }         from "@/services/bookingService";
 import { settlementService }      from "@/services/settlementService";
 import { truckInspectionService } from "@/services/truckInspectionService";
 import { assignmentService }      from "@/services/assignmentService";
+import { routeService }           from "@/services/routeService";
 import { formatDate } from "@/lib/datetime";
 import { cleanDriverName } from "@/services/liveTrackingService";
 
@@ -243,9 +244,12 @@ export default function ReportsPage() {
   const [settlements, setSettlements] = useState<any[]>([]);
   const [inspections, setInspections] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
+  const [routes,      setRoutes]      = useState<any[]>([]);
   const [isLoading,   setIsLoading]   = useState(true);
   const [error,       setError]       = useState<string | null>(null);
   const [detail,      setDetail]      = useState<DetailType>(null);
+  // Compare actual (accountant-entered) costs against the planned route values
+  const [compare,     setCompare]     = useState(false);
 
   const currentYear = new Date().getFullYear();
   const [from, setFrom] = useState(`${currentYear}-01-01`);
@@ -255,16 +259,18 @@ export default function ReportsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const [b, s, i, a] = await Promise.allSettled([
+      const [b, s, i, a, r] = await Promise.allSettled([
         bookingService.getAll(),
         settlementService.getAll(),
         truckInspectionService.getAll(),
         assignmentService.getAll(),
+        routeService.getAll(),
       ]);
       setBookings(    b.status === "fulfilled" ? (b.value || []) : []);
       setSettlements( s.status === "fulfilled" ? (s.value || []) : []);
       setInspections( i.status === "fulfilled" ? (i.value || []) : []);
       setAssignments( a.status === "fulfilled" ? (a.value || []) : []);
+      setRoutes(      r.status === "fulfilled" ? (r.value || []) : []);
     } catch (e: any) {
       setError(e?.message || "Failed to load report data");
     } finally {
@@ -327,6 +333,51 @@ export default function ReportsPage() {
     };
   }, [filteredBookings, filteredSettlements, filteredInspections]);
 
+  // ── Planned totals from routes (matched to the same settlements that drive actuals) ──
+  const routePlanned = useMemo(() => {
+    const norm = (s: any) => String(s ?? "").trim().toLowerCase();
+    const cityOf = (loc: any): string => {
+      if (!loc) return "";
+      if (typeof loc === "string") return loc;
+      return loc?.address?.city || loc?.city || "";
+    };
+    // route lookup keyed by "pickup|dropoff", both directions
+    const map = new Map<string, any>();
+    routes.forEach((r: any) => {
+      const a = norm(r.pickupCity), b = norm(r.dropoffCity);
+      map.set(`${a}|${b}`, r);
+      if (!map.has(`${b}|${a}`)) map.set(`${b}|${a}`, r);
+    });
+    const bookingById: Record<string, any> = {};
+    bookings.forEach((b: any) => { if (b?._id) bookingById[b._id] = b; });
+
+    let allocation = 0, toll = 0, levy = 0, matched = 0, unmatched = 0;
+    filteredSettlements.forEach((st: any) => {
+      const bId = typeof st.bookingId === "string" ? st.bookingId : st.bookingId?._id;
+      const b = bookingById[bId];
+      const pickup  = cityOf(Array.isArray(b?.pickupLocations)  ? b.pickupLocations[0]  : (b?.pickupLocations  || b?.pickupLocation));
+      const dropArr = b?.dropoffLocations;
+      const dropoff = cityOf(Array.isArray(dropArr) ? dropArr[dropArr.length - 1] : (dropArr || b?.dropoffLocation));
+      const route = b ? map.get(`${norm(pickup)}|${norm(dropoff)}`) : null;
+      if (!route) { unmatched++; return; }
+      matched++;
+      allocation += N(route.allocationMoney);
+      toll       += N(route.tollAmount);
+      levy       += N(route.councilLevy);
+    });
+    return { allocation, toll, levy, matched, unmatched, total: filteredSettlements.length };
+  }, [routes, bookings, filteredSettlements]);
+
+  // Compare-mode display helpers: "actual / plan" value + delta sub-line
+  const cmpValue = (actual: number, planned: number) =>
+    compare ? `${naira(actual)} / ${naira(planned)}` : naira(actual);
+  const cmpSub = (defaultSub: string, actual: number, planned: number) => {
+    if (!compare) return defaultSub;
+    const delta = actual - planned;
+    const sign = delta > 0 ? "+" : delta < 0 ? "−" : "";
+    return `Actual / Route plan · Δ ${sign}${naira(Math.abs(delta))}`;
+  };
+
   const costEntries = [
     { label: "Driver Allocation", value: stats.allocationCost, color: "bg-blue-400" },
     { label: "Fuel Cost",         value: stats.fuelCost,       color: "bg-amber-400" },
@@ -377,6 +428,18 @@ export default function ReportsPage() {
               className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-primary transition-all disabled:opacity-50">
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
               Refresh
+            </button>
+            <button
+              onClick={() => setCompare(c => !c)}
+              disabled={isLoading}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 border
+                ${compare
+                  ? "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700"
+                  : "bg-white text-slate-600 border-neutral-200 hover:border-indigo-300 hover:text-indigo-600"}`}
+              title="Compare accountant-entered costs against planned route values"
+            >
+              <Scale className="w-3.5 h-3.5" />
+              {compare ? "Comparing" : "Compare"}
             </button>
             <button
               onClick={() => exportReport(from, to, stats, filteredBookings, filteredSettlements, filteredInspections, driverByBooking)}
@@ -451,13 +514,21 @@ export default function ReportsPage() {
             <div>
               <h2 className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Costs &amp; Expenses
+                {compare && (
+                  <span className="ml-2 normal-case tracking-normal text-[10px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                    Actual / Route plan
+                    {routePlanned.unmatched > 0 && (
+                      <span className="text-amber-600"> · {routePlanned.unmatched} of {routePlanned.total} job{routePlanned.total !== 1 ? "s" : ""} have no route</span>
+                    )}
+                  </span>
+                )}
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <SummaryCard label="Driver Allocation" value={naira(stats.allocationCost)} sub={`${stats.totalSettlements} settlements`}                              icon={<Wallet className="w-5 h-5" />}     accent="blue"   onClick={() => setDetail("allocation")} />
+                <SummaryCard label="Driver Allocation" value={cmpValue(stats.allocationCost, routePlanned.allocation)} sub={cmpSub(`${stats.totalSettlements} settlements`, stats.allocationCost, routePlanned.allocation)} icon={<Wallet className="w-5 h-5" />}     accent="blue"   onClick={() => setDetail("allocation")} />
                 <SummaryCard label="Fuel Cost"         value={naira(stats.fuelCost)}       sub="Total fuel across all trips"                                          icon={<Fuel className="w-5 h-5" />}       accent="amber"  onClick={() => setDetail("fuel")} />
-                <SummaryCard label="Toll Charges"      value={naira(stats.tollAmount)}     sub="Accumulated toll fees"                                                icon={<Landmark className="w-5 h-5" />}   accent="orange" />
+                <SummaryCard label="Toll Charges"      value={cmpValue(stats.tollAmount, routePlanned.toll)} sub={cmpSub("Accumulated toll fees", stats.tollAmount, routePlanned.toll)}                              icon={<Landmark className="w-5 h-5" />}   accent="orange" />
                 <SummaryCard label="Damages"           value={naira(stats.totalDamages)}   sub={`${stats.damageIncidents} incident${stats.damageIncidents !== 1 ? "s" : ""}`} icon={<ShieldAlert className="w-5 h-5" />} accent="rose"   onClick={() => setDetail("damages")} />
-                <SummaryCard label="Council Levy"      value={naira(stats.councilLevy)}    sub="Municipal / council taxes"                                            icon={<Landmark className="w-5 h-5" />}   accent="violet" onClick={() => setDetail("levy")} />
+                <SummaryCard label="Council Levy"      value={cmpValue(stats.councilLevy, routePlanned.levy)} sub={cmpSub("Municipal / council taxes", stats.councilLevy, routePlanned.levy)}                          icon={<Landmark className="w-5 h-5" />}   accent="violet" onClick={() => setDetail("levy")} />
                 <SummaryCard label="Other Expenses"    value={naira(stats.otherExpenses)}  sub="Misc trip expenses"                                                   icon={<ReceiptText className="w-5 h-5" />} accent="slate" />
               </div>
             </div>

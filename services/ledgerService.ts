@@ -19,6 +19,9 @@ export const ledgerService = {
       body: JSON.stringify(payload),
     }),
 
-  deletePayment: (paymentId: string) =>
-    fetchApi(`/api/ledger/payment/${paymentId}`, { method: 'DELETE' }),
+  deletePayment: (paymentId: string, password: string) =>
+    fetchApi(`/api/ledger/payment/${paymentId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ password }),
+    }),
 };

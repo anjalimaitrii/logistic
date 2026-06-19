@@ -30,6 +30,14 @@ export const clientService = {
     });
   },
 
+  // Admin login — verified server-side against ADMIN_EMAIL / ADMIN_PASSWORD env vars
+  adminLogin: async (payload: { identifier: string; password: string }) => {
+    return await fetchApi('/api/clients/admin-login', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   getById: async (id: string) => {
     return await fetchApi(`/api/clients/${id}`);
   },
