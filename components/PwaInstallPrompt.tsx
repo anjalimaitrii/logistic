@@ -95,7 +95,7 @@ export default function PwaInstallPrompt() {
         
         <div className="flex-1 min-w-0">
           <h3 className="font-display font-bold text-white text-base leading-tight">
-            Install FleetLink
+            Install Speedogistic
           </h3>
           <p className="text-neutral-300 text-xs mt-1 line-clamp-1">
             Access your fleet faster from home screen

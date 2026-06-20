@@ -52,6 +52,11 @@ export const bookingService = {
     return await fetchApi(`/api/bookings/${id}`);
   },
 
+  // Cancel = permanently delete the booking (and its assignment/settlement)
+  cancel: async (id: string) => {
+    return await fetchApi(`/api/bookings/${id}`, { method: 'DELETE' });
+  },
+
   updateStatus: async (id: string, status: string, additionalData: any = {}) => {
     return await fetchApi(`/api/bookings/${id}/status`, {
       method: 'PATCH',

@@ -238,10 +238,17 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
                   const isTBD       = billed === 0;
                   const jobPending  = Math.max(0, billed - paid);
                   const isPaid      = !isTBD && (b.status === "paid" || jobPending === 0);
+                  // Which client this trip was booked for (company ledger spans many clients)
+                  const bookedFor   = b.clientId?.name || b.metadata?.client || null;
                   return (
                     <div key={b._id} className={`p-3 border rounded-xl ${isPaid ? "bg-emerald-50/40 border-emerald-200" : "bg-white border-neutral-100"}`}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold text-primary">#{b.tripId || b._id?.slice(-6).toUpperCase()}</span>
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <span className="text-[10px] font-bold text-primary shrink-0">#{b.tripId || b._id?.slice(-6).toUpperCase()}</span>
+                          {bookedFor && (
+                            <span className="text-[9px] font-medium text-slate-400 truncate">· by <span className="capitalize">{bookedFor}</span></span>
+                          )}
+                        </div>
                         <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
                           isPaid ? "bg-emerald-100 text-emerald-700" :
                           isTBD ? "bg-neutral-100 text-neutral-400" :

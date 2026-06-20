@@ -18,7 +18,7 @@ const dmSans = DM_Sans({
 });
 
 export const viewport: Viewport = {
-  themeColor: "#FF6B00",
+  themeColor: "#D41727",
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -26,12 +26,12 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "FleetTrack - Premium Logistics & Fleet Management",
+  title: "Speedogistic - Premium Logistics & Fleet Management",
   description: "Modern logistics and fleet management platform for global businesses.",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "FleetTrack",
+    title: "Speedogistic",
   },
   formatDetection: {
     telephone: false,

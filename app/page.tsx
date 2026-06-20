@@ -210,7 +210,7 @@ export default function Home() {
           content: ''; position: absolute;
           bottom: -80px; right: -80px;
           width: 300px; height: 300px; border-radius: 50%;
-          background: radial-gradient(circle, rgba(232,93,32,0.15) 0%, transparent 70%);
+          background: radial-gradient(circle, rgba(212,23,39,0.15) 0%, transparent 70%);
         }
 
         .ft-left::after {
@@ -224,10 +224,12 @@ export default function Home() {
         .ft-brand { display: flex; align-items: center; gap: 12px; z-index: 1; }
 
         .ft-brand-icon {
-          width: 42px; height: 42px; background: #E85D20;
+          width: 42px; height: 42px; background: #fff;
           border-radius: 10px; display: flex; align-items: center;
           justify-content: center; flex-shrink: 0;
+          padding: 5px;
         }
+        .ft-brand-icon img { width: 100%; height: 100%; object-fit: contain; }
 
         .ft-brand-name {
           font-family: 'Barlow Condensed', sans-serif;
@@ -250,7 +252,7 @@ export default function Home() {
           line-height: 1.15; margin-bottom: 12px;
         }
 
-        .ft-mid h2 em { color: #E85D20; font-style: normal; }
+        .ft-mid h2 em { color: #D41727; font-style: normal; }
 
         .ft-mid p {
           font-size: 13.5px; color: rgba(255,255,255,0.42);
@@ -281,7 +283,7 @@ export default function Home() {
           font-size: 20px; font-weight: 700; color: #fff; line-height: 1;
         }
 
-        .ft-chip-val b { color: #E85D20; }
+        .ft-chip-val b { color: #D41727; }
         .ft-chip-lbl { font-size: 11px; color: rgba(255,255,255,0.32); margin-top: 3px; font-weight: 400; }
 
         /* ─── RIGHT PANEL ─── */
@@ -326,8 +328,8 @@ export default function Home() {
         }
 
         .ft-phone-box:focus-within {
-          border-color: #E85D20; background: #fff;
-          box-shadow: 0 0 0 3px rgba(232,93,32,0.09);
+          border-color: #D41727; background: #fff;
+          box-shadow: 0 0 0 3px rgba(212,23,39,0.09);
         }
 
         .ft-phone-box input {
@@ -359,8 +361,8 @@ export default function Home() {
         }
 
         .ft-btn-dark:hover {
-          background: #E85D20;
-          box-shadow: 0 8px 22px rgba(232,93,32,0.28);
+          background: #D41727;
+          box-shadow: 0 8px 22px rgba(212,23,39,0.28);
           transform: translateY(-1px);
         }
 
@@ -370,7 +372,7 @@ export default function Home() {
           font-size: 13px; color: #A8B0BF; font-weight: 400;
         }
 
-        .ft-alt a { color: #E85D20; font-weight: 500; text-decoration: none; }
+        .ft-alt a { color: #D41727; font-weight: 500; text-decoration: none; }
         .ft-alt a:hover { text-decoration: underline; }
 
         /* ── OTP step ── */
@@ -402,12 +404,12 @@ export default function Home() {
 
         .ft-change {
           background: none; border: none; cursor: pointer;
-          font-size: 13px; color: #E85D20; font-weight: 500;
+          font-size: 13px; color: #D41727; font-weight: 500;
           padding: 5px 10px; border-radius: 8px;
           transition: background 0.18s;
         }
 
-        .ft-change:hover { background: rgba(232,93,32,0.07); }
+        .ft-change:hover { background: rgba(212,23,39,0.07); }
 
         .ft-hint { font-size: 13px; color: #9AA3B2; line-height: 1.65; margin-bottom: 22px; font-weight: 400; }
 
@@ -423,8 +425,8 @@ export default function Home() {
         }
 
         .ft-otp-cell:focus {
-          border-color: #E85D20; background: #fff;
-          box-shadow: 0 0 0 3px rgba(232,93,32,0.09);
+          border-color: #D41727; background: #fff;
+          box-shadow: 0 0 0 3px rgba(212,23,39,0.09);
         }
 
         .ft-forgot-link {
@@ -433,7 +435,7 @@ export default function Home() {
         }
         .ft-forgot-link button {
           background: none; border: none; cursor: pointer;
-          color: #E85D20; font-size: 13px; font-weight: 500; padding: 0;
+          color: #D41727; font-size: 13px; font-weight: 500; padding: 0;
         }
         .ft-forgot-link button:hover { text-decoration: underline; }
 
@@ -491,12 +493,10 @@ export default function Home() {
           <div className="ft-left">
             <div className="ft-brand">
               <div className="ft-brand-icon">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="white">
-                  <path d="M20 8H17L15 4H9L7 8H4C2.9 8 2 8.9 2 10V19C2 19.55 2.45 20 3 20H5C5 21.1 5.9 22 7 22C8.1 22 9 21.1 9 20H15C15 21.1 15.9 22 17 22C18.1 22 19 21.1 19 20H21C21.55 20 22 19.55 22 19V10C22 8.9 21.1 8 20 8M7 20C6.45 20 6 19.55 6 19s.45-1 1-1 1 .45 1 1-.45 1-1 1M17 20c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1" />
-                </svg>
+                <img src="/logo-hd.svg" alt="Speedogistic logo" />
               </div>
               <div>
-                <div className="ft-brand-name">FleetTrack</div>
+                <div className="ft-brand-name">Speedogistic</div>
                 <div className="ft-brand-sub">Global Logistics</div>
               </div>
             </div>
@@ -511,9 +511,9 @@ export default function Home() {
                     <rect key={x} x={x} y="50" width="22" height="3" rx="1.5" fill="rgba(255,255,255,0.12)" />
                   ))}
                   <g className="truck">
-                    <rect x="0" y="26" width="38" height="16" rx="2" fill="#E85D20" />
-                    <rect x="4" y="20" width="24" height="22" rx="1.5" fill="#FF8050" />
-                    <rect x="28" y="28" width="10" height="14" rx="2" fill="#C94A10" />
+                    <rect x="0" y="26" width="38" height="16" rx="2" fill="#D41727" />
+                    <rect x="4" y="20" width="24" height="22" rx="1.5" fill="#F0505F" />
+                    <rect x="28" y="28" width="10" height="14" rx="2" fill="#A0121E" />
                     <rect x="30" y="30" width="6" height="6" rx="1" fill="rgba(255,255,255,0.5)" />
                     <circle cx="10" cy="42" r="4" fill="#1B2340" />
                     <circle cx="10" cy="42" r="2" fill="#8A93AA" />
@@ -686,7 +686,7 @@ export default function Home() {
 
               <div className="ft-resend" style={{marginTop: "16px"}}>
                 Didn't receive it?{" "}
-                <button style={{background:"none",border:"none",cursor:"pointer",color:"#E85D20",fontWeight:600}} onClick={handleForgotSend}>
+                <button style={{background:"none",border:"none",cursor:"pointer",color:"#D41727",fontWeight:600}} onClick={handleForgotSend}>
                   Resend OTP
                 </button>
               </div>

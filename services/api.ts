@@ -3,8 +3,12 @@ const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
 export async function fetchApi(endpoint: string, options: RequestInit = {}) {
   const url = `${BASE_URL}${endpoint}`;
 
+  // Attach the login token (set at login) so the backend knows who is calling
+  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+
   const headers = {
     'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(options.headers || {}),
   };
 

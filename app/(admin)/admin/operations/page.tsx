@@ -175,7 +175,7 @@ export default function AdminOperations() {
           <div className="flex items-center gap-2">
             <span className="px-1.5 py-0.5 rounded bg-slate-900 text-white text-[8px] font-bold uppercase tracking-wider">{val}</span>
           </div>
-          <span className="text-[11px] font-bold text-slate-700 ml-0.5">{row.clientName}</span>
+          <span className="text-[11px] font-bold text-slate-700 ml-0.5 capitalize">{row.clientName}</span>
         </div>
       )
     },

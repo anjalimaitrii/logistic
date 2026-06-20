@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
+import { ClientMobileNav } from "@/components/client/ClientMobileNav";
 import {
    User,
    Mail,
@@ -62,7 +63,7 @@ export default function ClientProfilePage() {
    const handleLogout = () => {
       localStorage.removeItem("user");
       localStorage.removeItem("token");
-      window.location.href = "/login";
+      window.location.href = "/";
    };
 
    return (
@@ -82,7 +83,7 @@ export default function ClientProfilePage() {
                paddingLeft: isDesktop ? (isSidebarExpanded ? 240 + 32 : 68 + 32) : 16,
                paddingRight: isDesktop ? 32 : 16
             }}
-            className="flex-1 min-w-0 pb-12 pt-8 md:pt-10"
+            className="flex-1 min-w-0 pb-24 md:pb-12 pt-8 md:pt-10"
          >
             <div className="max-w-5xl mx-auto">
 
@@ -119,7 +120,7 @@ export default function ClientProfilePage() {
                                  <ShieldCheck className="w-3 h-3 text-white" />
                               </div>
                            </div>
-                           <h2 className="text-[16px] font-bold text-slate-900 leading-tight">{user?.name}</h2>
+                           <h2 className="text-[16px] font-bold text-slate-900 leading-tight capitalize">{user?.name}</h2>
                            <p className="text-[11px] font-medium text-slate-400 mt-0.5">{user?.designation || 'Client'}</p>
 
                            <div className="w-full mt-6 space-y-2 text-left">
@@ -136,18 +137,7 @@ export default function ClientProfilePage() {
                      </div>
 
                      {/* Company Quick Summary */}
-                     <div className="bg-primary/5 rounded-3xl p-6 border border-primary/10">
-                        <p className="text-[9px] font-black text-primary uppercase tracking-[0.2em] mb-4">Primary Organization</p>
-                        <div className="flex items-center gap-3">
-                           <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center border border-primary/5 shadow-sm">
-                              <Building className="w-5 h-5 text-primary" />
-                           </div>
-                           <div className="min-w-0">
-                              <h4 className="text-[13px] font-bold text-slate-900 truncate">{user?.company?.companyName || user?.companyName}</h4>
-                              <p className="text-[10px] font-medium text-slate-400">Tax ID: {user?.company?.cinNumber || 'Verified'}</p>
-                           </div>
-                        </div>
-                     </div>
+                  
                   </div>
 
                   {/* ── TEAM & ORGANIZATION DETAIL (Compact) ── */}
@@ -190,7 +180,7 @@ export default function ClientProfilePage() {
                                        {member.name.charAt(0).toUpperCase()}
                                     </div>
                                     <div className="min-w-0 flex-1">
-                                       <p className="text-[12px] font-bold text-slate-900 truncate leading-none">
+                                       <p className="text-[12px] font-bold text-slate-900 truncate leading-none capitalize">
                                           {member.name}
                                           {member._id === (user?._id || user?.id) && <span className="ml-1 text-[8px] font-black text-primary uppercase">(You)</span>}
                                        </p>
@@ -226,6 +216,8 @@ export default function ClientProfilePage() {
                </div>
             </div>
          </motion.main>
+
+         <ClientMobileNav />
       </div>
    );
 }

@@ -93,7 +93,7 @@ export default function AdminNotifPanel({ isOpen, onClose }: AdminNotifPanelProp
                 </div>
               </div>
               {notif.unread && (
-                <div className="w-2 h-2 bg-primary rounded-full mt-2 shrink-0 shadow-[0_0_8px_rgba(255,107,0,0.5)]" />
+                <div className="w-2 h-2 bg-primary rounded-full mt-2 shrink-0 shadow-[0_0_8px_rgba(212,23,39,0.5)]" />
               )}
             </div>
           ))

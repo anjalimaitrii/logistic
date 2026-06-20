@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
+import { ClientMobileNav } from "@/components/client/ClientMobileNav";
 import {
    ArrowLeft,
    Phone,
@@ -105,12 +106,15 @@ function extractPreviousLocations(bookings: any[]): LocationEntry[] {
    for (const booking of bookings) {
       const stops = [...(booking.pickupLocations || []), ...(booking.dropoffLocations || [])];
       for (const stop of stops) {
-         const key = `${stop.address?.city}|${stop.address?.street}|${stop.address?.plotNo}|${stop.contactNumber}`;
+         // Dedupe by ADDRESS only — same address shouldn't repeat just because the
+         // contact differs. Contact person/number is NOT carried over (it varies per
+         // booking), so the user always fills a fresh contact for the chosen address.
+         const key = `${stop.address?.city}|${stop.address?.street}|${stop.address?.plotNo}|${stop.address?.state}|${stop.address?.country}`;
          if (!seen.has(key) && stop.address?.city) {
             seen.add(key);
             locs.push({
-               contactPerson: stop.contactPerson || "",
-               contactCode: "", contact: stop.contactNumber || "",
+               contactPerson: "",
+               contactCode: "", contact: "",
                contactPerson2: "", contact2Code: "", contact2: "", clientName: "",
                plotNo: stop.address?.plotNo || "",
                street: stop.address?.street || "",
@@ -558,9 +562,17 @@ export default function NewBookingPage() {
       // Track which localPrevious entry this came from
       const sourceIdx = localPrevious.findIndex(a => addrKey(a) === addrKey(address));
       setSuggestionSource(prev => ({ ...prev, [`${type}-${idx}`]: sourceIdx }));
+      // Fill ONLY the address fields — keep whatever contact the user already typed
       setFormData(prev => ({
          ...prev,
-         [type]: prev[type].map((loc, i) => i === idx ? { ...address } : loc),
+         [type]: prev[type].map((loc, i) => i === idx ? {
+            ...loc,
+            plotNo: address.plotNo,
+            street: address.street,
+            city: address.city,
+            state: address.state,
+            country: address.country,
+         } : loc),
       }));
    };
 
@@ -846,28 +858,7 @@ export default function NewBookingPage() {
             )}
          </motion.main>
 
-         <nav className="md:hidden fixed bottom-6 left-6 right-6 bg-white/90 backdrop-blur-xl border border-neutral-100 flex justify-around py-3 rounded-2xl shadow-xl z-50">
-            <Link href="/dashboard" className="flex flex-col items-center gap-1 text-slate-300">
-               <TrendingUp className="w-5 h-5" />
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">Dash</span>
-            </Link>
-            <div className="flex flex-col items-center gap-1 text-primary">
-               <div className="relative">
-                  <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white shadow-lg border-4 border-white -mt-6">
-                     <Plus className="w-6 h-6" />
-                  </div>
-               </div>
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">New</span>
-            </div>
-            <div className="flex flex-col items-center gap-1 text-slate-300">
-               <DollarSign className="w-5 h-5" />
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">Ledger</span>
-            </div>
-            <div className="flex flex-col items-center gap-1 text-slate-300">
-               <div className="w-5 h-5 rounded-md bg-slate-100" />
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">Acc</span>
-            </div>
-         </nav>
+         <ClientMobileNav />
       </div>
    );
 }

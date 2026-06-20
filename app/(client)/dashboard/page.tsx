@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
+import { ClientMobileNav } from "@/components/client/ClientMobileNav";
 import {
    Search,
    TrendingUp,
@@ -247,6 +248,7 @@ export default function DashboardPage() {
          tripId: b.tripId || `#${b._id?.slice(-7).toUpperCase()}`,
          cities: allCities.length ? allCities : ["—"],
          cargo: b.cargoDetails?.goodsType || "Cargo",
+         bookedBy: b.clientId?.name || b.metadata?.client || "—",
          status: b.status || "pending",
          bookedAt,
       };
@@ -289,11 +291,11 @@ export default function DashboardPage() {
                   <div className="h-4 w-px bg-slate-200 mx-1" />
                   <Link href="/dashboard/profile" className="flex items-center gap-2 pl-2 hover:opacity-80 transition-opacity cursor-pointer">
                      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[10px] font-medium">
-                        {user?.name?.charAt(0) || "U"}
+                        {user?.name?.charAt(0)?.toUpperCase() || "U"}
                      </div>
                      <div className="hidden lg:block leading-none">
-                        <p className="text-[11px] font-semibold text-slate-900">{user?.name || "User"}</p>
-                        <p className="text-[9px] text-slate-400 mt-0.5">{user?.designation || "Representative"}</p>
+                        <p className="text-[11px] font-semibold text-slate-900 capitalize">{user?.name || "User"}</p>
+                        <p className="text-[9px] text-slate-400 mt-0.5 capitalize">{user?.designation || "Representative"}</p>
                      </div>
                   </Link>
                </div>
@@ -346,6 +348,7 @@ export default function DashboardPage() {
                            <tr className="bg-slate-50/50 border-b border-slate-50">
                               <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Sr. No.</th>
                               <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Route</th>
+                              <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Booked By</th>
                               <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Cargo</th>
                               <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Status</th>
                               <th className="px-4 md:px-5 py-3 text-[9px] md:text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Booked At</th>
@@ -355,11 +358,11 @@ export default function DashboardPage() {
                         <tbody className="divide-y divide-slate-50">
                            {isLoading ? (
                               <tr>
-                                 <td colSpan={6} className="px-4 py-8 text-center text-[10px] text-slate-400 italic">Syncing shipments...</td>
+                                 <td colSpan={7} className="px-4 py-8 text-center text-[10px] text-slate-400 italic">Syncing shipments...</td>
                               </tr>
                            ) : recentDisplayJobs.length === 0 ? (
                               <tr>
-                                 <td colSpan={6} className="px-4 py-10 text-center">
+                                 <td colSpan={7} className="px-4 py-10 text-center">
                                     <p className="text-[11px] text-slate-400">No bookings yet.</p>
                                     <Link href="/bookings/new" className="text-[10px] text-primary font-semibold mt-1 inline-block hover:underline">
                                        Create your first booking →
@@ -386,6 +389,9 @@ export default function DashboardPage() {
                                              </div>
                                           )}
                                        </div>
+                                    </td>
+                                    <td className="px-4 md:px-5 py-3">
+                                       <span className="text-[11px] font-semibold text-slate-700 capitalize">{job.bookedBy}</span>
                                     </td>
                                     <td className="px-4 md:px-5 py-3 text-[10px] md:text-[11px] font-medium text-slate-500">{job.cargo}</td>
                                     <td className="px-4 md:px-5 py-3">
@@ -423,32 +429,7 @@ export default function DashboardPage() {
          </AnimatePresence>
 
          {/* ── MOBILE NAV ── */}
-         <nav className="md:hidden fixed bottom-6 left-6 right-6 bg-white/90 backdrop-blur-xl border border-neutral-100 flex justify-around py-3 rounded-2xl shadow-xl z-50">
-            <Link href="/dashboard" className="flex flex-col items-center gap-1 text-primary">
-               <TrendingUp className="w-5 h-5" />
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">Dash</span>
-            </Link>
-            <div className="flex flex-col items-center gap-1 text-slate-300">
-               <Package className="w-5 h-5" />
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">Jobs</span>
-            </div>
-            <Link href="/bookings/new" className="flex flex-col items-center gap-1 text-slate-300">
-               <div className="relative">
-                  <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white shadow-lg border-4 border-white -mt-6">
-                     <Plus className="w-6 h-6" />
-                  </div>
-               </div>
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">New</span>
-            </Link>
-            <div className="flex flex-col items-center gap-1 text-slate-300">
-               <DollarSign className="w-5 h-5" />
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">Ledger</span>
-            </div>
-            <div className="flex flex-col items-center gap-1 text-slate-300">
-               <div className="w-5 h-5 rounded-md bg-slate-100" />
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">Acc</span>
-            </div>
-         </nav>
+         <ClientMobileNav />
       </div>
    );
 }

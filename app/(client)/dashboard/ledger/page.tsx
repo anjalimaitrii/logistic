@@ -17,6 +17,7 @@ import {
 import { motion } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
+import { ClientMobileNav } from "@/components/client/ClientMobileNav";
 import { bookingService } from "@/services/bookingService";
 import ClientNotificationBell from "@/components/client/ClientNotificationBell";
 import { formatDate } from "@/lib/datetime";
@@ -127,11 +128,11 @@ export default function ClientLedgerPage() {
             <div className="h-4 w-px bg-slate-200 mx-1" />
             <Link href="/dashboard/profile" className="flex items-center gap-2 pl-2 hover:opacity-80 transition-opacity cursor-pointer">
               <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[10px] font-medium">
-                {user?.name?.charAt(0) || "U"}
+                {user?.name?.charAt(0)?.toUpperCase() || "U"}
               </div>
               <div className="hidden lg:block leading-none">
-                <p className="text-[11px] font-semibold text-slate-900">{user?.name || "User"}</p>
-                <p className="text-[9px] text-slate-400 mt-0.5">{user?.designation || "Representative"}</p>
+                <p className="text-[11px] font-semibold text-slate-900 capitalize">{user?.name || "User"}</p>
+                <p className="text-[9px] text-slate-400 mt-0.5 capitalize">{user?.designation || "Representative"}</p>
               </div>
             </Link>
           </div>
@@ -235,6 +236,7 @@ export default function ClientLedgerPage() {
                   <tr className="bg-slate-50/50 border-b border-slate-50">
                     <th className="px-5 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Sr. No.</th>
                     <th className="px-5 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Route</th>
+                    <th className="px-5 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Booked By</th>
                     <th className="px-5 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">Payment Status</th>
                     <th className="px-5 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest text-right">Trip Cost</th>
                     <th className="px-5 py-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest text-right">Paid</th>
@@ -245,12 +247,12 @@ export default function ClientLedgerPage() {
                   {isLoading ? (
                     Array(5).fill(0).map((_, i) => (
                       <tr key={i} className="animate-pulse">
-                        <td colSpan={6} className="px-5 py-6"><div className="h-2 bg-slate-100 rounded-full w-full" /></td>
+                        <td colSpan={7} className="px-5 py-6"><div className="h-2 bg-slate-100 rounded-full w-full" /></td>
                       </tr>
                     ))
                   ) : filteredBookings.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-5 py-12 text-center">
+                      <td colSpan={7} className="px-5 py-12 text-center">
                         <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest italic">No transactions found</p>
                       </td>
                     </tr>
@@ -293,6 +295,9 @@ export default function ClientLedgerPage() {
                           </div>
                         </td>
                         <td className="px-5 py-5">
+                          <span className="text-[11px] font-semibold text-slate-700 capitalize">{b.clientId?.name || b.metadata?.client || "—"}</span>
+                        </td>
+                        <td className="px-5 py-5">
                           <div className="flex flex-col gap-1">
                             <span className={`w-fit px-2 py-0.5 rounded-md text-[8px] font-bold uppercase tracking-widest border ${
                               isNotInvoiced ? 'bg-slate-50 text-slate-400 border-slate-100'
@@ -305,8 +310,12 @@ export default function ClientLedgerPage() {
                         </td>
                         <td className="px-5 py-5 text-right">
                           <div className="flex flex-col">
-                            <span className="text-[13px] font-bold text-slate-900 tracking-tight">K{(b.finalAmount || 0).toLocaleString()}</span>
-                            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Total Invoice</span>
+                            <span className={`text-[13px] font-bold tracking-tight ${isNotInvoiced ? "text-slate-400 italic" : "text-slate-900"}`}>
+                              {isNotInvoiced ? "TBD" : `K${(b.finalAmount || 0).toLocaleString()}`}
+                            </span>
+                            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">
+                              {isNotInvoiced ? "Not set yet" : "Total Invoice"}
+                            </span>
                           </div>
                         </td>
                         <td className="px-5 py-5 text-right">
@@ -337,32 +346,7 @@ export default function ClientLedgerPage() {
       </motion.main>
 
       {/* ── MOBILE NAV ── */}
-      <nav className="md:hidden fixed bottom-6 left-6 right-6 bg-white/90 backdrop-blur-xl border border-neutral-100 flex justify-around py-3 rounded-2xl shadow-xl z-50">
-        <Link href="/dashboard" className="flex flex-col items-center gap-1 text-slate-300">
-          <TrendingUp className="w-5 h-5" />
-          <span className="text-[8px] font-semibold uppercase tracking-tighter">Dash</span>
-        </Link>
-        <Link href="/dashboard/jobs" className="flex flex-col items-center gap-1 text-slate-300">
-          <Package className="w-5 h-5" />
-          <span className="text-[8px] font-semibold uppercase tracking-tighter">Jobs</span>
-        </Link>
-        <div className="flex flex-col items-center gap-1 text-slate-300">
-          <div className="relative">
-            <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white shadow-lg border-4 border-white -mt-6">
-              <Plus className="w-6 h-6" />
-            </div>
-          </div>
-          <span className="text-[8px] font-semibold uppercase tracking-tighter">New</span>
-        </div>
-        <Link href="/dashboard/ledger" className="flex flex-col items-center gap-1 text-primary">
-          <DollarSign className="w-5 h-5" />
-          <span className="text-[8px] font-semibold uppercase tracking-tighter">Ledger</span>
-        </Link>
-        <div className="flex flex-col items-center gap-1 text-slate-300">
-          <div className="w-5 h-5 rounded-md bg-slate-100" />
-          <span className="text-[8px] font-semibold uppercase tracking-tighter">Acc</span>
-        </div>
-      </nav>
+      <ClientMobileNav />
     </div>
   );
 }

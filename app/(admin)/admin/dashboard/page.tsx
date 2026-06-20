@@ -205,7 +205,7 @@ export default function AdminDashboard() {
             {/* Header */}
             <div>
                <div className="flex items-center gap-1.5 text-[9px] text-neutral-400 mb-1 font-medium uppercase tracking-widest">
-                  <span>FleetTrack</span>
+                  <span>Speedogistic</span>
                   <ChevronRight className="w-2.5 h-2.5" />
                   <span className="text-primary">Dashboard</span>
                </div>

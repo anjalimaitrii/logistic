@@ -43,7 +43,7 @@ export default function FinancePage() {
 
   // Custom SVG Pie Chart Data
   const chartData = [
-    { label: "Fuel", value: 45, color: "#FF6B00" }, // primary
+    { label: "Fuel", value: 45, color: "#D41727" }, // primary
     { label: "Repairs", value: 25, color: "#10B981" }, // emerald
     { label: "Salaries", value: 20, color: "#F59E0B" }, // amber
     { label: "Others", value: 10, color: "#6366F1" }, // indigo
@@ -67,7 +67,7 @@ export default function FinancePage() {
         <div className="flex justify-between items-end">
           <div>
             <div className="flex items-center gap-1.5 text-[9px] text-neutral-400 mb-1 font-medium uppercase tracking-widest">
-              <span>FleetTrack</span>
+              <span>Speedogistic</span>
               <ChevronRight className="w-2.5 h-2.5" />
               <span className="text-primary">Finance Control</span>
             </div>

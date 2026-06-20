@@ -338,9 +338,12 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
             if (!seen.has(key) && stop.address?.city) {
               seen.add(key);
               locs.push({
-                contactPerson: stop.contactPerson || "",
+                // Don't carry the contact from a past booking — the stored number
+                // already includes "+260", which would double up with the "+260"
+                // dial-code prefix. Admin enters a fresh local number per booking.
+                contactPerson: "",
                 contactCode: "+260",
-                contact: stop.contactNumber || "",
+                contact: "",
                 contactPerson2: "",
                 contact2Code: "+260",
                 contact2: "",
@@ -432,7 +435,19 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
 
   const fillLocation = (type: "pickup" | "dropoff", idx: number, addr: LocationEntry) => {
     const key = type === "pickup" ? "pickupLocations" : "dropoffLocations";
-    setFormData(prev => ({ ...prev, [key]: prev[key].map((loc, i) => i === idx ? { ...addr } : loc) }));
+    // Fill ONLY the address fields from the suggestion — keep whatever contact
+    // person/number the user already typed (don't overwrite it).
+    setFormData(prev => ({
+      ...prev,
+      [key]: prev[key].map((loc, i) => i === idx ? {
+        ...loc,
+        plotNo: addr.plotNo,
+        street: addr.street,
+        city: addr.city,
+        state: addr.state,
+        country: addr.country,
+      } : loc),
+    }));
   };
 
   const addLocation = (type: "pickup" | "dropoff") => {

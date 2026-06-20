@@ -58,7 +58,7 @@ function exportReport(
     xlRow(S("Total Costs"),      N2(Math.round(stats.totalCosts))),
     xlRow(S("Advance Received"), N2(Math.round(stats.advancePaid))),
     xlRow(S("Pending Revenue"),  N2(Math.round(stats.pendingRevenue))),
-    xlRow(S("Completed Trips"),  N2(stats.completedTrips)),
+    xlRow(S("Paid Trips"),  N2(stats.completedTrips)),
     xlRow(S("Total Bookings"),   N2(stats.totalBookings)),
     xlBlank(),
     xlRow(H("Cost Item"), H("Amount (NGN)")),
@@ -299,7 +299,11 @@ export default function ReportsPage() {
   const stats = useMemo(() => {
     const totalRevenue   = filteredBookings.reduce((s, b) => s + N(b.finalAmount), 0);
     const advancePaid    = filteredBookings.reduce((s, b) => s + N(b.advancePaid), 0);
-    const completedTrips = filteredBookings.filter(b => b.status === "Completed" || b.tripStatus === "delivered").length;
+    // On this financial report "completed" = payment fully received (fully paid)
+    const completedTrips = filteredBookings.filter(b => {
+      const final = N(b.finalAmount);
+      return (b.status || "").toLowerCase() === "paid" || (final > 0 && N(b.advancePaid) >= final);
+    }).length;
     // Pending = Total − Advance (aggregate), guarantees Total = Advance + Pending always
     const pendingRevenue = Math.max(0, totalRevenue - advancePaid);
 
@@ -491,7 +495,7 @@ export default function ReportsPage() {
                 </div>
                 <div className="w-px bg-neutral-200" />
                 <div>
-                  <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Trips Done</p>
+                  <p className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Trips Paid</p>
                   <p className="text-[16px] font-bold text-slate-700">{stats.completedTrips}</p>
                 </div>
               </div>
@@ -506,7 +510,7 @@ export default function ReportsPage() {
                 <SummaryCard label="Total Revenue"    value={naira(stats.totalRevenue)}   sub={`${stats.totalBookings} bookings`}           icon={<TrendingUp className="w-5 h-5" />} accent="emerald" onClick={() => setDetail("revenue")} />
                 <SummaryCard label="Advance Received" value={naira(stats.advancePaid)}    sub="Cash collected from clients"                  icon={<Wallet className="w-5 h-5" />}     accent="blue"    onClick={() => setDetail("advance")} />
                 <SummaryCard label="Pending Revenue"  value={naira(stats.pendingRevenue)} sub="Balance still owed (Total − Advance)"       icon={<ReceiptText className="w-5 h-5" />} accent="amber"   onClick={() => setDetail("pending")} />
-                <SummaryCard label="Completed Trips"  value={stats.completedTrips.toString()} sub={`of ${stats.totalBookings} total bookings`} icon={<Truck className="w-5 h-5" />}   accent="indigo" />
+                <SummaryCard label="Paid Trips"  value={stats.completedTrips.toString()} sub={`fully settled · of ${stats.totalBookings} bookings`} icon={<Truck className="w-5 h-5" />}   accent="indigo" />
               </div>
             </div>
 
@@ -788,7 +792,8 @@ export default function ReportsPage() {
                         const bId = b._id ?? "";
                         const tripLabel = b.tripId || `#${bId.slice(-7).toUpperCase()}`;
                         const driver = cleanName(driverByBooking[bId]) || "—";
-                        const isCompleted = b.status === "Completed" || b.tripStatus === "delivered";
+                        const bFinal = N(b.finalAmount);
+                        const isPaid = (b.status || "").toLowerCase() === "paid" || (bFinal > 0 && N(b.advancePaid) >= bFinal);
                         return (
                           <tr key={i}>
                             <Td><span className="font-mono text-[10px] text-slate-500">{String(tripLabel)}</span></Td>
@@ -797,7 +802,7 @@ export default function ReportsPage() {
                             <Td>{fmtDate(b.cargoDetails?.loadingDate || b.createdAt)}</Td>
                             <td className="py-2.5 text-right font-bold text-emerald-600 text-[12px]">
                               {naira(N(b.finalAmount))}
-                              {isCompleted && <span className="ml-1 text-[9px] font-bold text-emerald-400 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">DONE</span>}
+                              {isPaid && <span className="ml-1 text-[9px] font-bold text-emerald-400 bg-emerald-50 border border-emerald-100 px-1.5 py-0.5 rounded-full">PAID</span>}
                             </td>
                           </tr>
                         );

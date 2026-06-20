@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
+import { ClientMobileNav } from "@/components/client/ClientMobileNav";
 import {
    Search,
    Filter,
@@ -258,7 +259,7 @@ export default function JobsPage() {
       if (!confirm("Are you sure you want to cancel this booking?")) return;
       setCancellingId(bookingId);
       try {
-         await bookingService.updateStatus(bookingId, "cancelled");
+         await bookingService.cancel(bookingId);
          await loadBookings();
       } catch {
          alert("Failed to cancel booking. Please try again.");
@@ -310,6 +311,8 @@ export default function JobsPage() {
          ...(b.pickupLocations || []).map((p: any) => p?.address?.city).filter(Boolean),
          ...(b.dropoffLocations || []).map((d: any) => d?.address?.city).filter(Boolean),
       ] as string[];
+      // Did the logged-in client create this booking? (company-mates only get to view)
+      const isOwn = String(b.clientId?._id || b.clientId || "") === String(user?._id || user?.id || "");
       return {
          raw: b,
          tripId: b.tripId || `#${b._id?.slice(-7).toUpperCase()}`,
@@ -322,7 +325,12 @@ export default function JobsPage() {
             ? formatDate(b.cargoDetails.loadingDate, { year: undefined })
             : "N/A",
          finalAmount: b.financials?.finalAmount || b.finalAmount,
-         canCancel: !b.tripStatus || ["", "accepted", "pending"].includes((b.tripStatus || "").toLowerCase()),
+         bookedBy: b.clientId?.name || b.metadata?.client || "—",
+         isOwn,
+         // Only the client who created the booking can cancel it (not company-mates)
+         canCancel:
+            isOwn &&
+            (!b.tripStatus || ["", "accepted", "pending"].includes((b.tripStatus || "").toLowerCase())),
       };
    });
 
@@ -362,7 +370,7 @@ export default function JobsPage() {
                   <div className="h-4 w-px bg-slate-200 mx-1" />
                   <Link href="/dashboard/profile" className="flex items-center gap-2 pl-2 hover:opacity-80 transition-opacity cursor-pointer">
                      <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
-                        {user?.name?.charAt(0) || "U"}
+                        {user?.name?.charAt(0)?.toUpperCase() || "U"}
                      </div>
                   </Link>
                </div>
@@ -373,7 +381,7 @@ export default function JobsPage() {
                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                   <div>
                      <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                        <span>FleetLink</span>
+                        <span>Speedogistic</span>
                         <ChevronRight className="w-2.5 h-2.5" />
                         <span className="text-primary">My Jobs</span>
                      </div>
@@ -484,6 +492,9 @@ export default function JobsPage() {
                            <tr className="bg-slate-50/50 border-b border-slate-50">
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sr. No.</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Route</th>
+                              {viewMode === "company" && (
+                                 <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Booked By</th>
+                              )}
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cargo</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Amount</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
@@ -492,10 +503,10 @@ export default function JobsPage() {
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                            {isLoading ? (
-                              <tr><td colSpan={6} className="px-6 py-12 text-center text-[12px] text-slate-400 italic">Loading your shipments...</td></tr>
+                              <tr><td colSpan={viewMode === "company" ? 7 : 6} className="px-6 py-12 text-center text-[12px] text-slate-400 italic">Loading your shipments...</td></tr>
                            ) : displayJobs.length === 0 ? (
                               <tr>
-                                 <td colSpan={6} className="px-6 py-12 text-center">
+                                 <td colSpan={viewMode === "company" ? 7 : 6} className="px-6 py-12 text-center">
                                     <Package className="w-8 h-8 text-slate-100 mx-auto mb-2" />
                                     <p className="text-[12px] font-medium text-slate-400">No bookings found yet.</p>
                                  </td>
@@ -522,6 +533,11 @@ export default function JobsPage() {
                                           )}
                                        </div>
                                     </td>
+                                    {viewMode === "company" && (
+                                       <td className="px-6 py-4">
+                                          <span className="text-[11px] font-semibold text-slate-700 capitalize">{job.bookedBy}</span>
+                                       </td>
+                                    )}
                                     <td className="px-6 py-4">
                                        <span className="text-[12px] font-bold text-slate-800">{job.cargo}</span>
                                        <p className="text-[10px] font-bold text-primary uppercase tracking-tighter">
@@ -557,7 +573,7 @@ export default function JobsPage() {
                                           >
                                              <Eye className="w-4 h-4" />
                                           </button>
-                                          {(job.status === "accepted" || job.status === "transit" || job.status === "active") && (
+                                          {job.isOwn && (job.status === "accepted" || job.status === "transit" || job.status === "active") && (
                                              <button
                                                 onClick={() => openChat(job.tripId)}
                                                 className="relative p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-all border border-transparent hover:border-slate-100"
@@ -636,6 +652,9 @@ export default function JobsPage() {
                                     <p className="text-[9px] font-bold text-primary uppercase tracking-tighter">
                                        {job.weight > 0 ? `${job.weight} KG` : "—"}
                                     </p>
+                                    {viewMode === "company" && (
+                                       <p className="text-[9px] font-medium text-slate-400 mt-0.5 capitalize">By {job.bookedBy}</p>
+                                    )}
                                  </div>
                                  <div className="flex gap-2">
                                     <button
@@ -644,7 +663,7 @@ export default function JobsPage() {
                                     >
                                        <Eye className="w-3.5 h-3.5" /> View
                                     </button>
-                                    {(job.status === "accepted" || job.status === "transit" || job.status === "active") && (
+                                    {job.isOwn && (job.status === "accepted" || job.status === "transit" || job.status === "active") && (
                                        <button
                                           onClick={() => openChat(job.tripId)}
                                           className="relative p-2.5 bg-primary/10 hover:bg-primary/20 rounded-lg text-primary transition-all"
@@ -685,30 +704,7 @@ export default function JobsPage() {
          {/* Chat panel is rendered globally by ClientNotificationProvider */}
 
          {/* ── MOBILE NAV ── */}
-         <nav className="md:hidden fixed bottom-6 left-6 right-6 bg-white/90 backdrop-blur-xl border border-neutral-100 flex justify-around py-3 rounded-2xl shadow-xl z-50">
-            <Link href="/dashboard" className="flex flex-col items-center gap-1 text-slate-300">
-               <TrendingUp className="w-5 h-5" />
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">Dash</span>
-            </Link>
-            <div className="flex flex-col items-center gap-1 text-primary">
-               <Package className="w-5 h-5" />
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">Jobs</span>
-            </div>
-            <Link href="/bookings/new" className="flex flex-col items-center gap-1 text-slate-300">
-               <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center text-white shadow-lg border-4 border-white -mt-6">
-                  <Plus className="w-6 h-6" />
-               </div>
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">New</span>
-            </Link>
-            <div className="flex flex-col items-center gap-1 text-slate-300">
-               <DollarSign className="w-5 h-5" />
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">Ledger</span>
-            </div>
-            <div className="flex flex-col items-center gap-1 text-slate-300">
-               <div className="w-5 h-5 rounded-md bg-slate-100" />
-               <span className="text-[8px] font-semibold uppercase tracking-tighter">Acc</span>
-            </div>
-         </nav>
+         <ClientMobileNav />
       </div>
    );
 }

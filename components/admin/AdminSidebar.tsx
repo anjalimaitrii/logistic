@@ -177,7 +177,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
       {/* ── LOGO SECTION ── */}
       <div className="h-16 flex items-center px-4 mb-2 overflow-hidden shrink-0 border-b border-white/5 font-display">
         <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center text-white font-extrabold text-sm shrink-0 shadow-lg shadow-primary/30">
-          FT
+          S
         </div>
         <AnimatePresence>
           {isExpanded && (
@@ -188,7 +188,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
               className="ml-3 flex flex-col"
             >
               <span className="font-bold text-white text-[15px] tracking-tight whitespace-nowrap leading-none">
-                Fleet<span className="text-primary italic">Track</span>
+                Speedo<span className="text-primary italic">gistic</span>
               </span>
               <span className="text-[8px] font-bold text-slate-500 uppercase tracking-[0.2em] mt-1">Administrator</span>
             </motion.div>
@@ -219,7 +219,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
               {isActive && !isExpanded && (
                 <motion.div
                   layoutId="activeIndicatorAdmin"
-                  className="absolute left-[-10px] top-2 bottom-2 w-1 bg-primary rounded-full shadow-[0_0_8px_rgba(255,107,0,0.8)]"
+                  className="absolute left-[-10px] top-2 bottom-2 w-1 bg-primary rounded-full shadow-[0_0_8px_rgba(212,23,39,0.8)]"
                 />
               )}
 

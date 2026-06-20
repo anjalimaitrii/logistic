@@ -130,14 +130,13 @@ export default function JobDetailReport() {
   }, [id]);
 
   const handleCancelTrip = async () => {
-    if (!confirm("Are you sure you want to cancel this trip? This cannot be undone.")) return;
+    if (!confirm("Are you sure you want to cancel this trip? This permanently deletes it and cannot be undone.")) return;
     setIsCancelling(true);
     try {
-      await bookingService.updateStatus(id, "cancelled");
-      await loadData();
+      await bookingService.cancel(id);
+      router.back();
     } catch {
       alert("Failed to cancel trip. Please try again.");
-    } finally {
       setIsCancelling(false);
     }
   };

@@ -13,6 +13,12 @@ interface ControlledSidebarProps extends SidebarSlimProps {
 
 export function SidebarNavigationSlim({ items, footerItems, isExpanded, onHover }: ControlledSidebarProps) {
   const pathname = usePathname();
+  const [user, setUser] = React.useState<any>(null);
+
+  React.useEffect(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+    if (stored) { try { setUser(JSON.parse(stored)); } catch {} }
+  }, []);
 
   return (
     <motion.aside
@@ -26,7 +32,7 @@ export function SidebarNavigationSlim({ items, footerItems, isExpanded, onHover 
       {/* ── LOGO SECTION ── */}
       <div className="h-16 flex items-center px-4 mb-2 overflow-hidden shrink-0 border-b border-white/5 font-display">
         <div className="w-9 h-9 bg-primary rounded-xl flex items-center justify-center text-white font-semibold text-sm shrink-0 shadow-lg shadow-primary/30">
-          FT
+          S
         </div>
         <AnimatePresence>
           {isExpanded && (
@@ -36,7 +42,7 @@ export function SidebarNavigationSlim({ items, footerItems, isExpanded, onHover 
               exit={{ opacity: 0, x: -10 }}
               className="ml-3 font-semibold text-white text-sm tracking-tight whitespace-nowrap"
             >
-              Fleet<span className="text-primary tracking-tight">Track</span>
+              Speedo<span className="text-primary tracking-tight">gistic</span>
             </motion.span>
           )}
         </AnimatePresence>
@@ -57,7 +63,7 @@ export function SidebarNavigationSlim({ items, footerItems, isExpanded, onHover 
               {isActive && !isExpanded && (
                 <motion.div 
                   layoutId="activeIndicator"
-                  className="absolute left-[-12px] top-2 bottom-2 w-1 bg-primary rounded-full shadow-[0_0_8px_rgba(255,107,0,0.8)]" 
+                  className="absolute left-[-12px] top-2 bottom-2 w-1 bg-primary rounded-full shadow-[0_0_8px_rgba(212,23,39,0.8)]" 
                 />
               )}
               
@@ -153,7 +159,7 @@ export function SidebarNavigationSlim({ items, footerItems, isExpanded, onHover 
             }}
             className="mt-4 p-2 rounded-xl border border-white/5 flex items-center overflow-hidden"
           >
-             <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-semibold text-[10px] shrink-0">S</div>
+             <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary font-semibold text-[10px] shrink-0">{user?.name?.charAt(0)?.toUpperCase() || "U"}</div>
              <AnimatePresence>
                 {isExpanded && (
                   <motion.div 
@@ -162,8 +168,8 @@ export function SidebarNavigationSlim({ items, footerItems, isExpanded, onHover 
                     exit={{ opacity: 0, width: 0 }}
                     className="ml-3 min-w-0"
                   >
-                    <p className="text-[11px] font-semibold text-white truncate">Mr. Sharma</p>
-                    <p className="text-[9px] text-slate-500 truncate">Fleet Owner</p>
+                    <p className="text-[11px] font-semibold text-white truncate capitalize">{user?.name || "User"}</p>
+                    <p className="text-[9px] text-slate-500 truncate capitalize">{user?.designation || "Client"}</p>
                   </motion.div>
                 )}
              </AnimatePresence>

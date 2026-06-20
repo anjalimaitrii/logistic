@@ -85,7 +85,7 @@ export default function SecretSidebar({ isOpen, onClose }: { isOpen: boolean; on
               }`}
             >
               {isActive && (
-                <div className="absolute -left-2.5 top-2 bottom-2 w-1 bg-primary rounded-full shadow-[0_0_8px_rgba(255,107,0,0.8)]" />
+                <div className="absolute -left-2.5 top-2 bottom-2 w-1 bg-primary rounded-full shadow-[0_0_8px_rgba(212,23,39,0.8)]" />
               )}
               <div
                 className={`w-9 h-9 flex items-center justify-center shrink-0 transition-all ${
