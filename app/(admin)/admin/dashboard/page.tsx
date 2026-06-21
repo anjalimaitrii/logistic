@@ -238,7 +238,7 @@ export default function AdminDashboard() {
                </div>
                <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Fleet Overview</h1>
                <p className="text-[11px] text-neutral-400 mt-0.5">
-                  {new Date().toLocaleDateString("en", { month: "long", year: "numeric" })} · Global Logistics Hub · {fleetCounts.total > 0 ? `${fleetCounts.total} trucks` : "loading fleet…"}
+                  {new Date().toLocaleDateString("en", { month: "long", year: "numeric", timeZone: "Africa/Lusaka" })} · Global Logistics Hub · {fleetCounts.total > 0 ? `${fleetCounts.total} trucks` : "loading fleet…"}
                </p>
             </div>
 

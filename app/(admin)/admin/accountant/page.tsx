@@ -48,9 +48,11 @@ export default function AdminAccountant() {
         (a.bookingId?._id || a.bookingId)?.toString()
       ));
 
-      // Show all assigned bookings (driver assigned), excluding cancelled/rejected
+      // Show all assigned bookings (driver assigned), excluding cancelled/rejected.
+      // Secret (off-the-books, without-tax) jobs live only in the secret section.
       const finalizedAndAssigned = (bookingsData || []).filter((b: any) => {
         const s = b.status?.toLowerCase();
+        if (b.isSecret === true && b.withTax === false) return false;
         return assignedBookingIds.has(b._id.toString()) && s !== "cancelled" && s !== "rejected";
       });
 

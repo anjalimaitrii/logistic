@@ -141,7 +141,7 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
                       AO
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-neutral-900 truncate">Adebayo Okafor</div>
+                      <div className="text-sm font-semibold text-neutral-900 truncate">Piyush Goyal</div>
                       <div className="text-[11px] text-neutral-400 font-medium">Fleet Admin</div>
                     </div>
                   </div>

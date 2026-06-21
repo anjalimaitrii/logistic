@@ -57,7 +57,14 @@ export default function AdminJobsPage() {
       const visibleJobs = (bookingsData || []).filter((b: any) => {
         const s = b.status?.toLowerCase();
         if (s === "cancelled" || s === "rejected") return false;
-        if (b.isSecret === true && b.withTax === false) return false;
+        // Secret (off-the-books) jobs appear here only during the active trip —
+        // i.e. after the accountant stage (settlement exists, checked below) and
+        // before completion. Once completed they leave Jobs and live only in the
+        // secret section.
+        if (b.isSecret === true && b.withTax === false) {
+          const ts = (b.tripStatus || "").toLowerCase();
+          if (ts === "completed" || ts === "delivered") return false;
+        }
         return approvedBookingIds.has(b._id.toString());
       });
 

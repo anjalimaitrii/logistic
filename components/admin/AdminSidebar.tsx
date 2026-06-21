@@ -319,7 +319,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
                 exit={{ opacity: 0, width: 0 }}
                 className="min-w-0 flex-1"
               >
-                <div className="text-[13px] font-semibold text-white truncate">Adebayo Okafor</div>
+                <div className="text-[13px] font-semibold text-white truncate">Piyush Goyal</div>
                 <div className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Fleet Admin</div>
               </motion.div>
             )}

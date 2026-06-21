@@ -96,6 +96,11 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
 
   const outstanding = data?.outstanding ?? 0;
 
+  // Secret (off-the-books, without-tax) jobs are not shown in the ledger.
+  const visibleBookings = ((data?.bookings || []) as any[]).filter(
+    (b: any) => !(b.isSecret === true && b.withTax === false)
+  );
+
   return (
     <div className="fixed inset-0 z-[700] pointer-events-none">
       <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
@@ -223,12 +228,12 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
             {/* Jobs List — sorted oldest first (FIFO order) */}
             <div className="mx-6 mt-5 mb-6 space-y-2">
               <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-                Jobs ({data?.bookings?.length ?? 0})
+                Jobs ({visibleBookings.length})
               </p>
-              {(!data?.bookings?.length) && (
+              {(!visibleBookings.length) && (
                 <p className="text-[11px] text-neutral-300 font-medium text-center py-6">No jobs found</p>
               )}
-              {[...(data?.bookings || [])]
+              {[...visibleBookings]
                 .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
                 .map((b: any) => {
                   const from = b.pickupLocations?.[0]?.address?.city || "—";
