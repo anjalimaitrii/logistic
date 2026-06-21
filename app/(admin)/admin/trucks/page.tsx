@@ -55,7 +55,6 @@ export default function AdminTrucks() {
   const [collectionTruck, setCollectionTruck] = useState<any | null>(null);
   const [colForm, setColForm] = useState({ name: "", description: "", quantity: "1" });
   const [colSaving, setColSaving] = useState(false);
-  const [renewState, setRenewState] = useState<{ colId: string; quantity: string } | null>(null);
   const [alertOpen, setAlertOpen] = useState(false);
   const alertRef = useRef<HTMLDivElement>(null);
 
@@ -107,16 +106,6 @@ export default function AdminTrucks() {
       setColForm({ name: "", description: "", quantity: "1" });
     } catch (err: any) { alert("Failed to add collection: " + (err?.message || "Unknown error")); }
     finally { setColSaving(false); }
-  };
-
-  const handleRenewCollection = async () => {
-    if (!collectionTruck || !renewState) return;
-    const truckId = String(collectionTruck._id);
-    try {
-      await truckService.renewCollection(truckId, renewState.colId, Number(renewState.quantity) || 1);
-      await refreshTruck(truckId);
-      setRenewState(null);
-    } catch (err: any) { alert("Failed to renew: " + (err?.message || "Unknown error")); }
   };
 
   const handleRemoveCollection = async (colId: string) => {
@@ -443,21 +432,21 @@ export default function AdminTrucks() {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
               {/* Add form */}
-              <div className="bg-orange-50/50 border border-orange-100 rounded-2xl p-4 space-y-3">
-                <h3 className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">Add Item</h3>
+              <div className="bg-primary/5 border border-primary/10 rounded-2xl p-4 space-y-3">
+                <h3 className="text-[10px] font-bold text-primary uppercase tracking-widest">Add Item</h3>
                 <input
                   type="text"
                   placeholder="Name *"
                   value={colForm.name}
                   onChange={e => setColForm(f => ({ ...f, name: e.target.value }))}
-                  className="w-full bg-white border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] font-medium text-slate-900 outline-none focus:border-orange-200 transition-all"
+                  className="w-full bg-white border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] font-medium text-slate-900 outline-none focus:border-primary/30 transition-all"
                 />
                 <input
                   type="text"
                   placeholder="Description"
                   value={colForm.description}
                   onChange={e => setColForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full bg-white border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] font-medium text-slate-900 outline-none focus:border-orange-200 transition-all"
+                  className="w-full bg-white border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] font-medium text-slate-900 outline-none focus:border-primary/30 transition-all"
                 />
                 <input
                   type="number"
@@ -465,12 +454,12 @@ export default function AdminTrucks() {
                   min={1}
                   value={colForm.quantity}
                   onChange={e => setColForm(f => ({ ...f, quantity: e.target.value }))}
-                  className="w-full bg-white border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] font-medium text-slate-900 outline-none focus:border-orange-200 transition-all"
+                  className="w-full bg-white border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] font-medium text-slate-900 outline-none focus:border-primary/30 transition-all"
                 />
                 <button
                   onClick={handleAddCollection}
                   disabled={colSaving || !colForm.name.trim()}
-                  className="w-full py-2.5 bg-orange-500 text-white rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-orange-600 transition-all disabled:opacity-50"
+                  className="w-full py-2.5 bg-primary text-white rounded-xl text-[11px] font-bold uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-50"
                 >
                   {colSaving ? "Saving…" : "+ Add to Collection"}
                 </button>
@@ -485,52 +474,24 @@ export default function AdminTrucks() {
                   <p className="text-[11px] text-neutral-300 font-medium text-center py-6">No items yet</p>
                 )}
                 {collectionTruck.collections?.map((col: any) => (
-                  <div key={col._id} className="space-y-1.5">
-                    <div className="flex items-start justify-between gap-3 p-3 bg-white border border-neutral-100 rounded-xl">
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[12px] font-semibold text-slate-900">{col.name}</div>
-                        {col.description && <div className="text-[11px] text-neutral-400 mt-0.5">{col.description}</div>}
-                        <div className="text-[10px] font-bold text-orange-500 mt-1 uppercase tracking-widest">Qty: {col.quantity}</div>
-                        {col.renewedAt && (
-                          <div className="text-[10px] text-emerald-500 font-medium mt-0.5">
-                            Renewed: {formatDate(col.renewedAt)}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          onClick={() => setRenewState(renewState !== null && renewState.colId === col._id ? null : { colId: col._id, quantity: String(col.quantity || 1) })}
-                          className="px-2 py-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors"
-                        >
-                          Renew
-                        </button>
-                        <button
-                          onClick={() => handleRemoveCollection(col._id)}
-                          title="Remove"
-                          className="p-1.5 text-neutral-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
+                  <div key={col._id} className="flex items-start justify-between gap-3 p-3 bg-white border border-neutral-100 rounded-xl">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[12px] font-semibold text-slate-900">{col.name}</div>
+                      {col.description && <div className="text-[11px] text-neutral-400 mt-0.5">{col.description}</div>}
+                      <div className="text-[10px] font-bold text-primary mt-1 uppercase tracking-widest">Qty: {col.quantity}</div>
+                      {col.createdAt && (
+                        <div className="text-[10px] text-neutral-400 font-medium mt-0.5">
+                          Added: {formatDate(col.createdAt)}
+                        </div>
+                      )}
                     </div>
-                    {renewState !== null && renewState.colId === col._id && (
-                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center gap-2">
-                        <div className="flex-1 space-y-1">
-                          <label className="text-[9px] font-bold text-emerald-700 uppercase tracking-widest">New Quantity</label>
-                          <input
-                            type="number"
-                            min={1}
-                            value={renewState.quantity}
-                            onChange={(e) => setRenewState({ colId: renewState!.colId, quantity: e.target.value })}
-                            className="w-full bg-white border border-emerald-200 rounded-lg py-1.5 px-3 text-[12px] font-semibold text-slate-900 outline-none focus:border-emerald-400"
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1.5 pt-5">
-                          <button onClick={handleRenewCollection} className="px-3 py-1.5 text-[10px] font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg transition-colors">Confirm</button>
-                          <button onClick={() => setRenewState(null)} className="px-3 py-1.5 text-[10px] font-bold text-neutral-400 hover:text-neutral-600 bg-white border border-neutral-100 rounded-lg transition-colors">Cancel</button>
-                        </div>
-                      </div>
-                    )}
+                    <button
+                      onClick={() => handleRemoveCollection(col._id)}
+                      title="Remove"
+                      className="p-1.5 shrink-0 text-neutral-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ))}
               </div>
