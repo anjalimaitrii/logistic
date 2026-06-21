@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
 import { ClientMobileNav } from "@/components/client/ClientMobileNav";
+import { canChatForTrip } from "@/lib/chatAvailability";
 import {
    Search,
    Filter,
@@ -573,7 +574,7 @@ export default function JobsPage() {
                                           >
                                              <Eye className="w-4 h-4" />
                                           </button>
-                                          {job.isOwn && (job.status === "accepted" || job.status === "transit" || job.status === "active") && (
+                                          {job.isOwn && canChatForTrip(job.raw) && (
                                              <button
                                                 onClick={() => openChat(job.tripId)}
                                                 className="relative p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-primary transition-all border border-transparent hover:border-slate-100"
@@ -663,7 +664,7 @@ export default function JobsPage() {
                                     >
                                        <Eye className="w-3.5 h-3.5" /> View
                                     </button>
-                                    {job.isOwn && (job.status === "accepted" || job.status === "transit" || job.status === "active") && (
+                                    {job.isOwn && canChatForTrip(job.raw) && (
                                        <button
                                           onClick={() => openChat(job.tripId)}
                                           className="relative p-2.5 bg-primary/10 hover:bg-primary/20 rounded-lg text-primary transition-all"

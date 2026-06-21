@@ -226,9 +226,8 @@ export default function DriverProfilePage() {
         <CommonTable 
           title="Trip History Ledger" 
           icon="📋" 
-          columns={columns} 
-          data={tripHistory} 
-          onRowClick={(row) => router.push(`/admin/jobs/${row.id}`)}
+          columns={columns}
+          data={tripHistory}
           action={
              <div className="flex gap-2">
                 <div className="relative group">

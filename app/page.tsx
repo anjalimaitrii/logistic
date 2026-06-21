@@ -608,7 +608,7 @@ export default function Home() {
                 {!isLoading && <svg viewBox="0 0 24 24" fill="white"><path d="M12 4l-1.41 1.41L16.17 11H4v2h12.17l-5.58 5.59L12 20l8-8z" /></svg>}
               </button>
 
-              <p className="ft-alt">Need help? <a href="#">Contact Support</a></p>
+              <p className="ft-alt">Need help? <a href="/support">Contact Support</a></p>
             </div>
 
             {/* Step 2 — Forgot: enter email */}

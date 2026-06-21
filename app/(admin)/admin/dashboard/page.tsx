@@ -9,9 +9,11 @@ import CreateJobModal from "@/components/admin/CreateJobModal";
 import { ChevronRight, Eye, Check, X, MessageSquare, Package } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { settlementService } from "@/services/settlementService";
-import { fetchLiveVehicles, getVehicleStatus } from "@/services/liveTrackingService";
+import { fetchLiveVehicles, getVehicleStatus, cleanDriverName } from "@/services/liveTrackingService";
+import { assignmentService } from "@/services/assignmentService";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
 import { formatDate } from "@/lib/datetime";
+import { canChatForTrip } from "@/lib/chatAvailability";
 
 const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniMap"), {
   ssr: false,
@@ -28,6 +30,7 @@ export default function AdminDashboard() {
    const [bookings, setBookings] = useState<any[]>([]);
    const [isLoading, setIsLoading] = useState(true);
    const [settlements, setSettlements] = useState<any[]>([]);
+   const [assignments, setAssignments] = useState<any[]>([]);
    const [fleetCounts, setFleetCounts] = useState({ total: 0, moving: 0, stopped: 0, parked: 0, inactive: 0 });
    const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
    const [isChatOpen, setIsChatOpen] = useState(false);
@@ -35,6 +38,7 @@ export default function AdminDashboard() {
    useEffect(() => {
       loadData();
       settlementService.getAll().then((d) => setSettlements(d || [])).catch(() => {});
+      assignmentService.getAll().then((d) => setAssignments(d || [])).catch(() => {});
       fetchLiveVehicles()
          .then((vehicles) => {
             const total    = vehicles.length;
@@ -68,31 +72,25 @@ export default function AdminDashboard() {
       }
    };
 
-   const getStatusType = (status: string) => {
-      if (!status) return 'warehouse';
-      switch (status.toLowerCase()) {
-         case 'transit': return 'transit';
-         case 'delivered': return 'success';
-         case 'rejected': return 'danger';
-         case 'pending': return 'warning';
-         case 'accepted': return 'transit';
-         case 'finalized': return 'success';
-         default: return 'warehouse';
-      }
-   };
-
-   const activeJobsCount = bookings.filter(b => b?.status === "transit" || b?.status === "accepted").length;
+   // In-progress jobs: accepted/finalized or a trip that's underway, but not yet
+   // completed/paid/cancelled. (Status becomes "finalized" once a deal is set, so
+   // we can't rely on "accepted" alone.)
+   const activeJobsCount = bookings.filter(b => {
+      const s = (b?.status || "").toLowerCase();
+      const ts = (b?.tripStatus || "").toLowerCase();
+      if (["paid", "cancelled", "rejected"].includes(s)) return false;
+      if (["completed", "delivered"].includes(ts)) return false;
+      return ts !== "" || ["accepted", "finalized", "active", "transit"].includes(s);
+   }).length;
 
    const totalFuelCost   = settlements.reduce((sum, s) => sum + (s.financials?.fuelTotal || 0), 0);
    const totalFuelLiters = settlements.reduce((sum, s) => sum + (s.fuelDetails?.totalLiters || 0), 0);
    const totalRevenue    = bookings.reduce((sum, b) => sum + (b.finalAmount || 0), 0);
    const pendingPayments = bookings.filter(b => !b.finalAmount && b.status !== "rejected" && b.status !== "pending").length;
 
-   const fmt = (n: number) =>
-      n >= 1_000_000 ? `K ${(n / 1_000_000).toFixed(1)}M`
-      : n >= 1_000   ? `K ${Math.round(n / 1_000)}K`
-      : n > 0        ? `K ${n}`
-      : "--";
+   // Single currency prefix (K = Kwacha) + full grouped number — avoids the
+   // confusing "K 50K" double-K that the abbreviated format produced.
+   const fmt = (n: number) => (n > 0 ? `K ${Math.round(n).toLocaleString("en")}` : "--");
 
    const kpis = [
       {
@@ -107,7 +105,7 @@ export default function AdminDashboard() {
          label: "Active Jobs",
          value: activeJobsCount.toString(),
          icon: "📦",
-         subText: `${bookings.filter(b => b?.status === "transit").length} transit · ${bookings.filter(b => b?.status === "accepted").length} accepted`,
+         subText: activeJobsCount > 0 ? `${activeJobsCount} in progress` : "No active jobs",
          trend: "Live",
          variant: "success" as const,
       },
@@ -135,16 +133,37 @@ export default function AdminDashboard() {
       return `${pickup} → ${dropoff}`;
    };
 
-   const recentJobsData = bookings.slice(0, 5).map(b => ({
-      id: b?.tripId || `#FL-${b?._id?.substring(b._id.length - 7).toUpperCase() || "NEW"}`,
-      status: b?.status ? b.status.charAt(0).toUpperCase() + b.status.slice(1) : "Unknown",
-      driver: "TBD",
-      route: getRoute(b),
-      proposed: b?.finalAmount ? `K${Number(b.finalAmount).toLocaleString()}` : "TBD",
-      type: getStatusType(b?.status || ""),
-      rawId: b?._id,
-      raw: b,
-   }));
+   // bookingId → driver name (from assignments)
+   const driverByBooking: Record<string, string> = {};
+   assignments.forEach((a: any) => {
+      const bId = typeof a.bookingId === "string" ? a.bookingId : a.bookingId?._id;
+      if (bId && a.driverName) driverByBooking[bId] = cleanDriverName(a.driverName);
+   });
+
+   // Display status: Paid → Completed → Active → (Pending / Cancelled)
+   const tripState = (b: any): { label: string; type: string } => {
+      const s = (b?.status || "").toLowerCase();
+      const ts = (b?.tripStatus || "").toLowerCase();
+      if (s === "cancelled" || s === "rejected") return { label: s.charAt(0).toUpperCase() + s.slice(1), type: "danger" };
+      if (s === "paid") return { label: "Paid", type: "success" };
+      if (ts === "completed" || ts === "delivered") return { label: "Completed", type: "success" };
+      if (ts || s === "accepted" || s === "finalized" || s === "active") return { label: "Active", type: "transit" };
+      return { label: "Pending", type: "warning" };
+   };
+
+   const recentJobsData = bookings.slice(0, 5).map(b => {
+      const st = tripState(b);
+      return {
+         id: b?.tripId || `#FL-${b?._id?.substring(b._id.length - 7).toUpperCase() || "NEW"}`,
+         status: st.label,
+         driver: driverByBooking[b?._id] || "—",
+         route: getRoute(b),
+         proposed: b?.finalAmount ? `K${Number(b.finalAmount).toLocaleString()}` : "TBD",
+         type: st.type,
+         rawId: b?._id,
+         raw: b,
+      };
+   });
 
    const columns = [
       { label: "Job ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
@@ -153,15 +172,19 @@ export default function AdminDashboard() {
          key: "status",
          render: (val: string, row: any) => (
             <span
-               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${row.type === "transit"
-                  ? "bg-primary/10 text-primary"
-                  : row.type === "success"
-                     ? "bg-emerald-50 text-emerald-600"
-                     : "bg-rose-50 text-rose-500"
+               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${
+                  row.type === "transit" ? "bg-primary/10 text-primary"
+                  : row.type === "success" ? "bg-emerald-50 text-emerald-600"
+                  : row.type === "warning" ? "bg-amber-50 text-amber-600"
+                  : "bg-rose-50 text-rose-500"
                   }`}
             >
                <span
-                  className={`w-1 h-1 rounded-full ${row.type === "transit" ? "bg-primary animate-pulse" : row.type === "success" ? "bg-emerald-500" : "bg-rose-500"
+                  className={`w-1 h-1 rounded-full ${
+                     row.type === "transit" ? "bg-primary animate-pulse"
+                     : row.type === "success" ? "bg-emerald-500"
+                     : row.type === "warning" ? "bg-amber-500"
+                     : "bg-rose-500"
                      }`}
                />
                {val}
@@ -177,17 +200,21 @@ export default function AdminDashboard() {
          align: "center" as const,
          render: (_: any, row: any) => (
             <div className="flex gap-2 justify-center">
-               <button
-                  onClick={(e) => {
-                     e.stopPropagation();
-                     setSelectedRequest(row.raw);
-                     setIsChatOpen(true);
-                  }}
-                  className="px-4 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-all flex items-center gap-1.5"
-               >
-                  <MessageSquare className="w-3 h-3" />
-                  Chat
-               </button>
+               {canChatForTrip(row.raw) ? (
+                  <button
+                     onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedRequest(row.raw);
+                        setIsChatOpen(true);
+                     }}
+                     className="px-4 py-1.5 bg-primary/10 text-primary border border-primary/20 rounded-lg text-[10px] font-bold uppercase tracking-widest hover:bg-primary/20 transition-all flex items-center gap-1.5"
+                  >
+                     <MessageSquare className="w-3 h-3" />
+                     Chat
+                  </button>
+               ) : (
+                  <span className="text-[10px] font-medium text-neutral-300">—</span>
+               )}
             </div>
          ),
       },
@@ -210,7 +237,9 @@ export default function AdminDashboard() {
                   <span className="text-primary">Dashboard</span>
                </div>
                <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Fleet Overview</h1>
-               <p className="text-[11px] text-neutral-400 mt-0.5">April 2026 · Global Logistics Hub · 40 trucks active</p>
+               <p className="text-[11px] text-neutral-400 mt-0.5">
+                  {new Date().toLocaleDateString("en", { month: "long", year: "numeric" })} · Global Logistics Hub · {fleetCounts.total > 0 ? `${fleetCounts.total} trucks` : "loading fleet…"}
+               </p>
             </div>
 
             {/* KPI Grid */}

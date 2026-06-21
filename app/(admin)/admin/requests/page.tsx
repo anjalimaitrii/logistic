@@ -275,7 +275,7 @@ export default function BookingRequestsPage() {
     { label: "Total Submissions", value: requests.length.toString(), icon: "📩", subText: "Overall Requests", trend: "Live", variant: "primary" as const },
     { label: "Active Bookings", value: requests.filter(r => !isFinalized(r)).length.toString(), icon: "🤝", subText: "Awaiting Finalization", trend: "Live", variant: "success" as const },
     { label: "Finalized", value: requests.filter(r => isFinalized(r)).length.toString(), icon: "✅", subText: "Deals Closed", trend: "Sync", variant: "warning" as const },
-    { label: "In Transit", value: requests.filter(r => r.status === 'transit').length.toString(), icon: "🚛", subText: "On The Road", trend: "Live", variant: "danger" as const },
+    { label: "Fully Paid", value: requests.filter(r => isPaid(r)).length.toString(), icon: "💰", subText: "Payment Settled", trend: "Sync", variant: "success" as const },
   ];
 
   return (

@@ -16,6 +16,7 @@ export default function AdminDrivers() {
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -141,7 +142,18 @@ export default function AdminDrivers() {
     { label: "Off Duty", value: drivers.filter(d => d.status !== "Active").length.toString(), icon: "🏠", subText: "Resting / Other", trend: "-", variant: "warning" as const },
   ];
 
-  const tableData = drivers.map(d => ({
+  const q = searchQuery.trim().toLowerCase();
+  const filteredDrivers = q
+    ? drivers.filter(d => {
+        const name    = cleanDriverName(d.name || "").toLowerCase();
+        const license = (d.licenseNo || "").toLowerCase();
+        const truck   = (d.assignedTruck?.truckId || "").toLowerCase();
+        const contact = (d.phone || "").toLowerCase();
+        return name.includes(q) || license.includes(q) || truck.includes(q) || contact.includes(q);
+      })
+    : drivers;
+
+  const tableData = filteredDrivers.map(d => ({
     id: (d.licenseNo || "").substring(0, 7).toUpperCase(),
     name: cleanDriverName(d.name),
     status: d.status || "Active",
@@ -261,12 +273,12 @@ export default function AdminDrivers() {
               <div className="relative group">
                 <input
                   type="text"
-                  placeholder="Search drivers..."
+                  placeholder="Search name, license, truck, contact..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="bg-white border border-neutral-100 rounded-xl px-4 py-2 text-[11px] font-medium outline-none focus:border-primary/20 transition-all w-56 shadow-sm"
                 />
-                <div className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">
-                  🔍
-                </div>
+                
               </div>
             </div>
           }
