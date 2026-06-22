@@ -226,8 +226,8 @@ export default function SecretDashboard() {
               </>
             )}
 
-            {/* Finalized: Edit button */}
-            {isFinalized && (
+            {/* Finalized: Edit button — temporarily disabled */}
+            {/* {isFinalized && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -239,7 +239,7 @@ export default function SecretDashboard() {
               >
                 <Edit2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
               </button>
-            )}
+            )} */}
           </div>
         );
       },
