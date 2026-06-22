@@ -55,7 +55,12 @@ export default function AdminDashboard() {
       try {
          setIsLoading(true);
          const data = await bookingService.getAll();
-         setBookings(data || []);
+         // Hide only the off-the-books secret jobs (secret + without tax). With-tax
+         // jobs are normal bookings, so they stay on the dashboard.
+         const normal = (data || []).filter(
+            (b: any) => !((b.isSecret === true || b.metadata?.isSecret === true) && b.withTax === false)
+         );
+         setBookings(normal);
       } catch (error) {
          console.error("Dashboard load error:", error);
       } finally {

@@ -220,7 +220,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
 
   const handleSubmit = async () => {
     if (!formData.clientId) { alert("Please select a client."); return; }
-    if (formData.goodsType.length === 0 || !formData.weight) { alert("Please fill in cargo details."); return; }
+    if (formData.goodsType.length === 0) { alert("Please select at least one cargo type."); return; }
     if (!formData.pickupLocations.some(l => l.city && l.contactPerson && l.contact)) {
       alert("Please fill at least one complete pickup location."); return;
     }
@@ -235,7 +235,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
         withTax,
         cargoDetails: {
           goodsType: formData.goodsType,
-          weight: parseInt(formData.weight),
+          weight: parseInt(formData.weight) || 0,
           loadingDate: formData.scheduleDate,
         },
         pickupLocations: formData.pickupLocations.map((l, i) => ({

@@ -5,13 +5,16 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import CommonTable from "@/components/admin/CommonTable";
 import { bookingService } from "@/services/bookingService";
-import { Eye, Package, ChevronRight } from "lucide-react";
+import { completionService } from "@/services/completionService";
+import { Package, ChevronRight } from "lucide-react";
 import { formatDate } from "@/lib/datetime";
 
 export default function SecretJobsPage() {
   const router = useRouter();
   const [jobs, setJobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // bookingId → CASH-xxx id filed at completion
+  const [cashIdByBooking, setCashIdByBooking] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadJobs();
@@ -20,15 +23,26 @@ export default function SecretJobsPage() {
   const loadJobs = async () => {
     try {
       setIsLoading(true);
-      const all = await bookingService.getAll();
-      // Finalized without-tax secret jobs only
+      const [all, cashData] = await Promise.all([
+        bookingService.getAll(),
+        completionService.getCash().catch(() => []),
+      ]);
+      // Completed without-tax secret jobs only
       const completed = (all || []).filter(
         (b: any) =>
           (b.isSecret === true || b.metadata?.isSecret === true) &&
           b.withTax === false &&
-          (b.status || "").toLowerCase() === "finalized"
+          ["completed", "delivered"].includes((b.tripStatus || "").toLowerCase())
       );
       setJobs(completed);
+
+      // bookingId → CASH-xxx
+      const idMap: Record<string, string> = {};
+      (cashData || []).forEach((r: any) => {
+        const bId = (r.bookingId?._id || r.bookingId)?.toString();
+        if (bId && r.cashId) idMap[bId] = String(r.cashId).toUpperCase();
+      });
+      setCashIdByBooking(idMap);
     } catch (err) {
       console.error("Failed to load secret jobs:", err);
     } finally {
@@ -37,13 +51,13 @@ export default function SecretJobsPage() {
   };
 
   const tableData = jobs.map((b) => ({
-    id: b.tripId || `#SL-${b._id?.slice(-4).toUpperCase()}`,
+    id: cashIdByBooking[b._id] || b.tripId || `#SL-${b._id?.slice(-4).toUpperCase()}`,
     client: (b.clientId as any)?.name || b.metadata?.client || "—",
     route: `${b.pickupLocations?.[0]?.address?.city || "Origin"} → ${b.dropoffLocations?.[0]?.address?.city || "Dest."}`,
-    cargo: b.cargoDetails?.goodsType || "—",
+    cargo: Array.isArray(b.cargoDetails?.goodsType) ? b.cargoDetails.goodsType.join(", ") : (b.cargoDetails?.goodsType || "—"),
     weight: b.cargoDetails?.weight ? `${b.cargoDetails.weight} KG` : "—",
-    finalAmount: b.finalAmount ? `K${b.finalAmount.toLocaleString()}` : "—",
-    advancePaid: b.advancePaid ? `K${b.advancePaid.toLocaleString()}` : "—",
+    finalAmount: b.finalAmount ? `K${b.finalAmount.toLocaleString()}` : "TBD",
+    advancePaid: b.advancePaid ? `K${b.advancePaid.toLocaleString()}` : "TBD",
     date: b.createdAt
       ? formatDate(b.createdAt)
       : "—",
@@ -98,19 +112,6 @@ export default function SecretJobsPage() {
         <span className="px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border bg-amber-50 text-amber-600 border-amber-200">
           Without Tax
         </span>
-      ),
-    },
-    {
-      label: "Actions",
-      key: "actions",
-      align: "center" as const,
-      render: (_: any, row: any) => (
-        <button
-          onClick={(e) => { e.stopPropagation(); router.push(`/admin/jobs/${row.raw._id}`); }}
-          className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all shadow-sm"
-        >
-          <Eye className="w-3.5 h-3.5" />
-        </button>
       ),
     },
   ];

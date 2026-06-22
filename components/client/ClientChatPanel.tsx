@@ -10,9 +10,10 @@ interface ClientChatPanelProps {
   jobId: string;
   clientId: string;
   clientName: string;
+  route?: string;
 }
 
-export default function ClientChatPanel({ isOpen, onClose, jobId, clientId, clientName }: ClientChatPanelProps) {
+export default function ClientChatPanel({ isOpen, onClose, jobId, clientId, clientName, route }: ClientChatPanelProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [connected, setConnected] = useState(false);
@@ -84,7 +85,7 @@ export default function ClientChatPanel({ isOpen, onClose, jobId, clientId, clie
               <div className="text-[14px] font-display font-black text-neutral-900 tracking-tight">Support Chat</div>
               <div className="text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 mt-0.5" style={{ color: connected ? "#22c55e" : "#f59e0b" }}>
                 <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: connected ? "#22c55e" : "#f59e0b" }} />
-                {connected ? jobId : "Connecting..."}
+                {connected ? (route || "Online") : "Connecting..."}
               </div>
             </div>
           </div>

@@ -36,7 +36,17 @@ export default function AdminOperations() {
       ]);
 
       const all = bookingsData || [];
-      const visible = all.filter((b: any) => !["cancelled", "rejected"].includes(b.status?.toLowerCase()));
+      const visible = all.filter((b: any) => {
+        const s = b.status?.toLowerCase();
+        if (["cancelled", "rejected"].includes(s)) return false;
+        // Without-tax secret jobs leave operations once completed — they move to
+        // the secret section (Completed Without Tax Jobs).
+        if (b.isSecret === true && b.withTax === false) {
+          const ts = (b.tripStatus || "").toLowerCase();
+          if (ts === "completed" || ts === "delivered") return false;
+        }
+        return true;
+      });
 
       setBookings(visible);
       setAssignments(assignmentsData || []);
@@ -217,7 +227,7 @@ export default function AdminOperations() {
       label: "Payload", key: "weight", render: (val: string, row: any) => (
         <div className="flex flex-col">
           <span className="text-slate-900 font-bold">{val} kg</span>
-          <span className="text-[9px] text-neutral-400 uppercase font-bold tracking-tighter">{row.goodsType}</span>
+          <span className="text-[9px] text-neutral-400 uppercase font-bold tracking-tighter">{Array.isArray(row.goodsType) ? row.goodsType.join(", ") : row.goodsType}</span>
         </div>
       )
     },

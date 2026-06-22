@@ -303,7 +303,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                     </div>
                     <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100/50">
                       <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-tighter mb-1">Cargo Type</div>
-                      <div className="text-[13px] font-bold text-neutral-900">{job?.cargoDetails?.goodsType}</div>
+                      <div className="text-[13px] font-bold text-neutral-900">{Array.isArray(job?.cargoDetails?.goodsType) ? job.cargoDetails.goodsType.join(", ") : job?.cargoDetails?.goodsType}</div>
                     </div>
                     <div className="bg-neutral-50 rounded-xl p-3 shadow-sm border border-neutral-100/50">
                       <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-tighter mb-1">Loading Date</div>

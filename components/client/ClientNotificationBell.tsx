@@ -6,7 +6,7 @@ import { useClientNotifications } from "@/context/ClientNotificationContext";
 import { formatTime } from "@/lib/datetime";
 
 export default function ClientNotificationBell() {
-  const { notifications, unreadCount, markAllRead, clearAll, openChat } = useClientNotifications();
+  const { notifications, unreadCount, markAllRead, clearAll, openChat, routeForTrip } = useClientNotifications();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -53,7 +53,7 @@ export default function ClientNotificationBell() {
                   <div className="min-w-0 flex-1">
                     <p className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
                       Support
-                      {n.tripId && <span className="text-[8px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded uppercase tracking-wide">{n.tripId}</span>}
+                      {routeForTrip(n.tripId) && <span className="text-[8px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded tracking-wide">{routeForTrip(n.tripId)}</span>}
                     </p>
                     <p className="text-[11px] text-slate-500 truncate">{n.message}</p>
                     <div className="flex items-center gap-2 mt-1">

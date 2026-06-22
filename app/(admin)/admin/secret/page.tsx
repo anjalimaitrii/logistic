@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateSecretJobModal from "@/components/admin/CreateSecretJobModal";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
 import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
+import TripDetailsModal from "@/components/TripDetailsModal";
 import { bookingService } from "@/services/bookingService";
 import {
   ChevronRight,
@@ -21,7 +21,6 @@ import {
 } from "lucide-react";
 
 export default function SecretDashboard() {
-  const router = useRouter();
   const [isModalOpen, setModalOpen] = useState(false);
   const [jobs, setJobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,6 +33,7 @@ export default function SecretDashboard() {
   const [isFinalizeDrawerOpen, setIsFinalizeDrawerOpen] = useState(false);
   const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
+  const [viewBooking, setViewBooking] = useState<any | null>(null);
 
   useEffect(() => {
     loadJobs();
@@ -185,13 +185,16 @@ export default function SecretDashboard() {
       align: "center" as const,
       render: (_: any, row: any) => {
         const status = (row.raw.status || "active").toLowerCase();
-        const isFinalized = status === "finalized";
+        // A deal is finalized once a price is set or it has moved past finalization
+        // (finalized/paid/transit/delivered/completed) — don't show "Finalize" again.
+        const isFinalized = (row.raw.finalAmount || 0) > 0
+          || ["finalized", "paid", "transit", "delivered", "completed"].includes(status);
 
         return (
           <div className="flex gap-2 justify-center items-center">
             {/* View detail */}
             <button
-              onClick={(e) => { e.stopPropagation(); router.push(`/admin/secret/jobs/${row.raw._id}`); }}
+              onClick={(e) => { e.stopPropagation(); setViewBooking(row.raw); }}
               className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-primary hover:bg-primary/5 transition-all shadow-sm"
               title="View Details"
             >
@@ -297,7 +300,7 @@ export default function SecretDashboard() {
           icon="🔐"
           columns={columns}
           data={isLoading ? [] : tableData}
-          onRowClick={(row) => router.push(`/admin/secret/jobs/${row.raw._id}`)}
+          onRowClick={(row) => setViewBooking(row.raw)}
           emptyState={
             isLoading ? (
               <div className="py-12 flex flex-col items-center justify-center gap-2">
@@ -360,13 +363,22 @@ export default function SecretDashboard() {
         onSubmit={handleCreateJob}
       />
 
+      {/* Read-only trip details — opened from the view (eye) button / row click */}
+      {viewBooking && (
+        <TripDetailsModal booking={viewBooking} onClose={() => setViewBooking(null)} />
+      )}
+
       {/* Chat Panel — same as normal requests */}
       <BookingChatPanel
         isOpen={isChatOpen}
         onClose={() => { setIsChatOpen(false); setSelectedRequest(null); }}
         clientId={(selectedRequest?.clientId as any)?._id || (selectedRequest?.clientId as any)?.id || ""}
         tripId={selectedRequest?.tripId || ""}
-        request={selectedRequest}
+        request={selectedRequest ? {
+          id: selectedRequest.tripId || `#SL-${selectedRequest._id?.slice(-4).toUpperCase()}`,
+          customer: (selectedRequest.clientId as any)?.name || selectedRequest.metadata?.client || "Direct Client",
+          route: `${selectedRequest.pickupLocations?.[0]?.address?.city || "Origin"} → ${selectedRequest.dropoffLocations?.[0]?.address?.city || "Dest."}`,
+        } : null}
         onFinalize={() => {
           setIsChatOpen(false);
           setIsFinalizeDrawerOpen(true);

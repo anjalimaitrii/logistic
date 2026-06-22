@@ -77,8 +77,9 @@ export default function DriverProfilePage() {
     const b = a.bookingId || {};
     const fromCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "N/A";
     const toCity = b.dropoffLocations?.[b.dropoffLocations.length - 1]?.address?.city || b.dropoff?.address?.city || "N/A";
-    const cargo = b.cargoDetails?.goodsType
-      ? `${b.cargoDetails.goodsType}${b.cargoDetails.weight ? ` · ${b.cargoDetails.weight} kg` : ""}`
+    const goods = Array.isArray(b.cargoDetails?.goodsType) ? b.cargoDetails.goodsType.join(", ") : b.cargoDetails?.goodsType;
+    const cargo = goods
+      ? `${goods}${b.cargoDetails.weight ? ` · ${b.cargoDetails.weight} kg` : ""}`
       : "—";
     return {
       id: b.tripId || "N/A",

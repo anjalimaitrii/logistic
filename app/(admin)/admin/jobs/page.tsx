@@ -6,9 +6,9 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
 import {
   Package,
-  AlertTriangle,
+  Clock,
   CheckSquare,
-  Key,
+  Truck,
   ChevronRight,
   Eye,
   Edit2,
@@ -17,6 +17,7 @@ import {
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
+import { completionService } from "@/services/completionService";
 import { cleanDriverName } from "@/services/liveTrackingService";
 import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
@@ -29,9 +30,12 @@ export default function AdminJobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
+  const [statusTab, setStatusTab] = useState<"all" | "active" | "completed">("all");
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
   const [gpsStatusMap, setGpsStatusMap] = useState<Record<string, string>>({});
+  // bookingId → new completion id (inv-001 / cash-001) shown once the trip completes
+  const [newIdByBooking, setNewIdByBooking] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadBookings();
@@ -40,14 +44,28 @@ export default function AdminJobsPage() {
   const loadBookings = async () => {
     try {
       setIsLoading(true);
-      const [bookingsData, assignmentsData, settlementsData] = await Promise.all([
+      const [bookingsData, assignmentsData, settlementsData, invoicesData, cashData] = await Promise.all([
         bookingService.getAll(),
         assignmentService.getAll(),
         settlementService.getAll().catch(() => []),
+        completionService.getInvoices().catch(() => []),
+        completionService.getCash().catch(() => []),
       ]);
 
       const assignments = assignmentsData || [];
       const settlements = settlementsData || [];
+
+      // bookingId → new id (inv-xxx / cash-xxx) filed at completion
+      const idMap: Record<string, string> = {};
+      (invoicesData || []).forEach((r: any) => {
+        const bId = (r.bookingId?._id || r.bookingId)?.toString();
+        if (bId && r.invoiceId) idMap[bId] = String(r.invoiceId).toUpperCase();
+      });
+      (cashData || []).forEach((r: any) => {
+        const bId = (r.bookingId?._id || r.bookingId)?.toString();
+        if (bId && r.cashId) idMap[bId] = String(r.cashId).toUpperCase();
+      });
+      setNewIdByBooking(idMap);
 
       // Only jobs that have been approved by accountant (settlement exists)
       const approvedBookingIds = new Set(
@@ -154,7 +172,7 @@ export default function AdminJobsPage() {
     const effectiveStatus = reassigned ? "completed" : (b?.tripStatus || b?.status);
     const isComplete = effectiveStatus?.toLowerCase() === "delivered" || effectiveStatus?.toLowerCase() === "completed";
     return {
-      id: b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
+      id: newIdByBooking[b?._id] || b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
       client: (b?.clientId as any)?.name || "Direct Client",
       companyName: (b?.clientId as any)?.company?.companyName || "Direct Booking",
       status: getStatusType(effectiveStatus),
@@ -165,6 +183,13 @@ export default function AdminJobsPage() {
       raw: b
     };
   });
+
+  // Tab filter: All = everything · In Progress = active flow (not completed) · Completed
+  const displayedData = jobsData.filter(j =>
+    statusTab === "completed" ? j.isComplete
+    : statusTab === "active"  ? !j.isComplete
+    : true
+  );
 
   const columns = [
     {
@@ -274,37 +299,48 @@ export default function AdminJobsPage() {
     }
   ];
 
+  // Phase of each approved job: notStarted (before start) · active (start→returning) · completed
+  const phaseOf = (b: any): "notStarted" | "active" | "completed" => {
+    const ts = (b?.tripStatus || "").toLowerCase();
+    const hasNewJob = (b?.timeline || []).some((e: any) => e.title === "New Job Assigned");
+    if (ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob)) return "completed";
+    return ts && ts !== "pending" ? "active" : "notStarted";
+  };
+  const notStartedCount = bookings.filter(b => phaseOf(b) === "notStarted").length;
+  const activeCount     = bookings.filter(b => phaseOf(b) === "active").length;
+  const completedCount  = bookings.filter(b => phaseOf(b) === "completed").length;
+
   const kpis = [
     {
-      label: "ACTIVE JOBS",
-      value: bookings.filter(b => b.status === 'transit' || b.status === 'accepted').length.toString(),
-      icon: <Package className="w-5 h-5 text-orange-500" />,
-      subText: "8 transit - 4 loading",
-      trend: "+ 4 TODAY",
-      variant: "primary" as const
-    },
-    {
-      label: "DELAYED JOBS",
-      value: "3",
-      icon: <AlertTriangle className="w-5 h-5 text-amber-500" />,
-      subText: "2 mechanical - 1 traffic",
-      trend: "↑ 1 NEW",
+      label: "NOT STARTED",
+      value: notStartedCount.toString(),
+      icon: <Clock className="w-5 h-5 text-amber-500" />,
+      subText: "Approved · awaiting start",
+      trend: "Queue",
       variant: "warning" as const
     },
     {
+      label: "IN PROGRESS",
+      value: activeCount.toString(),
+      icon: <Truck className="w-5 h-5 text-orange-500" />,
+      subText: "Started → returning",
+      trend: "Live",
+      variant: "primary" as const
+    },
+    {
       label: "COMPLETED",
-      value: bookings.filter(b => b.status === 'finalized' || b.status === 'delivered').length.toString(),
+      value: completedCount.toString(),
       icon: <CheckSquare className="w-5 h-5 text-emerald-500" />,
-      subText: "Last 30 days summary",
-      trend: "↑ 12%",
+      subText: "Trips delivered",
+      trend: "Done",
       variant: "success" as const
     },
     {
-      label: "PENDING OTP",
-      value: "5",
-      icon: <Key className="w-5 h-5 text-indigo-500" />,
-      subText: "Awaiting driver verify",
-      trend: "↑ 2 TODAY",
+      label: "TOTAL JOBS",
+      value: bookings.length.toString(),
+      icon: <Package className="w-5 h-5 text-indigo-500" />,
+      subText: "All approved jobs",
+      trend: "Overall",
       variant: "indigo" as const
     },
   ];
@@ -349,11 +385,37 @@ export default function AdminJobsPage() {
           ))}
         </div>
 
+        {/* Status tabs (left) + driver-dot legend (right) — kept off the table header */}
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+          <div className="flex items-center bg-white border border-neutral-100 rounded-xl p-0.5 shadow-sm">
+            {([
+              { key: "all", label: "All" },
+              { key: "active", label: "In Progress" },
+              { key: "completed", label: "Completed" },
+            ] as const).map(t => (
+              <button
+                key={t.key}
+                onClick={() => setStatusTab(t.key)}
+                className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${statusTab === t.key ? "bg-slate-900 text-white shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+          <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 bg-white border border-neutral-100 rounded-xl shadow-sm">
+            <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Driver dot:</span>
+            <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />Running</span>
+            <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-amber-400" />Idle</span>
+            <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-rose-500" />Stopped</span>
+            <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-slate-400" />Done</span>
+          </div>
+        </div>
+
         <CommonTable
           title="Active Trips"
           icon={<Package className="w-4 h-4 text-orange-500" />}
           columns={columns}
-          data={isLoading ? [] : jobsData}
+          data={isLoading ? [] : displayedData}
           onRowClick={(row) => router.push(`/admin/jobs/${row.raw._id}`)}
           action={
             <div className="flex flex-wrap items-center gap-2">
@@ -385,15 +447,7 @@ export default function AdminJobsPage() {
               </select>
               <div className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-emerald-100 flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                {filteredBookings.length} Result{filteredBookings.length !== 1 ? 's' : ''}
-              </div>
-              {/* GPS legend */}
-              <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-xl">
-                <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Driver dot:</span>
-                <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />Running</span>
-                <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-amber-400" />Idle</span>
-                <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-rose-500" />Stopped</span>
-                <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-slate-400" />Done</span>
+                {displayedData.length} Result{displayedData.length !== 1 ? 's' : ''}
               </div>
             </div>
           }

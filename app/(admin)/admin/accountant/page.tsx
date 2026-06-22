@@ -52,7 +52,14 @@ export default function AdminAccountant() {
       // Secret jobs flow through here too: secret → operation → accountant → jobs.
       const finalizedAndAssigned = (bookingsData || []).filter((b: any) => {
         const s = b.status?.toLowerCase();
-        return assignedBookingIds.has(b._id.toString()) && s !== "cancelled" && s !== "rejected";
+        if (s === "cancelled" || s === "rejected") return false;
+        // Without-tax secret jobs leave the accountant once completed — they move
+        // to the secret section (Completed Without Tax Jobs).
+        if (b.isSecret === true && b.withTax === false) {
+          const ts = (b.tripStatus || "").toLowerCase();
+          if (ts === "completed" || ts === "delivered") return false;
+        }
+        return assignedBookingIds.has(b._id.toString());
       });
 
       setBookings(finalizedAndAssigned);

@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { chatService } from "@/services/chatService";
 import { notificationService } from "@/services/notificationService";
+import { bookingService } from "@/services/bookingService";
 import ClientChatPanel from "@/components/client/ClientChatPanel";
 
 export interface ClientNotif {
@@ -21,6 +22,7 @@ interface ClientNotifContextValue {
   markAllRead: () => void;
   clearAll: () => void;
   openChat: (tripId: string) => void;
+  routeForTrip: (tripId: string) => string;
 }
 
 const ClientNotificationContext = createContext<ClientNotifContextValue>({
@@ -30,6 +32,7 @@ const ClientNotificationContext = createContext<ClientNotifContextValue>({
   markAllRead: () => {},
   clearAll: () => {},
   openChat: () => {},
+  routeForTrip: () => "",
 });
 
 export const useClientNotifications = () => useContext(ClientNotificationContext);
@@ -39,8 +42,25 @@ export function ClientNotificationProvider({ children }: { children: ReactNode }
   const [notifications, setNotifications] = useState<ClientNotif[]>([]);
   const [unreadTrips, setUnreadTrips] = useState<Set<string>>(new Set());
   const [chatTripId, setChatTripId] = useState<string | null>(null);
+  const [routeByTrip, setRouteByTrip] = useState<Record<string, string>>({});
 
   const clientId = user?._id || user?.id || "";
+
+  // tripId → "From → To" so the chat header shows the route, not the trip id
+  useEffect(() => {
+    if (!clientId) return;
+    bookingService.getAll().then((data: any[]) => {
+      const map: Record<string, string> = {};
+      (data || []).forEach((b: any) => {
+        if (!b.tripId) return;
+        const from = b.pickupLocations?.[0]?.address?.city || "Origin";
+        const drops = b.dropoffLocations || [];
+        const to = drops[drops.length - 1]?.address?.city || drops[0]?.address?.city || "Dest.";
+        map[b.tripId] = `${from} → ${to}`;
+      });
+      setRouteByTrip(map);
+    }).catch(() => {});
+  }, [clientId]);
 
   // Load user + persisted notifications
   useEffect(() => {
@@ -102,9 +122,10 @@ export function ClientNotificationProvider({ children }: { children: ReactNode }
   };
 
   const unreadCount = notifications.filter(n => n.unread).length;
+  const routeForTrip = (tripId: string) => routeByTrip[tripId] || "";
 
   return (
-    <ClientNotificationContext.Provider value={{ notifications, unreadCount, unreadTrips, markAllRead, clearAll, openChat }}>
+    <ClientNotificationContext.Provider value={{ notifications, unreadCount, unreadTrips, markAllRead, clearAll, openChat, routeForTrip }}>
       {children}
       <ClientChatPanel
         isOpen={!!chatTripId}
@@ -112,6 +133,7 @@ export function ClientNotificationProvider({ children }: { children: ReactNode }
         jobId={chatTripId || ""}
         clientId={clientId}
         clientName={user?.name || "Client"}
+        route={chatTripId ? routeByTrip[chatTripId] : ""}
       />
     </ClientNotificationContext.Provider>
   );

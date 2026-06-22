@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Wallet, TrendingDown, CheckCircle2, Plus, Trash2, ArrowRight, Receipt, AlertCircle, KeyRound } from "lucide-react";
 import { ledgerService } from "@/services/ledgerService";
+import { completionService } from "@/services/completionService";
 import { formatDate } from "@/lib/datetime";
 
 interface LedgerDrawerProps {
@@ -11,11 +12,13 @@ interface LedgerDrawerProps {
   companyId?: string;
   clientId?: string;
   name: string;
+  // Secret-portal ledger: include secret trips in the view + payment allocation.
+  includeSecret?: boolean;
 }
 
 const fmt = (n: number) => `K ${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, name }: LedgerDrawerProps) {
+export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, name, includeSecret = false }: LedgerDrawerProps) {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [payForm, setPayForm] = useState({ amount: "", note: "", paidAt: "" });
@@ -25,6 +28,8 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deletePassword, setDeletePassword] = useState("");
   const [deletePwError, setDeletePwError] = useState(false);
+  // bookingId → new id (INV-xxx / CASH-xxx) shown for completed trips
+  const [newIdByBooking, setNewIdByBooking] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (isOpen) loadLedger();
@@ -34,10 +39,26 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
   const loadLedger = async () => {
     setIsLoading(true);
     try {
-      const res = companyId
-        ? await ledgerService.getCompany(companyId)
-        : await ledgerService.getClient(clientId!);
+      const [res, inv, cash] = await Promise.all([
+        companyId
+          ? ledgerService.getCompany(companyId, includeSecret)
+          : ledgerService.getClient(clientId!, includeSecret),
+        completionService.getInvoices().catch(() => []),
+        completionService.getCash().catch(() => []),
+      ]);
       setData(res);
+
+      // bookingId → INV-xxx / CASH-xxx
+      const idMap: Record<string, string> = {};
+      (inv || []).forEach((r: any) => {
+        const bId = (r.bookingId?._id || r.bookingId)?.toString();
+        if (bId && r.invoiceId) idMap[bId] = String(r.invoiceId).toUpperCase();
+      });
+      (cash || []).forEach((r: any) => {
+        const bId = (r.bookingId?._id || r.bookingId)?.toString();
+        if (bId && r.cashId) idMap[bId] = String(r.cashId).toUpperCase();
+      });
+      setNewIdByBooking(idMap);
     } catch { setData(null); }
     finally { setIsLoading(false); }
   };
@@ -46,7 +67,7 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
     if (!payForm.amount || Number(payForm.amount) <= 0) { alert("Enter a valid amount"); return; }
     setIsSaving(true);
     try {
-      const payload = { amount: Number(payForm.amount), note: payForm.note, paidAt: payForm.paidAt || undefined };
+      const payload = { amount: Number(payForm.amount), note: payForm.note, paidAt: payForm.paidAt || undefined, includeSecret };
       companyId
         ? await ledgerService.addCompanyPayment(companyId, payload)
         : await ledgerService.addClientPayment(clientId!, payload);
@@ -96,10 +117,8 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
 
   const outstanding = data?.outstanding ?? 0;
 
-  // Secret (off-the-books, without-tax) jobs are not shown in the ledger.
-  const visibleBookings = ((data?.bookings || []) as any[]).filter(
-    (b: any) => !(b.isSecret === true && b.withTax === false)
-  );
+  // Backend decides secret visibility (via includeSecret) — show what it returns.
+  const visibleBookings = (data?.bookings || []) as any[];
 
   return (
     <div className="fixed inset-0 z-[700] pointer-events-none">
@@ -249,7 +268,7 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
                     <div key={b._id} className={`p-3 border rounded-xl ${isPaid ? "bg-emerald-50/40 border-emerald-200" : "bg-white border-neutral-100"}`}>
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-[10px] font-bold text-primary shrink-0">#{b.tripId || b._id?.slice(-6).toUpperCase()}</span>
+                          <span className="text-[10px] font-bold text-primary shrink-0">#{newIdByBooking[b._id] || b.tripId || b._id?.slice(-6).toUpperCase()}</span>
                           {bookedFor && (
                             <span className="text-[9px] font-medium text-slate-400 truncate">· by <span className="capitalize">{bookedFor}</span></span>
                           )}

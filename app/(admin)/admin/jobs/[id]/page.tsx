@@ -33,6 +33,7 @@ import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { cleanDriverName } from "@/services/liveTrackingService";
 import { settlementService } from "@/services/settlementService";
+import { completionService } from "@/services/completionService";
 import JobRouteMap from "@/components/admin/JobRouteMap";
 import { uploadService } from "@/services/uploadService";
 import React from "react";
@@ -65,6 +66,8 @@ export default function JobDetailReport() {
   const [booking, setBooking] = useState<any>(null);
   const [assignment, setAssignment] = useState<any>(null);
   const [settlement, setSettlement] = useState<any>(null);
+  // New completion id (INV-xxx / CASH-xxx) — replaces the trip id once completed
+  const [newId, setNewId] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [gpsStats, setGpsStats] = useState<any>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
@@ -160,6 +163,18 @@ export default function JobDetailReport() {
       setAssignment(assignmentData);
       setSettlement(settlementData);
 
+      // Once the trip is filed at completion, show its new id (INV-xxx / CASH-xxx)
+      try {
+        const [inv, cash] = await Promise.all([
+          completionService.getInvoices().catch(() => []),
+          completionService.getCash().catch(() => []),
+        ]);
+        const rec = [...(inv || []), ...(cash || [])].find(
+          (r: any) => String(r.bookingId?._id || r.bookingId) === String(id)
+        );
+        if (rec) setNewId(String(rec.invoiceId || rec.cashId || "").toUpperCase());
+      } catch { /* non-critical */ }
+
       if (settlementData?.expenses) {
         setTripExpenses(settlementData.expenses);
       }
@@ -221,7 +236,7 @@ export default function JobDetailReport() {
   const jobInfo = useMemo(() => {
     if (!booking) return null;
     return {
-      id: booking.tripId || `#FL-${booking._id.substring(booking._id.length - 4).toUpperCase()}`,
+      id: newId || booking.tripId || `#FL-${booking._id.substring(booking._id.length - 4).toUpperCase()}`,
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Not Assigned",
       truckNumber: assignment?.truckNumber || "N/A",
       status: (() => {
@@ -233,7 +248,7 @@ export default function JobDetailReport() {
       truckHealth: assignment?.truckHealth || "N/A",
       pickupLocations: booking.pickupLocations?.length > 0 ? booking.pickupLocations : (booking.pickup ? [booking.pickup] : [{ address: {} }]),
       dropoffLocations: booking.dropoffLocations?.length > 0 ? booking.dropoffLocations : (booking.dropoff ? [booking.dropoff] : [{ address: {} }]),
-      cargo: booking.cargoDetails?.goodsType || "N/A",
+      cargo: Array.isArray(booking.cargoDetails?.goodsType) ? booking.cargoDetails.goodsType.join(", ") : (booking.cargoDetails?.goodsType || "N/A"),
       weight: booking.cargoDetails?.weight ? `${booking.cargoDetails.weight} Tons` : "N/A",
       loadingDate: booking.cargoDetails?.loadingDate || "N/A",
       totalDistance: settlement?.totalDistance
@@ -242,7 +257,7 @@ export default function JobDetailReport() {
           ? `${settlement.fuelDetails.totalDistance} km`
           : "N/A"
     };
-  }, [booking, assignment, settlement]);
+  }, [booking, assignment, settlement, newId]);
 
   const financialSummary = useMemo(() => {
     if (!settlement) return { fuelTotal: 0, otherLogs: 0, totalCost: 0, allocationMoney: 0, councilLevy: 0, remainingProfit: 0 };
@@ -1408,7 +1423,7 @@ export default function JobDetailReport() {
                   <h2 className="text-[15px] font-bold text-slate-900">Complete Job — Final Inspection</h2>
                   <p className="text-[11px] text-neutral-400 font-medium">
                     {assignment?.driverName ? cleanDriverName(assignment.driverName) : "Driver"} · {assignment?.truckNumber || "N/A"}
-                    {booking?.tripId && <span className="text-primary ml-1">· {booking.tripId}</span>}
+                    {(newId || booking?.tripId) && <span className="text-primary ml-1">· {newId || booking.tripId}</span>}
                   </p>
                 </div>
               </div>
@@ -1450,7 +1465,7 @@ export default function JobDetailReport() {
               {/* Which trip the Delivery Orders / Damages below belong to */}
               <div className="flex items-center gap-2 pt-1">
                 <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest">
-                  {booking?.tripId || `#${id.slice(-6).toUpperCase()}`}
+                  {newId || booking?.tripId || `#${id.slice(-6).toUpperCase()}`}
                 </span>
                 <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Current Trip</span>
               </div>

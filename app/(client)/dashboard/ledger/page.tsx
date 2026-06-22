@@ -291,7 +291,7 @@ export default function ClientLedgerPage() {
                                 </div>
                               )}
                             </div>
-                            <span className="text-[9px] font-medium text-slate-400">{b.cargoDetails?.goodsType}{b.cargoDetails?.weight ? ` • ${b.cargoDetails.weight} KG` : ""}</span>
+                            <span className="text-[9px] font-medium text-slate-400">{Array.isArray(b.cargoDetails?.goodsType) ? b.cargoDetails.goodsType.join(", ") : b.cargoDetails?.goodsType}{b.cargoDetails?.weight ? ` • ${b.cargoDetails.weight} KG` : ""}</span>
                           </div>
                         </td>
                         <td className="px-5 py-5">

@@ -209,6 +209,13 @@ export default function AccountantJobDetail() {
       alert("Please enter the Fuel Rate (petrol price) before approving");
       return;
     }
+    // Distance is required — routes not in Route Master come with 0 km, so the admin
+    // must enter it manually. Without distance, fuel cost is 0 and the trip can't be costed.
+    const totalKm = legData.reduce((sum: number, l: any) => sum + (Number(l.km) || 0), 0);
+    if (totalKm <= 0) {
+      alert("Please enter the trip Distance (KM) before approving");
+      return;
+    }
     try {
       const bookingId = (Array.isArray(id) ? id[0] : id) as string;
       if (!jobData?.assignment || (!jobData.assignment._id && !jobData.assignment.driverName)) {
