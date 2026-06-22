@@ -45,10 +45,7 @@ export default function SecretDashboard() {
       const all = await bookingService.getAll();
       const secret = (all || []).filter((b: any) => {
         const isSecret = b.isSecret === true || b.metadata?.isSecret === true;
-        if (!isSecret) return false;
-        // Finalized without-tax jobs move to Secret Jobs page
-        if (b.withTax === false && (b.status || "").toLowerCase() === "finalized") return false;
-        return true;
+        return isSecret;
       });
       setJobs(secret);
     } catch (err) {
