@@ -6,12 +6,9 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
 import {
   Package,
-  Clock,
   CheckSquare,
-  Truck,
   ChevronRight,
   Eye,
-  Edit2,
   Search
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
@@ -19,10 +16,11 @@ import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
 import { completionService } from "@/services/completionService";
 import { cleanDriverName } from "@/services/liveTrackingService";
-import { fetchLiveVehicles } from "@/services/liveTrackingService";
-import EditJobDrawer from "@/components/admin/EditJobDrawer";
+import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
+import InvoiceDrawer from "@/components/admin/InvoiceDrawer";
+import ReceivePaymentDrawer from "@/components/admin/ReceivePaymentDrawer";
 
-export default function AdminJobsPage() {
+export default function AdminCompletedJobsPage() {
   const router = useRouter();
   const [bookings, setBookings] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -30,11 +28,12 @@ export default function AdminJobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
-  const [selectedJob, setSelectedJob] = useState<any>(null);
-  const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
-  const [gpsStatusMap, setGpsStatusMap] = useState<Record<string, string>>({});
   // bookingId → new completion id (inv-001 / cash-001) shown once the trip completes
   const [newIdByBooking, setNewIdByBooking] = useState<Record<string, string>>({});
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [isFinalizeDrawerOpen, setIsFinalizeDrawerOpen] = useState(false);
+  const [invoiceJob, setInvoiceJob] = useState<any | null>(null);
+  const [payTrip, setPayTrip] = useState<any | null>(null);
 
   useEffect(() => {
     loadBookings();
@@ -74,43 +73,18 @@ export default function AdminJobsPage() {
       const visibleJobs = (bookingsData || []).filter((b: any) => {
         const s = b.status?.toLowerCase();
         if (s === "cancelled" || s === "rejected") return false;
-        // Secret (off-the-books) jobs appear here only during the active trip —
-        // i.e. after the accountant stage (settlement exists, checked below) and
-        // before completion. Once completed they leave Jobs and live only in the
-        // secret section.
-        if (b.isSecret === true && b.withTax === false) {
-          const ts = (b.tripStatus || "").toLowerCase();
-          if (ts === "completed" || ts === "delivered") return false;
-        }
+        // Without-tax secret jobs leave the regular flow once completed — they live
+        // only in the secret section, not here.
+        if (b.isSecret === true && b.withTax === false) return false;
         return approvedBookingIds.has(b._id.toString());
       });
 
       setBookings(visibleJobs);
       setAssignments(assignments);
-
-      // Fetch live GPS status (non-blocking — failures silently ignored)
-      fetchLiveVehicles().then(vehicles => {
-        const map: Record<string, string> = {};
-        vehicles.forEach(v => {
-          const id = v.Vehicle_No || v.Vehicle_Name;
-          if (id) map[String(id).toUpperCase()] = v.Status; // RUNNING | IDLE | STOP
-        });
-        setGpsStatusMap(map);
-      }).catch(() => {});
     } catch (error) {
       console.error("Failed to fetch bookings:", error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleUpdateJob = async (id: string, payload: any) => {
-    try {
-      await bookingService.update(id, payload);
-      await loadBookings(); // Refresh list
-    } catch (error) {
-      console.error("Failed to update job:", error);
-      throw error;
     }
   };
 
@@ -161,8 +135,6 @@ export default function AdminJobsPage() {
     const allLocs = [...pickupLocs, ...dropoffLocs];
     const route = allLocs.map((l: any) => l.address?.city).filter(Boolean) as string[];
     const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
-    const truckNo = String(assignment?.truckNumber || "").toUpperCase();
-    const gpsStatus = truckNo ? (gpsStatusMap[truckNo] || null) : null;
     const tripStatus = (b?.tripStatus || b?.status || "").toLowerCase();
     // A returning trip with a "New Job Assigned" marker is effectively done —
     // the driver was reassigned, so the return leg concluded.
@@ -177,39 +149,29 @@ export default function AdminJobsPage() {
       status: getStatusType(effectiveStatus),
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Assign Driver",
       route,
-      gpsStatus,
       isComplete,
+      // Payment is "finalized" once a final amount has been set on the booking
+      isPaymentFinalized: (b?.finalAmount || 0) > 0,
+      // Fully paid → status 'paid' or advance already covers the billed amount
+      isFullyPaid: (b?.status || "").toLowerCase() === "paid"
+        || ((b?.finalAmount || 0) > 0 && (b?.advancePaid || 0) >= (b?.finalAmount || 0)),
       raw: b
     };
   });
 
-  // Only in-progress trips show here: approved → returning, never completed.
-  const displayedData = jobsData.filter(j => !j.isComplete);
+  // Only completed trips show on this page
+  const displayedData = jobsData.filter(j => j.isComplete);
 
   const columns = [
     {
       label: "TRIP ID",
       key: "id",
-      render: (val: string, row: any) => {
-        const s = row.gpsStatus;
-        const dotClass = row.isComplete
-          ? "bg-slate-400"
-          : s === "RUNNING" ? "bg-emerald-500 animate-pulse"
-          : s === "IDLE"    ? "bg-amber-400"
-          : s === "STOP"    ? "bg-rose-500"
-          : "bg-slate-200";
-        const tip = row.isComplete ? "Trip Completed"
-          : s === "RUNNING" ? "Truck Running"
-          : s === "IDLE"    ? "Truck Idle"
-          : s === "STOP"    ? "Truck Stopped"
-          : "No GPS Signal";
-        return (
-          <div className="flex items-center gap-2">
-            <span title={tip} className={`w-2 h-2 rounded-full shrink-0 ${dotClass}`} />
-            <span className="text-[12px] font-bold text-orange-500 tracking-tight">{val}</span>
-          </div>
-        );
-      }
+      render: (val: string) => (
+        <div className="flex items-center gap-2">
+          <span title="Trip Completed" className="w-2 h-2 rounded-full shrink-0 bg-slate-400" />
+          <span className="text-[12px] font-bold text-orange-500 tracking-tight">{val}</span>
+        </div>
+      )
     },
     {
       label: "CLIENT",
@@ -268,7 +230,7 @@ export default function AdminJobsPage() {
       key: "actions",
       align: "center" as const,
       render: (_: any, row: any) => (
-        <div className="flex gap-2 justify-center">
+        <div className="flex gap-2 justify-center items-center">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -279,52 +241,52 @@ export default function AdminJobsPage() {
           >
             <Eye className="w-3.5 h-3.5" />
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedJob(row.raw);
-              setIsEditDrawerOpen(true);
-            }}
-            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-900 transition-all border border-slate-100"
-          >
-            <Edit2 className="w-3.5 h-3.5" />
-          </button>
+          {/* Payment not finalized yet → finalize the deal · finalized → generate invoice */}
+          {!row.isPaymentFinalized ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedRequest(row.raw);
+                setIsFinalizeDrawerOpen(true);
+              }}
+              className="px-3 py-1.5 bg-slate-900 text-white text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:brightness-110 transition-all shadow-sm"
+            >
+              Finalize
+            </button>
+          ) : (
+            <>
+              {/* Not fully paid → record the remaining payment (client ledger) */}
+              {!row.isFullyPaid && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPayTrip(row.raw);
+                  }}
+                  className="px-3 py-1.5 bg-amber-500 text-white text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:brightness-110 transition-all shadow-sm"
+                >
+                  Receive Payment
+                </button>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setInvoiceJob(row.raw);
+                }}
+                className="px-3 py-1.5 bg-emerald-600 text-white text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:brightness-110 transition-all shadow-sm"
+              >
+                Generate Invoice
+              </button>
+            </>
+          )}
         </div>
       )
     }
   ];
 
-  // Phase of each approved job: notStarted (before start) · active (start→returning) · completed
-  const phaseOf = (b: any): "notStarted" | "active" | "completed" => {
-    const ts = (b?.tripStatus || "").toLowerCase();
-    const hasNewJob = (b?.timeline || []).some((e: any) => e.title === "New Job Assigned");
-    if (ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob)) return "completed";
-    return ts && ts !== "pending" ? "active" : "notStarted";
-  };
-  const notStartedCount = bookings.filter(b => phaseOf(b) === "notStarted").length;
-  const activeCount     = bookings.filter(b => phaseOf(b) === "active").length;
-  const completedCount  = bookings.filter(b => phaseOf(b) === "completed").length;
-
   const kpis = [
     {
-      label: "NOT STARTED",
-      value: notStartedCount.toString(),
-      icon: <Clock className="w-5 h-5 text-amber-500" />,
-      subText: "Approved · awaiting start",
-      trend: "Queue",
-      variant: "warning" as const
-    },
-    {
-      label: "IN PROGRESS",
-      value: activeCount.toString(),
-      icon: <Truck className="w-5 h-5 text-orange-500" />,
-      subText: "Started → returning",
-      trend: "Live",
-      variant: "primary" as const
-    },
-    {
       label: "COMPLETED",
-      value: completedCount.toString(),
+      value: displayedData.length.toString(),
       icon: <CheckSquare className="w-5 h-5 text-emerald-500" />,
       subText: "Trips delivered",
       trend: "Done",
@@ -348,24 +310,21 @@ export default function AdminJobsPage() {
             <div className="flex items-center gap-1.5 text-[9px] text-neutral-400 mb-1 font-medium uppercase tracking-widest">
               <span>Speedogistic</span>
               <ChevronRight className="w-2.5 h-2.5" />
-              <span className="text-primary">Jobs</span>
+              <span className="text-primary">Completed Jobs</span>
             </div>
-            <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Job Management</h1>
-            <p className="text-[11px] text-neutral-400 mt-0.5">Manage and track your logistics operations in real-time.</p>
+            <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Completed Jobs</h1>
+            <p className="text-[11px] text-neutral-400 mt-0.5">All delivered and finished trips.</p>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {kpis.map((kpi, i) => (
             <div key={i} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:border-primary/20 transition-all">
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-[24px] font-bold text-slate-900">{kpi.value}</span>
-                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${kpi.variant === 'primary' ? 'bg-emerald-50 text-emerald-500' :
-                      kpi.variant === 'warning' ? 'bg-amber-50 text-amber-500' :
-                        kpi.variant === 'success' ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500'
-                      }`}>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-500">
                       {kpi.trend}
                     </span>
                   </div>
@@ -380,20 +339,9 @@ export default function AdminJobsPage() {
           ))}
         </div>
 
-        {/* Driver-dot legend */}
-        <div className="flex items-center justify-end gap-3 flex-wrap mb-3">
-          <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 bg-white border border-neutral-100 rounded-xl shadow-sm">
-            <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Driver dot:</span>
-            <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />Running</span>
-            <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-amber-400" />Idle</span>
-            <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-rose-500" />Stopped</span>
-            <span className="flex items-center gap-1 text-[9px] font-medium text-slate-500"><span className="w-2 h-2 rounded-full bg-slate-400" />Done</span>
-          </div>
-        </div>
-
         <CommonTable
-          title="Active Trips"
-          icon={<Package className="w-4 h-4 text-orange-500" />}
+          title="Completed Trips"
+          icon={<CheckSquare className="w-4 h-4 text-emerald-500" />}
           columns={columns}
           data={isLoading ? [] : displayedData}
           onRowClick={(row) => router.push(`/admin/jobs/${row.raw._id}`)}
@@ -440,20 +388,58 @@ export default function AdminJobsPage() {
             ) : (
               <div className="py-20 flex flex-col items-center justify-center gap-3">
                 <Package className="w-10 h-10 text-slate-100" />
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">No Active Trips Found</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">No Completed Trips Found</p>
               </div>
             )
           }
         />
 
-        <EditJobDrawer
-          isOpen={isEditDrawerOpen}
-          onClose={() => {
-            setIsEditDrawerOpen(false);
-            setSelectedJob(null);
+        <FinalizeDealDrawer
+          isOpen={isFinalizeDrawerOpen}
+          onClose={() => { setIsFinalizeDrawerOpen(false); setSelectedRequest(null); }}
+          request={selectedRequest ? {
+            ...selectedRequest,
+            id: selectedRequest.tripId,
+            customer: (selectedRequest.clientId as any)?.name || "Direct Client",
+            price: selectedRequest.finalAmount ? `K${selectedRequest.finalAmount}` : "TBD",
+          } : null}
+          onSubmit={async (data) => {
+            if (selectedRequest) {
+              await bookingService.updateStatus(selectedRequest._id, "finalized", {
+                finalAmount: Number(data.amount),
+                advancePaid: Number(data.advancePaid),
+                specialRequest: data.specialRequest,
+              });
+              await loadBookings();
+            }
+            setIsFinalizeDrawerOpen(false);
+            setSelectedRequest(null);
           }}
-          job={selectedJob}
-          onUpdate={handleUpdateJob}
+        />
+
+        <InvoiceDrawer
+          isOpen={!!invoiceJob}
+          onClose={() => setInvoiceJob(null)}
+          booking={invoiceJob}
+          invoiceId={invoiceJob ? newIdByBooking[invoiceJob._id] : undefined}
+        />
+
+        <ReceivePaymentDrawer
+          isOpen={!!payTrip}
+          onClose={() => setPayTrip(null)}
+          booking={payTrip}
+          onSubmit={async ({ amount }) => {
+            if (!payTrip) return;
+            const billed = Number(payTrip.finalAmount || 0);
+            const newPaid = Number(payTrip.advancePaid || 0) + amount;
+            const fullyPaid = billed > 0 && newPaid >= billed;
+            await bookingService.updateStatus(
+              payTrip._id,
+              fullyPaid ? "paid" : "finalized",
+              { advancePaid: newPaid }
+            );
+            await loadBookings();
+          }}
         />
       </div>
     </AdminLayout>

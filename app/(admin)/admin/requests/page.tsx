@@ -126,6 +126,11 @@ export default function BookingRequestsPage() {
   )) as string[];
 
   const filteredRequests = requests.filter(req => {
+    // Once a deal is finalized (or paid), it leaves this page
+    if (isFinalized(req)) return false;
+    // Completed/delivered trips also leave this page
+    const ts = (req?.tripStatus || "").toLowerCase();
+    if (ts === "completed" || ts === "delivered") return false;
     const pickupCity = req.pickupLocations?.[0]?.address?.city || req.pickup?.address?.city || "";
     const dropoffCity = req.dropoffLocations?.[0]?.address?.city || req.dropoff?.address?.city || "";
     const matchesSearch =

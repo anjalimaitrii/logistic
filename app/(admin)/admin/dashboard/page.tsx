@@ -326,7 +326,7 @@ export default function AdminDashboard() {
 
    
             {/* Table */}
-            <CommonTable
+            {/* <CommonTable
                title="Recent Operations"
                icon="📋"
                columns={columns}
@@ -350,7 +350,7 @@ export default function AdminDashboard() {
                      <option>In Transit</option>
                   </select>
                }
-            />
+            /> */}
          </div >
 
          <CreateJobModal

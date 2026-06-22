@@ -138,6 +138,9 @@ export default function AdminOperations() {
   )) as string[];
 
   const filteredBookings = bookings.filter(b => {
+    // Once a driver/truck is assigned, the job leaves this page (show only unassigned)
+    const hasAssignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
+    if (hasAssignment) return false;
     const pickupCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "";
     const dropoffCity = b.dropoffLocations?.[0]?.address?.city || b.dropoff?.address?.city || "";
     const matchesSearch =

@@ -35,7 +35,6 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
     {
       label: "Booking Requests",
       href: "/admin/requests",
-      badge: "5",
       icon: (
         <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
           <path d="M16 2H8a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6z" />
@@ -72,11 +71,20 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
     {
       label: "Jobs",
       href: "/admin/jobs",
-      badge: "12",
       icon: (
         <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
           <rect x="2" y="7" width="20" height="14" rx="2" />
           <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+        </svg>
+      ),
+    },
+    {
+      label: "Completed Jobs",
+      href: "/admin/completed-jobs",
+      icon: (
+        <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path d="M9 11l3 3L22 4" />
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
         </svg>
       ),
     },

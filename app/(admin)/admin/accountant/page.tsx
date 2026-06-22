@@ -119,7 +119,13 @@ export default function AdminAccountant() {
     bookings.map(b => (b.clientId as any)?.name).filter(Boolean)
   )) as string[];
 
+  const approvedBookingIds = new Set(
+    settlements.map((s: any) => (s.bookingId?._id || s.bookingId)?.toString())
+  );
+
   const filteredBookings = bookings.filter(b => {
+    // Show a trip only until it's approved; once approved it leaves this ledger
+    if (approvedBookingIds.has(b._id.toString())) return false;
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
