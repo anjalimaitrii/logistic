@@ -8,7 +8,6 @@ import CommonTable from "@/components/admin/CommonTable";
 import CreateJobModal from "@/components/admin/CreateJobModal";
 import { ChevronRight, Eye, Check, X, MessageSquare, Package } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
-import { settlementService } from "@/services/settlementService";
 import { fetchLiveVehicles, getVehicleStatus, cleanDriverName } from "@/services/liveTrackingService";
 import { assignmentService } from "@/services/assignmentService";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
@@ -29,7 +28,6 @@ export default function AdminDashboard() {
    const [isCreateJobOpen, setCreateJobOpen] = useState(false);
    const [bookings, setBookings] = useState<any[]>([]);
    const [isLoading, setIsLoading] = useState(true);
-   const [settlements, setSettlements] = useState<any[]>([]);
    const [assignments, setAssignments] = useState<any[]>([]);
    const [fleetCounts, setFleetCounts] = useState({ total: 0, moving: 0, stopped: 0, parked: 0, inactive: 0 });
    const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
@@ -37,7 +35,6 @@ export default function AdminDashboard() {
 
    useEffect(() => {
       loadData();
-      settlementService.getAll().then((d) => setSettlements(d || [])).catch(() => {});
       assignmentService.getAll().then((d) => setAssignments(d || [])).catch(() => {});
       fetchLiveVehicles()
          .then((vehicles) => {
@@ -77,57 +74,53 @@ export default function AdminDashboard() {
       }
    };
 
-   // In-progress jobs: accepted/finalized or a trip that's underway, but not yet
-   // completed/paid/cancelled. (Status becomes "finalized" once a deal is set, so
-   // we can't rely on "accepted" alone.)
-   const activeJobsCount = bookings.filter(b => {
+   // Job phase: notStarted (before start) · active (started → returning) · completed.
+   // Cancelled/rejected jobs are not counted as jobs here.
+   const phaseOf = (b: any): "notStarted" | "active" | "completed" | "dropped" => {
       const s = (b?.status || "").toLowerCase();
+      if (["cancelled", "rejected"].includes(s)) return "dropped";
       const ts = (b?.tripStatus || "").toLowerCase();
-      if (["paid", "cancelled", "rejected"].includes(s)) return false;
-      if (["completed", "delivered"].includes(ts)) return false;
-      return ts !== "" || ["accepted", "finalized", "active", "transit"].includes(s);
-   }).length;
+      const hasNewJob = (b?.timeline || []).some((e: any) => e.title === "New Job Assigned");
+      if (ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob)) return "completed";
+      return ts && ts !== "pending" ? "active" : "notStarted";
+   };
 
-   const totalFuelCost   = settlements.reduce((sum, s) => sum + (s.financials?.fuelTotal || 0), 0);
-   const totalFuelLiters = settlements.reduce((sum, s) => sum + (s.fuelDetails?.totalLiters || 0), 0);
-   const totalRevenue    = bookings.reduce((sum, b) => sum + (b.finalAmount || 0), 0);
-   const pendingPayments = bookings.filter(b => !b.finalAmount && b.status !== "rejected" && b.status !== "pending").length;
-
-   // Single currency prefix (K = Kwacha) + full grouped number — avoids the
-   // confusing "K 50K" double-K that the abbreviated format produced.
-   const fmt = (n: number) => (n > 0 ? `K ${Math.round(n).toLocaleString("en")}` : "--");
+   const countableJobs   = bookings.filter(b => phaseOf(b) !== "dropped");
+   const completedCount   = countableJobs.filter(b => phaseOf(b) === "completed").length;
+   const inProgressCount  = countableJobs.filter(b => phaseOf(b) === "active").length;
+   const notStartedCount  = countableJobs.filter(b => phaseOf(b) === "notStarted").length;
 
    const kpis = [
       {
-         label: "Total Trucks",
-         value: fleetCounts.total > 0 ? fleetCounts.total.toString() : "--",
-         icon: "🚛",
-         subText: fleetCounts.total > 0 ? `${fleetCounts.moving} running · ${fleetCounts.stopped + fleetCounts.parked} idle` : "Loading...",
-         trend: "Live",
+         label: "Total Jobs",
+         value: countableJobs.length.toString(),
+         icon: "📦",
+         subText: "All active bookings",
+         trend: "Overall",
          variant: "primary" as const,
       },
       {
-         label: "Active Jobs",
-         value: activeJobsCount.toString(),
-         icon: "📦",
-         subText: activeJobsCount > 0 ? `${activeJobsCount} in progress` : "No active jobs",
-         trend: "Live",
+         label: "Completed Jobs",
+         value: completedCount.toString(),
+         icon: "✅",
+         subText: "Delivered trips",
+         trend: "Done",
          variant: "success" as const,
       },
       {
-         label: "Fuel Cost",
-         value: totalFuelLiters > 0 ? `${Math.round(totalFuelLiters)}L` : "--",
-         icon: "⛽",
-         subText: totalFuelCost > 0 ? `${fmt(totalFuelCost)} total cost` : "No settlement data yet",
-         trend: settlements.length > 0 ? `${settlements.length} jobs` : "Pending",
+         label: "In Progress Jobs",
+         value: inProgressCount.toString(),
+         icon: "🚚",
+         subText: "Started → returning",
+         trend: "Live",
          variant: "warning" as const,
       },
       {
-         label: "Revenue",
-         value: fmt(totalRevenue),
-         icon: "💳",
-         subText: pendingPayments > 0 ? `${pendingPayments} jobs pending amount` : "All amounts set",
-         trend: `${bookings.filter(b => b.finalAmount).length} finalised`,
+         label: "Not Started Jobs",
+         value: notStartedCount.toString(),
+         icon: "⏳",
+         subText: "Awaiting trip start",
+         trend: "Queue",
          variant: "danger" as const,
       },
    ];
