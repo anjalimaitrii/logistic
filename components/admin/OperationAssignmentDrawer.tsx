@@ -51,6 +51,8 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
   const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
   const [driverQueueInfo, setDriverQueueInfo] = useState<any[]>([]);
   const [truckDocs, setTruckDocs] = useState<any[]>([]);
+  // driverIds that currently have an active/queued assignment (i.e. on a job)
+  const [busyDriverIds, setBusyDriverIds] = useState<Set<string>>(new Set());
 
   const [formData, setFormData] = useState({
     driver: "",
@@ -70,7 +72,19 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
   const loadDrivers = async () => {
     try {
       setIsLoadingDrivers(true);
-      const data = await driverService.getAll();
+      const [data, assignments] = await Promise.all([
+        driverService.getAll(),
+        assignmentService.getAll().catch(() => []),
+      ]);
+      // Drivers currently on a job (active or queued assignment) — used to flag "On Trip"
+      // even if their driverStatus field is stale.
+      const busy = new Set<string>(
+        (assignments || [])
+          .filter((a: any) => a.queueStatus === "active" || a.queueStatus === "queued")
+          .map((a: any) => (a.driverId?._id || a.driverId)?.toString())
+          .filter(Boolean)
+      );
+      setBusyDriverIds(busy);
       // Only Active employees; exclude those under inspection
       setDrivers((data || []).filter((d: any) =>
         d.status === "Active" && d.driverStatus !== "under_inspection"
@@ -185,10 +199,14 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
     onClose();
   };
 
-  // Group drivers for optgroups
-  // returning = trip done, coming back — available for new assignment (starts after inspection)
-  const availableDrivers = drivers.filter(d => !d.driverStatus || d.driverStatus === "available" || d.driverStatus === "returning");
-  const onTripDrivers = drivers.filter(d => d.driverStatus === "on_trip");
+  // Group drivers for optgroups.
+  // On trip = driverStatus on_trip OR has an active/queued assignment (robust against stale status),
+  // but NOT returning. Returning = trip done, coming back — available for a new assignment.
+  const isOnTrip = (d: any) =>
+    d.driverStatus !== "returning" &&
+    (d.driverStatus === "on_trip" || busyDriverIds.has(d._id?.toString()));
+  const onTripDrivers = drivers.filter(isOnTrip);
+  const availableDrivers = drivers.filter(d => !isOnTrip(d));
 
   const queuePosition = driverQueueInfo.length + 1;
 
@@ -374,9 +392,9 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                               )}
 
                               {onTripDrivers.length > 0 && (
-                                <optgroup label="── On Trip — Will Queue ──">
+                                <optgroup label="── On Trip (Not Available) ──">
                                   {onTripDrivers.map((d) => (
-                                    <option key={d._id} value={d._id}>
+                                    <option key={d._id} value={d._id} disabled>
                                       {complianceDot(d.assignedTruck?.complianceDocs)} {cleanDriverName(d.name)} · {d.assignedTruck?.truckId || "No Truck"} — ON TRIP
                                     </option>
                                   ))}
