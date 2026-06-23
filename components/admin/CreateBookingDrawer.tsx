@@ -511,6 +511,15 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
   const pCount = formData.pickupLocations.length;
   const dCount = formData.dropoffLocations.length;
 
+  // An address picked on one side must not appear as a suggestion on the other:
+  // a pickup can't also be offered as a dropoff, and vice versa.
+  const locKey = (l: any) =>
+    `${(l?.city || "").trim().toLowerCase()}|${(l?.street || "").trim().toLowerCase()}|${(l?.plotNo || "").trim().toLowerCase()}`;
+  const pickedPickupKeys = new Set(formData.pickupLocations.map(locKey));
+  const pickedDropoffKeys = new Set(formData.dropoffLocations.map(locKey));
+  const pickupSuggestions = clientSuggestions.filter((s) => !pickedDropoffKeys.has(locKey(s)));
+  const dropoffSuggestions = clientSuggestions.filter((s) => !pickedPickupKeys.has(locKey(s)));
+
   return (
     <div className="fixed inset-0 z-[600] pointer-events-none">
       <div
@@ -690,7 +699,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                       onToggle2={() => toggleContact2("pickup", idx)}
                       onRemove={() => removeLocation("pickup", idx)}
                       onGps={() => fetchGpsAddress("pickup", idx)}
-                      suggestions={clientSuggestions}
+                      suggestions={pickupSuggestions}
                       onFill={(addr) => fillLocation("pickup", idx, addr)}
                     />
                   ))}
@@ -716,7 +725,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                       onToggle2={() => toggleContact2("dropoff", idx)}
                       onRemove={() => removeLocation("dropoff", idx)}
                       onGps={() => fetchGpsAddress("dropoff", idx)}
-                      suggestions={clientSuggestions}
+                      suggestions={dropoffSuggestions}
                       onFill={(addr) => fillLocation("dropoff", idx, addr)}
                     />
                   ))}

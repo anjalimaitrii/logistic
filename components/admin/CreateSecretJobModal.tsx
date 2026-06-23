@@ -272,6 +272,14 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
 
   if (!isOpen) return null;
 
+  // An address picked on one side must not appear as a suggestion on the other.
+  const locKey = (l: any) =>
+    `${(l?.city || "").trim().toLowerCase()}|${(l?.street || "").trim().toLowerCase()}|${(l?.plotNo || "").trim().toLowerCase()}`;
+  const pickedPickupKeys = new Set(formData.pickupLocations.map(locKey));
+  const pickedDropoffKeys = new Set(formData.dropoffLocations.map(locKey));
+  const pickupSuggestions = clientSuggestions.filter((s) => !pickedDropoffKeys.has(locKey(s)));
+  const dropoffSuggestions = clientSuggestions.filter((s) => !pickedPickupKeys.has(locKey(s)));
+
   return (
     <div className="fixed inset-0 z-[600] pointer-events-none">
       <div
@@ -521,14 +529,14 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                           {(AFRICAN_CITIES[loc.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
-                      {focusedAddr === `pickup-${idx}` && clientSuggestions.length > 0 && (
+                      {focusedAddr === `pickup-${idx}` && pickupSuggestions.length > 0 && (
                         <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
                           <div className="flex items-center gap-1.5 px-3 py-2 border-b border-neutral-50">
                             <Clock className="w-3 h-3 text-neutral-300" />
                             <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Previous Addresses</span>
                           </div>
                           <div className="max-h-48 overflow-y-auto">
-                            {clientSuggestions.map((s, i) => (
+                            {pickupSuggestions.map((s, i) => (
                               <button key={i} type="button" onMouseDown={(e) => { e.preventDefault(); fillPickup(idx, s); setFocusedAddr(null); }} className="w-full text-left px-3 py-2.5 hover:bg-neutral-50 transition-colors border-b border-neutral-50 last:border-0 flex items-center gap-2.5">
                                 <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
                                 <div className="min-w-0 flex-1">
@@ -620,14 +628,14 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                           {(AFRICAN_CITIES[loc.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
                       </div>
-                      {focusedAddr === `dropoff-${idx}` && clientSuggestions.length > 0 && (
+                      {focusedAddr === `dropoff-${idx}` && dropoffSuggestions.length > 0 && (
                         <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
                           <div className="flex items-center gap-1.5 px-3 py-2 border-b border-neutral-50">
                             <Clock className="w-3 h-3 text-neutral-300" />
                             <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Previous Addresses</span>
                           </div>
                           <div className="max-h-48 overflow-y-auto">
-                            {clientSuggestions.map((s, i) => (
+                            {dropoffSuggestions.map((s, i) => (
                               <button key={i} type="button" onMouseDown={(e) => { e.preventDefault(); fillDropoff(idx, s); setFocusedAddr(null); }} className="w-full text-left px-3 py-2.5 hover:bg-neutral-50 transition-colors border-b border-neutral-50 last:border-0 flex items-center gap-2.5">
                                 <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
                                 <div className="min-w-0 flex-1">
