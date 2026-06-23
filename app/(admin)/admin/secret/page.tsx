@@ -75,15 +75,16 @@ export default function SecretDashboard() {
     await loadJobs();
   };
 
-  // A secret job leaves this list once its deal is finalized (amount set / past finalize).
-  const isFinalized = (b: any) => {
-    const s = (b?.status || "").toLowerCase();
-    return (b?.finalAmount || 0) > 0
-      || ["finalized", "paid", "transit", "delivered", "completed"].includes(s);
+  // A secret job stays here (and can be finalized) until the trip is completed —
+  // it leaves this list only once the trip is completed/delivered.
+  const isCompleted = (b: any) => {
+    const ts = (b?.tripStatus || "").toLowerCase();
+    const hasNewJob = (b?.timeline || []).some((e: any) => e.title === "New Job Assigned");
+    return ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob);
   };
   // Pending table is secret-only (finalize flow); cards stay overall.
   const secretJobs = jobs.filter((b) => b.isSecret === true || b.metadata?.isSecret === true);
-  const pendingJobs = secretJobs.filter((b) => !isFinalized(b));
+  const pendingJobs = secretJobs.filter((b) => !isCompleted(b));
 
   const tableData = pendingJobs.map((b) => {
     const city1 = b.pickupLocations?.[0]?.address?.city || "Origin";

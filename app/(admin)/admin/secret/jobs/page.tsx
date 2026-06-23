@@ -3,6 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import CommonTable from "@/components/admin/CommonTable";
+import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
+import ReceivePaymentDrawer from "@/components/admin/ReceivePaymentDrawer";
+import InvoiceDrawer from "@/components/admin/InvoiceDrawer";
 import { bookingService } from "@/services/bookingService";
 import { completionService } from "@/services/completionService";
 import { Package, ChevronRight, Receipt, ShieldOff } from "lucide-react";
@@ -20,6 +23,12 @@ export default function SecretJobsPage() {
   const [companyFilter, setCompanyFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("");
 
+  // Action drawers
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [isFinalizeDrawerOpen, setIsFinalizeDrawerOpen] = useState(false);
+  const [payTrip, setPayTrip] = useState<any | null>(null);
+  const [invoiceJob, setInvoiceJob] = useState<any | null>(null);
+
   useEffect(() => {
     loadJobs();
   }, []);
@@ -32,11 +41,14 @@ export default function SecretJobsPage() {
         completionService.getInvoices().catch(() => []),
         completionService.getCash().catch(() => []),
       ]);
-      // All secret jobs (with or without tax, any status)
-      const secret = (all || []).filter(
-        (b: any) => b.isSecret === true || b.metadata?.isSecret === true
-      );
-      setJobs(secret);
+      // All COMPLETED trips (with or without tax, from any source) — i.e. trips whose
+      // id has already rolled over to a completion id (INV-xxx / CASH-xxx).
+      const completed = (all || []).filter((b: any) => {
+        const ts = (b.tripStatus || "").toLowerCase();
+        const hasNewJob = (b.timeline || []).some((e: any) => e.title === "New Job Assigned");
+        return ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob);
+      });
+      setJobs(completed);
 
       // bookingId → INV-xxx / CASH-xxx
       const idMap: Record<string, string> = {};
@@ -54,6 +66,18 @@ export default function SecretJobsPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleFinalize = async (data: { amount: string; advancePaid: string; specialRequest: string }) => {
+    if (!selectedRequest) return;
+    await bookingService.updateStatus(selectedRequest._id, "finalized", {
+      finalAmount: parseFloat(data.amount),
+      advancePaid: parseFloat(data.advancePaid) || 0,
+      specialRequest: data.specialRequest,
+    });
+    setIsFinalizeDrawerOpen(false);
+    setSelectedRequest(null);
+    await loadJobs();
   };
 
   // Unique clients / companies for the filter dropdowns
@@ -98,6 +122,10 @@ export default function SecretJobsPage() {
     advancePaid: b.advancePaid ? `K${b.advancePaid.toLocaleString()}` : "TBD",
     date: b.createdAt ? formatDate(b.createdAt) : "—",
     withTax: b.withTax === true,
+    // Payment flags (same as normal completed-jobs page)
+    isPaymentFinalized: (b?.finalAmount || 0) > 0,
+    isFullyPaid: (b?.status || "").toLowerCase() === "paid"
+      || ((b?.finalAmount || 0) > 0 && (b?.advancePaid || 0) >= (b?.finalAmount || 0)),
     raw: b,
   }));
 
@@ -162,6 +190,41 @@ export default function SecretJobsPage() {
         </span>
       ),
     },
+    {
+      label: "Actions",
+      key: "actions",
+      align: "center" as const,
+      render: (_: any, row: any) => (
+        <div className="flex gap-2 justify-center items-center">
+          {/* Not finalized → finalize the deal · finalized → receive payment + generate invoice */}
+          {!row.isPaymentFinalized ? (
+            <button
+              onClick={(e) => { e.stopPropagation(); setSelectedRequest(row.raw); setIsFinalizeDrawerOpen(true); }}
+              className="px-3 py-1.5 bg-slate-900 text-white text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:brightness-110 transition-all shadow-sm"
+            >
+              Finalize
+            </button>
+          ) : (
+            <>
+              {!row.isFullyPaid && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); setPayTrip(row.raw); }}
+                  className="px-3 py-1.5 bg-amber-500 text-white text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:brightness-110 transition-all shadow-sm"
+                >
+                  Receive Payment
+                </button>
+              )}
+              <button
+                onClick={(e) => { e.stopPropagation(); setInvoiceJob(row.raw); }}
+                className="px-3 py-1.5 bg-emerald-600 text-white text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:brightness-110 transition-all shadow-sm"
+              >
+                Generate Invoice
+              </button>
+            </>
+          )}
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -178,7 +241,7 @@ export default function SecretJobsPage() {
         <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-600 rounded-l-2xl" />
         <div>
           <h1 className="text-xl font-bold tracking-tight text-neutral-900">Secret Jobs</h1>
-          <p className="text-[11px] font-medium text-neutral-400 mt-0.5">All confidential assignments — with & without tax</p>
+          <p className="text-[11px] font-medium text-neutral-400 mt-0.5">All completed trips — with & without tax</p>
         </div>
         <div className="px-3 py-1.5 bg-indigo-50 text-indigo-600 border border-indigo-100 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5">
           <div className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
@@ -188,7 +251,7 @@ export default function SecretJobsPage() {
 
       {/* Table */}
       <CommonTable
-        title="Secret Operations Ledger"
+        title="Completed Trips Ledger"
         icon="🔐"
         columns={columns}
         data={isLoading ? [] : tableData}
@@ -263,6 +326,38 @@ export default function SecretJobsPage() {
             </div>
           )
         }
+      />
+
+      <FinalizeDealDrawer
+        isOpen={isFinalizeDrawerOpen}
+        onClose={() => { setIsFinalizeDrawerOpen(false); setSelectedRequest(null); }}
+        request={selectedRequest}
+        onSubmit={handleFinalize}
+      />
+
+      <ReceivePaymentDrawer
+        isOpen={!!payTrip}
+        onClose={() => setPayTrip(null)}
+        booking={payTrip}
+        onSubmit={async ({ amount }) => {
+          if (!payTrip) return;
+          const billed = Number(payTrip.finalAmount || 0);
+          const newPaid = Number(payTrip.advancePaid || 0) + amount;
+          const fullyPaid = billed > 0 && newPaid >= billed;
+          await bookingService.updateStatus(
+            payTrip._id,
+            fullyPaid ? "paid" : "finalized",
+            { advancePaid: newPaid }
+          );
+          await loadJobs();
+        }}
+      />
+
+      <InvoiceDrawer
+        isOpen={!!invoiceJob}
+        onClose={() => setInvoiceJob(null)}
+        booking={invoiceJob}
+        invoiceId={invoiceJob ? newIdByBooking[invoiceJob._id] : undefined}
       />
     </div>
   );
