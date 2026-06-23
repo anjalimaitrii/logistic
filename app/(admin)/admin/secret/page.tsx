@@ -49,11 +49,9 @@ export default function SecretDashboard() {
   const loadJobs = async () => {
     try {
       setIsLoading(true);
+      // Cards show the OVERALL picture, so keep all bookings here.
       const all = await bookingService.getAll();
-      const secret = (all || []).filter(
-        (b: any) => b.isSecret === true || b.metadata?.isSecret === true
-      );
-      setJobs(secret);
+      setJobs(all || []);
     } catch (err) {
       console.error("Failed to load secret jobs:", err);
     } finally {
@@ -83,7 +81,9 @@ export default function SecretDashboard() {
     return (b?.finalAmount || 0) > 0
       || ["finalized", "paid", "transit", "delivered", "completed"].includes(s);
   };
-  const pendingJobs = jobs.filter((b) => !isFinalized(b));
+  // Pending table is secret-only (finalize flow); cards stay overall.
+  const secretJobs = jobs.filter((b) => b.isSecret === true || b.metadata?.isSecret === true);
+  const pendingJobs = secretJobs.filter((b) => !isFinalized(b));
 
   const tableData = pendingJobs.map((b) => {
     const city1 = b.pickupLocations?.[0]?.address?.city || "Origin";
@@ -160,8 +160,10 @@ export default function SecretDashboard() {
     },
   ];
 
-  const withTaxCount = jobs.filter((b) => b.withTax === true).length;
-  const withoutTaxCount = jobs.filter((b) => b.withTax === false).length;
+  // Overall counts across ALL bookings (cancelled/rejected excluded).
+  const countableJobs = jobs.filter((b) => !["cancelled", "rejected"].includes((b.status || "").toLowerCase()));
+  const withoutTaxCount = countableJobs.filter((b) => b.withTax === false).length;
+  const withTaxCount = countableJobs.filter((b) => b.withTax !== false).length; // normal + secret with-tax
 
   const kpis = [
     {
@@ -181,11 +183,11 @@ export default function SecretDashboard() {
       variant: "warning" as const,
     },
     {
-      label: "Total Special Jobs",
-      value: isLoading ? "--" : jobs.length.toString(),
+      label: "Total Jobs",
+      value: isLoading ? "--" : countableJobs.length.toString(),
       icon: "💎",
-      subText: "All secret assignments",
-      trend: "Special Ops",
+      subText: "All bookings (overall)",
+      trend: "Overall",
       variant: "primary" as const,
     },
   ];

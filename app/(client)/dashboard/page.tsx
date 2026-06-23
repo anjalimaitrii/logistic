@@ -225,9 +225,14 @@ export default function DashboardPage() {
    };
 
    const dynamicStats = [
-      { label: "Active Jobs", value: bookings.filter(b => b.status === "transit" || b.status === "active").length.toString(), sub: "Real-time", icon: Package, color: "text-primary" },
+      { label: "Active Jobs", value: bookings.filter(b => {
+         const ts = (b.tripStatus || "").toLowerCase();
+         const s = (b.status || "").toLowerCase();
+         if (["completed", "delivered"].includes(ts) || ["paid", "cancelled", "rejected"].includes(s)) return false;
+         return ["transit", "returning", "active", "started"].includes(ts) || ["active", "transit"].includes(s);
+      }).length.toString(), sub: "Real-time", icon: Package, color: "text-primary" },
       { label: "Total Bookings", value: bookings.length.toString(), sub: "Lifetime", icon: DollarSign, color: "text-slate-900" },
-      { label: "Completed", value: bookings.filter(b => b.status === "completed").length.toString(), sub: "Action required", icon: TrendingUp, color: "text-emerald-600" },
+      { label: "Completed", value: bookings.filter(b => { const ts = (b.tripStatus || b.status || "").toLowerCase(); return ts === "completed" || ts === "delivered"; }).length.toString(), sub: "Action required", icon: TrendingUp, color: "text-emerald-600" },
    ];
 
    const recentDisplayJobs = [...bookings]
