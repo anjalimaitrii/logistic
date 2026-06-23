@@ -21,6 +21,11 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
   const pathname = usePathname();
   const isSecretMode = pathname.startsWith("/admin/secret");
 
+  // Logged-in admin name (set at login) — falls back to "Admin"
+  const [adminName, setAdminName] = useState("Admin");
+  useEffect(() => { setAdminName(localStorage.getItem("adminName") || "Admin"); }, []);
+  const initials = adminName.split(" ").map((n) => n[0]).filter(Boolean).join("").slice(0, 2).toUpperCase() || "AD";
+
   // Close profile menu on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -36,6 +41,8 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
     document.cookie = 'role=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
     localStorage.removeItem('token');
     localStorage.removeItem('user');
+    localStorage.removeItem('adminName');
+    localStorage.removeItem('adminEmail');
     setShowProfileMenu(false);
     router.push("/");
   };
@@ -128,7 +135,7 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
               className="w-10 h-10 rounded-full bg-linear-to-br from-primary to-primary-mid flex items-center justify-center font-bold text-xs text-white border-2 border-white shadow-xl shadow-primary/20 cursor-pointer hover:scale-105 transition-transform active:scale-95"
               onClick={() => setShowProfileMenu(!showProfileMenu)}
             >
-              AO
+              {initials}
             </div>
 
             {/* Dropdown Menu */}
@@ -138,10 +145,10 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
                 <div className="px-4 pt-4 pb-3 border-b border-neutral-100">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-full bg-linear-to-br from-primary to-primary-mid flex items-center justify-center font-bold text-[11px] text-white shrink-0">
-                      AO
+                      {initials}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold text-neutral-900 truncate">Piyush Goyal</div>
+                      <div className="text-sm font-semibold text-neutral-900 truncate">{adminName}</div>
                       <div className="text-[11px] text-neutral-400 font-medium">Fleet Admin</div>
                     </div>
                   </div>

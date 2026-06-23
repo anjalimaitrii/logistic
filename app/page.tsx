@@ -43,6 +43,8 @@ export default function Home() {
       if (adminRes?.role === "admin") {
         document.cookie = 'role=admin; path=/; SameSite=Strict';
         localStorage.setItem('token', adminRes.token);
+        localStorage.setItem('adminName', adminRes.name || 'Admin');
+        localStorage.setItem('adminEmail', adminRes.email || identifier);
         localStorage.removeItem('user');
         router.push("/admin/dashboard");
         return;

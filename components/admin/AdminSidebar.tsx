@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
 
 interface NavItem {
   label: string;
@@ -20,6 +21,11 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: AdminSidebarProps) {
   const pathname = usePathname();
+
+  // Logged-in admin name (set at login)
+  const [adminName, setAdminName] = useState("Admin");
+  useEffect(() => { setAdminName(localStorage.getItem("adminName") || "Admin"); }, []);
+  const initials = adminName.split(" ").map((n) => n[0]).filter(Boolean).join("").slice(0, 2).toUpperCase() || "AD";
 
   const navItems: NavItem[] = [
     {
@@ -317,7 +323,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
           className="flex items-center gap-2.5 rounded-xl transition-all border border-white/5"
         >
           <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center font-bold text-xs text-primary shrink-0 shadow-sm shadow-primary/10">
-            AO
+            {initials}
           </div>
           <AnimatePresence>
             {isExpanded && (
@@ -327,7 +333,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
                 exit={{ opacity: 0, width: 0 }}
                 className="min-w-0 flex-1"
               >
-                <div className="text-[13px] font-semibold text-white truncate">Piyush Goyal</div>
+                <div className="text-[13px] font-semibold text-white truncate">{adminName}</div>
                 <div className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Fleet Admin</div>
               </motion.div>
             )}

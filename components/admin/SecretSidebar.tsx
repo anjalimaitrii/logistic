@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 
 interface NavItem {
   label: string;
@@ -11,6 +12,11 @@ interface NavItem {
 
 export default function SecretSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const pathname = usePathname();
+
+  // Logged-in admin name (set at login)
+  const [adminName, setAdminName] = useState("Admin");
+  useEffect(() => { setAdminName(localStorage.getItem("adminName") || "Admin"); }, []);
+  const initials = adminName.split(" ").map((n) => n[0]).filter(Boolean).join("").slice(0, 2).toUpperCase() || "AD";
 
   const secretNavItems: NavItem[] = [
     {
@@ -140,10 +146,10 @@ export default function SecretSidebar({ isOpen, onClose }: { isOpen: boolean; on
       <div className="p-3 border-t border-white/5 space-y-2">
         <div className="flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/5">
           <div className="w-9 h-9 rounded-xl bg-primary/20 flex items-center justify-center font-bold text-xs text-primary shrink-0 shadow-sm shadow-primary/10">
-            AO
+            {initials}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[13px] font-semibold text-white truncate">Master Admin</div>
+            <div className="text-[13px] font-semibold text-white truncate">{adminName}</div>
             <div className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Level 4 Clearance</div>
           </div>
         </div>
