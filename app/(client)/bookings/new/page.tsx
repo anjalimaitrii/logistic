@@ -610,7 +610,7 @@ export default function NewBookingPage() {
          clientId: user?._id || user?.id,
          cargoDetails: {
             goodsType: formData.goodsType,
-            weight: formData.weight ? Number(formData.weight) : undefined,
+            ...(formData.weight ? { weight: Number(formData.weight) } : {}),
             loadingDate: formData.scheduleDate,
          },
          pickupLocations: formData.pickupLocations.map((loc, idx) => ({

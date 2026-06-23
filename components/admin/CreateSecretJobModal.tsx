@@ -237,7 +237,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
         withTax,
         cargoDetails: {
           goodsType: formData.goodsType,
-          weight: formData.weight ? parseInt(formData.weight) : undefined,
+          ...(formData.weight ? { weight: parseInt(formData.weight) } : {}),
           loadingDate: formData.scheduleDate,
         },
         pickupLocations: formData.pickupLocations.map((l, i) => ({

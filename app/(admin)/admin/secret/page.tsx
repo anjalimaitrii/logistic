@@ -3,10 +3,14 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import CreateSecretJobModal from "@/components/admin/CreateSecretJobModal";
+import CommonTable from "@/components/admin/CommonTable";
+import BookingChatPanel from "@/components/admin/BookingChatPanel";
+import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
+import TripDetailsModal from "@/components/TripDetailsModal";
 import StatCard from "@/components/admin/StatCard";
 import { bookingService } from "@/services/bookingService";
 import { fetchLiveVehicles, getVehicleStatus } from "@/services/liveTrackingService";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Plus, Eye, MessageSquare, Receipt, ShieldOff, Package } from "lucide-react";
 
 const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniMap"), {
   ssr: false,
@@ -22,6 +26,11 @@ export default function SecretDashboard() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fleetCounts, setFleetCounts] = useState({ total: 0, moving: 0, stopped: 0, parked: 0, inactive: 0 });
+  // Finalize / chat / view state
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isFinalizeDrawerOpen, setIsFinalizeDrawerOpen] = useState(false);
+  const [viewBooking, setViewBooking] = useState<any | null>(null);
 
   useEffect(() => {
     loadJobs();
@@ -55,6 +64,101 @@ export default function SecretDashboard() {
   const handleCreateJob = async () => {
     await loadJobs();
   };
+
+  const handleFinalize = async (data: { amount: string; advancePaid: string; specialRequest: string }) => {
+    if (!selectedRequest) return;
+    await bookingService.updateStatus(selectedRequest._id, "finalized", {
+      finalAmount: parseFloat(data.amount),
+      advancePaid: parseFloat(data.advancePaid) || 0,
+      specialRequest: data.specialRequest,
+    });
+    setIsFinalizeDrawerOpen(false);
+    setSelectedRequest(null);
+    await loadJobs();
+  };
+
+  // A secret job leaves this list once its deal is finalized (amount set / past finalize).
+  const isFinalized = (b: any) => {
+    const s = (b?.status || "").toLowerCase();
+    return (b?.finalAmount || 0) > 0
+      || ["finalized", "paid", "transit", "delivered", "completed"].includes(s);
+  };
+  const pendingJobs = jobs.filter((b) => !isFinalized(b));
+
+  const tableData = pendingJobs.map((b) => {
+    const city1 = b.pickupLocations?.[0]?.address?.city || "Origin";
+    const city2 = b.dropoffLocations?.[0]?.address?.city || "Dest.";
+    return {
+      id: b.tripId || `#SL-${b._id?.slice(-4).toUpperCase()}`,
+      client: (b.clientId as any)?.name || b.metadata?.client || "—",
+      route: `${city1} → ${city2}`,
+      tax: b.withTax ? "With Tax" : "Without Tax",
+      status: (b.status || "active").toLowerCase(),
+      raw: b,
+    };
+  });
+
+  const columns = [
+    {
+      label: "JOB ID",
+      key: "id",
+      render: (val: string) => <span className="text-[12px] font-bold text-primary tracking-tight">{val}</span>,
+    },
+    {
+      label: "CLIENT",
+      key: "client",
+      render: (val: string) => <span className="text-[12px] font-bold text-slate-800">{val}</span>,
+    },
+    {
+      label: "ROUTE",
+      key: "route",
+      render: (val: string) => <span className="text-[12px] font-medium text-slate-500 italic">{val}</span>,
+    },
+    {
+      label: "TAX STATUS",
+      key: "tax",
+      render: (val: string) => (
+        <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${
+          val === "Without Tax"
+            ? "bg-amber-50 text-amber-600 border-amber-200"
+            : "bg-primary/10 text-primary border-primary/20"
+        }`}>
+          {val === "Without Tax"
+            ? <><ShieldOff className="w-2.5 h-2.5 inline mr-1" />Without Tax</>
+            : <><Receipt className="w-2.5 h-2.5 inline mr-1" />With Tax</>}
+        </span>
+      ),
+    },
+    {
+      label: "ACTIONS",
+      key: "actions",
+      align: "center" as const,
+      render: (_: any, row: any) => (
+        <div className="flex gap-2 justify-center items-center">
+          <button
+            onClick={(e) => { e.stopPropagation(); setViewBooking(row.raw); }}
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-neutral-100 text-neutral-400 hover:text-primary hover:bg-primary/5 transition-all shadow-sm"
+            title="View Details"
+          >
+            <Eye className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setSelectedRequest(row.raw); setIsChatOpen(true); }}
+            className="p-2 bg-neutral-50 text-neutral-400 hover:text-primary hover:bg-primary/10 rounded-lg transition-all border border-transparent hover:border-primary/20 group"
+            title="Negotiate Chat"
+          >
+            <MessageSquare className="w-4 h-4 group-hover:scale-110 transition-transform" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setSelectedRequest(row.raw); setIsFinalizeDrawerOpen(true); }}
+            className="px-3 py-1.5 bg-slate-900 text-white text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:brightness-110 transition-all shadow-sm"
+          >
+            Finalize Deal
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   const withTaxCount = jobs.filter((b) => b.withTax === true).length;
   const withoutTaxCount = jobs.filter((b) => b.withTax === false).length;
@@ -189,6 +293,28 @@ export default function SecretDashboard() {
             </div>
           </div>
         </div>
+
+        {/* Pending Special Jobs — finalize the deal here */}
+        <CommonTable
+          title="Pending Special Jobs"
+          icon="🔐"
+          columns={columns}
+          data={isLoading ? [] : tableData}
+          onRowClick={(row) => setViewBooking(row.raw)}
+          emptyState={
+            isLoading ? (
+              <div className="py-12 flex flex-col items-center justify-center gap-2">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">Loading...</p>
+              </div>
+            ) : (
+              <div className="py-12 flex flex-col items-center justify-center gap-2">
+                <Package className="w-8 h-8 text-neutral-200" />
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-2">No pending special jobs</p>
+              </div>
+            )
+          }
+        />
       </div>
 
       {/* Create Job Modal */}
@@ -196,6 +322,36 @@ export default function SecretDashboard() {
         isOpen={isModalOpen}
         onClose={() => setModalOpen(false)}
         onSubmit={handleCreateJob}
+      />
+
+      {/* Read-only trip details — view (eye) button / row click */}
+      {viewBooking && (
+        <TripDetailsModal booking={viewBooking} onClose={() => setViewBooking(null)} />
+      )}
+
+      {/* Negotiate Chat */}
+      <BookingChatPanel
+        isOpen={isChatOpen}
+        onClose={() => { setIsChatOpen(false); setSelectedRequest(null); }}
+        clientId={(selectedRequest?.clientId as any)?._id || (selectedRequest?.clientId as any)?.id || ""}
+        tripId={selectedRequest?.tripId || ""}
+        request={selectedRequest ? {
+          id: selectedRequest.tripId || `#SL-${selectedRequest._id?.slice(-4).toUpperCase()}`,
+          customer: (selectedRequest.clientId as any)?.name || selectedRequest.metadata?.client || "Direct Client",
+          route: `${selectedRequest.pickupLocations?.[0]?.address?.city || "Origin"} → ${selectedRequest.dropoffLocations?.[0]?.address?.city || "Dest."}`,
+        } : null}
+        onFinalize={() => {
+          setIsChatOpen(false);
+          setIsFinalizeDrawerOpen(true);
+        }}
+      />
+
+      {/* Finalize Deal Drawer */}
+      <FinalizeDealDrawer
+        isOpen={isFinalizeDrawerOpen}
+        onClose={() => { setIsFinalizeDrawerOpen(false); setSelectedRequest(null); }}
+        request={selectedRequest}
+        onSubmit={handleFinalize}
       />
     </>
   );

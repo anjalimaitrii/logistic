@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import CommonTable from "@/components/admin/CommonTable";
 import { bookingService } from "@/services/bookingService";
@@ -10,7 +9,6 @@ import { Package, ChevronRight, Receipt, ShieldOff } from "lucide-react";
 import { formatDate } from "@/lib/datetime";
 
 export default function SecretJobsPage() {
-  const router = useRouter();
   const [jobs, setJobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   // bookingId → new id (INV-xxx / CASH-xxx) filed at completion
@@ -194,7 +192,6 @@ export default function SecretJobsPage() {
         icon="🔐"
         columns={columns}
         data={isLoading ? [] : tableData}
-        onRowClick={(row) => router.push(`/admin/jobs/${row.raw._id}`)}
         action={
           <div className="flex items-center gap-2 flex-wrap">
             {/* Tax toggle */}
