@@ -489,7 +489,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
       });
       const payload = {
         clientId: formData.clientId,
-        cargoDetails: { goodsType: formData.goodsType, weight: parseFloat(formData.weight), loadingDate: formData.scheduleDate },
+        cargoDetails: { goodsType: formData.goodsType, weight: formData.weight ? parseFloat(formData.weight) : undefined, loadingDate: formData.scheduleDate },
         pickupLocations: formData.pickupLocations.map(mapLoc),
         dropoffLocations: formData.dropoffLocations.map(mapLoc),
         requirement: { bodyType: formData.truckType },

@@ -138,8 +138,12 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
               <div className="flex items-center gap-2 text-[11px] text-neutral-700">
                 <Package className="w-3.5 h-3.5 text-neutral-400" />
                 <span className="font-medium">{request.cargoDetails?.goodsType || "—"}</span>
-                <span className="text-neutral-400">·</span>
-                <span className="font-medium">{request.cargoDetails?.weight} kg</span>
+                {request.cargoDetails?.weight ? (
+                  <>
+                    <span className="text-neutral-400">·</span>
+                    <span className="font-medium">{request.cargoDetails.weight} kg</span>
+                  </>
+                ) : null}
               </div>
               <div className="flex items-center gap-2 text-[11px] text-neutral-700">
                 <MapPin className="w-3.5 h-3.5 text-neutral-400" />

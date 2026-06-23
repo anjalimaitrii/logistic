@@ -289,7 +289,7 @@ export default function AccountantJobDetail() {
         pickupLocations: jobData.pickupLocations || [],
         dropoffLocations: jobData.dropoffLocations || [],
         cargo: jobData.cargoDetails?.goodsType || "N/A",
-        weight: `${jobData.cargoDetails?.weight || 0} kg`,
+        weight: jobData.cargoDetails?.weight ? `${jobData.cargoDetails.weight} kg` : "—",
         schedule: jobData.cargoDetails?.loadingDate || "N/A",
       }
     : {

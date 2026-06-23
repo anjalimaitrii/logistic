@@ -299,7 +299,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100/50">
                       <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-tighter mb-1">Goods Weight</div>
-                      <div className="text-[13px] font-bold text-neutral-900">{job?.cargoDetails?.weight} kg</div>
+                      <div className="text-[13px] font-bold text-neutral-900">{job?.cargoDetails?.weight ? `${job.cargoDetails.weight} kg` : "—"}</div>
                     </div>
                     <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100/50">
                       <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-tighter mb-1">Cargo Type</div>

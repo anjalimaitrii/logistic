@@ -138,9 +138,11 @@ export default function AdminOperations() {
   )) as string[];
 
   const filteredBookings = bookings.filter(b => {
-    // Once a driver/truck is assigned, the job leaves this page (show only unassigned)
-    const hasAssignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
-    if (hasAssignment) return false;
+    // Job leaves this page only once the trip is completed (assigned/in-progress still show)
+    const ts = (b.tripStatus || "").toLowerCase();
+    const hasNewJob = (b.timeline || []).some((e: any) => e.title === "New Job Assigned");
+    const isCompleted = ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob);
+    if (isCompleted) return false;
     const pickupCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "";
     const dropoffCity = b.dropoffLocations?.[0]?.address?.city || b.dropoff?.address?.city || "";
     const matchesSearch =
@@ -229,7 +231,7 @@ export default function AdminOperations() {
     {
       label: "Payload", key: "weight", render: (val: string, row: any) => (
         <div className="flex flex-col">
-          <span className="text-slate-900 font-bold">{val} kg</span>
+          <span className="text-slate-900 font-bold">{val ? `${val} kg` : "—"}</span>
           <span className="text-[9px] text-neutral-400 uppercase font-bold tracking-tighter">{Array.isArray(row.goodsType) ? row.goodsType.join(", ") : row.goodsType}</span>
         </div>
       )

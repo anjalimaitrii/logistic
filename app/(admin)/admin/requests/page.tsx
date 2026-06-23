@@ -150,7 +150,7 @@ export default function BookingRequestsPage() {
     companyName: (req.clientId as any)?.company?.companyName || "Direct Booking",
     route: getRequestRoute(req),
     cargo: req.cargoDetails.goodsType,
-    weight: `${req.cargoDetails.weight} KG`,
+    weight: req.cargoDetails?.weight ? `${req.cargoDetails.weight} KG` : "",
     price: req.finalAmount ? `K${req.finalAmount}` : "TBD",
     date: formatDate(req.createdAt || req.metadata?.createdAt || Date.now()),
     status: getStatusLabel(req),
