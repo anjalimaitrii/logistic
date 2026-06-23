@@ -76,7 +76,8 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
             const key = `${stop.address?.city}|${stop.address?.street}|${stop.address?.plotNo}`;
             if (!seen.has(key) && stop.address?.city) {
               seen.add(key);
-              locs.push({ contactPerson: stop.contactPerson || "", contactCode: "+260", contact: stop.contactNumber || "", contactPerson2: "", contact2Code: "+260", contact2: "", plotNo: stop.address?.plotNo || "", street: stop.address?.street || "", country: stop.address?.country || "", state: stop.address?.state || "", city: stop.address?.city || "" });
+              // Don't carry the contact from a past booking — only the address is reused.
+              locs.push({ contactPerson: "", contactCode: "+260", contact: "", contactPerson2: "", contact2Code: "+260", contact2: "", plotNo: stop.address?.plotNo || "", street: stop.address?.street || "", country: stop.address?.country || "", state: stop.address?.state || "", city: stop.address?.city || "" });
             }
           }
         }
@@ -206,15 +207,16 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
     setFormData({ ...formData, dropoffLocations: locs });
   };
 
+  // Fill ONLY the address fields from a suggestion — keep whatever contact the user typed.
   const fillPickup = (idx: number, addr: ReturnType<typeof emptyLocation>) => {
     const locs = [...formData.pickupLocations];
-    locs[idx] = { ...addr };
+    locs[idx] = { ...locs[idx], plotNo: addr.plotNo, street: addr.street, city: addr.city, state: addr.state, country: addr.country };
     setFormData({ ...formData, pickupLocations: locs });
   };
 
   const fillDropoff = (idx: number, addr: ReturnType<typeof emptyLocation>) => {
     const locs = [...formData.dropoffLocations];
-    locs[idx] = { ...addr };
+    locs[idx] = { ...locs[idx], plotNo: addr.plotNo, street: addr.street, city: addr.city, state: addr.state, country: addr.country };
     setFormData({ ...formData, dropoffLocations: locs });
   };
 
