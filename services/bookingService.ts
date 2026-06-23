@@ -19,7 +19,7 @@ export interface BookingPayload {
   clientId?: string;
   cargoDetails: {
     goodsType: string[];
-    weight: number;
+    weight?: number;
     loadingDate: string;
   };
   pickupLocations: LocationStop[];
