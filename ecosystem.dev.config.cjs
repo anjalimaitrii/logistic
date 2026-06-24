@@ -1,15 +1,15 @@
 module.exports = {
   apps: [
     {
-      name: 'fleet-frontend',
+      name: 'fleet-frontend-dev',
       script: 'node_modules/.bin/next',
       args: 'start',
       exec_mode: 'fork',
       autorestart: true,
       watch: false,
-      env_production: {
-        NODE_ENV: 'production',
-        PORT: 6007,
+      env_development: {
+        NODE_ENV: 'development',
+        PORT: 6009,
       },
     },
   ],
