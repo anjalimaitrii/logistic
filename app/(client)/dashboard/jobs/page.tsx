@@ -24,7 +24,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { bookingService } from "@/services/bookingService";
 import ClientNotificationBell from "@/components/client/ClientNotificationBell";
 import { useClientNotifications } from "@/context/ClientNotificationContext";
-import { formatDate } from "@/lib/datetime";
+import { formatDate, todayAppDateKey } from "@/lib/datetime";
 
 const getStatusStyles = (type: string) => {
    switch (type?.toLowerCase()) {
@@ -433,7 +433,7 @@ export default function JobsPage() {
                                     <input
                                        type="date"
                                        value={startDate}
-                                       max={new Date().toISOString().split("T")[0]}
+                                       max={todayAppDateKey()}
                                        onChange={e => setStartDate(e.target.value)}
                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[12px] font-medium text-slate-800 outline-none focus:border-primary/40 focus:bg-white transition-all"
                                     />
@@ -444,7 +444,7 @@ export default function JobsPage() {
                                        type="date"
                                        value={endDate}
                                        min={startDate || undefined}
-                                       max={new Date().toISOString().split("T")[0]}
+                                       max={todayAppDateKey()}
                                        onChange={e => setEndDate(e.target.value)}
                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[12px] font-medium text-slate-800 outline-none focus:border-primary/40 focus:bg-white transition-all"
                                     />

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { X, Wallet, TrendingDown, CheckCircle2, Plus, Trash2, ArrowRight, Receipt, AlertCircle, KeyRound } from "lucide-react";
 import { ledgerService } from "@/services/ledgerService";
 import { completionService } from "@/services/completionService";
-import { formatDate } from "@/lib/datetime";
+import { formatDate, todayAppDateKey } from "@/lib/datetime";
 
 interface LedgerDrawerProps {
   isOpen: boolean;
@@ -191,7 +191,7 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
                   <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Date</label>
                   <input
                     type="date"
-                    max={new Date().toISOString().split("T")[0]}
+                    max={todayAppDateKey()}
                     value={payForm.paidAt}
                     onChange={e => setPayForm(f => ({ ...f, paidAt: e.target.value }))}
                     className="w-full bg-white border border-neutral-200 rounded-xl px-3 py-2 text-[12px] font-semibold text-slate-900 outline-none focus:border-primary/40"

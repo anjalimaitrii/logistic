@@ -30,6 +30,7 @@ import {
   DollarSign
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
+import { todayAppDateKey } from "@/lib/datetime";
 import { assignmentService } from "@/services/assignmentService";
 import { cleanDriverName } from "@/services/liveTrackingService";
 import { settlementService } from "@/services/settlementService";
@@ -80,7 +81,7 @@ export default function JobDetailReport() {
     amount: "",
     litres: "",
     rate: "",
-    date: new Date().toISOString().split('T')[0]
+    date: todayAppDateKey()
   });
 
   // Completion Inspection Modal
@@ -314,7 +315,7 @@ export default function JobDetailReport() {
       amount: "",
       litres: "",
       rate: "",
-      date: new Date().toISOString().split('T')[0]
+      date: todayAppDateKey()
     });
   };
 

@@ -10,6 +10,7 @@ import { clientService } from "@/services/clientService";
 import { bookingService } from "@/services/bookingService";
 import { goodsTypeService } from "@/services/goodsTypeService";
 import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES, CITY_TO_STATE } from "@/lib/africaLocations";
+import { todayAppDateKey } from "@/lib/datetime";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CreateBookingDrawerProps {
@@ -314,7 +315,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
     clientId: "",
     goodsType: [] as string[],
     weight: "",
-    scheduleDate: new Date().toISOString().split("T")[0],
+    scheduleDate: todayAppDateKey(),
     pickupLocations: [emptyLocation()],
     dropoffLocations: [emptyLocation()],
     truckType: "Flat Bed",
@@ -652,7 +653,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
                     <input
                       type="date" value={formData.scheduleDate}
-                      min={new Date().toISOString().split("T")[0]}
+                      min={todayAppDateKey()}
                       onChange={e => setFormData(f => ({ ...f, scheduleDate: e.target.value }))}
                       className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm"
                     />

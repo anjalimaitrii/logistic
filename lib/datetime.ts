@@ -25,6 +25,18 @@ export const formatDate = (input: DateInput, opts: Intl.DateTimeFormatOptions = 
   return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: APP_TIME_ZONE, ...opts });
 };
 
+/** A date as YYYY-MM-DD in app timezone (CAT) — for <input type="date"> and day comparisons. */
+export const toAppDateKey = (input: DateInput): string => {
+  const d = toDate(input);
+  if (!d) return "";
+  // en-CA renders as YYYY-MM-DD
+  return d.toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE });
+};
+
+/** Today's date as YYYY-MM-DD in app timezone (CAT). */
+export const todayAppDateKey = (): string =>
+  new Date().toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE });
+
 /** Date + time — e.g. "18 Jun 2026, 02:45 PM" (CAT) */
 export const formatDateTime = (input: DateInput, opts: Intl.DateTimeFormatOptions = {}): string => {
   const d = toDate(input);

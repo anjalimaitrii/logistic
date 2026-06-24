@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { todayAppDateKey } from "@/lib/datetime";
 import {
    X,
    ShieldCheck,
@@ -270,7 +271,7 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                                       type="date"
                                                       className="w-full bg-white border border-neutral-100 rounded-lg px-2 py-1.5 text-[11px] font-semibold text-slate-900 outline-none focus:border-primary/20"
                                                       value={doc.dueDate}
-                                                      min={new Date().toISOString().split("T")[0]}
+                                                      min={todayAppDateKey()}
                                                       onChange={(e) => updateDocDate(doc.type, e.target.value)}
                                                    />
                                                 </div>
@@ -361,7 +362,7 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                                 type="date"
                                                 className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-primary/20 transition-all"
                                                 value={nextServiceDate}
-                                                min={new Date().toISOString().split("T")[0]}
+                                                min={todayAppDateKey()}
                                                 onChange={(e) => setNextServiceDate(e.target.value)}
                                              />
                                           </div>

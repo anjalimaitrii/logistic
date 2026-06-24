@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { todayAppDateKey } from "@/lib/datetime";
 import {
   X,
   Truck,
@@ -30,7 +31,7 @@ export default function CreateTruckModal({ isOpen, onClose, onSubmit }: CreateTr
     length: "",
     width: "",
     height: "",
-    maintenanceDate: new Date().toISOString().split('T')[0]
+    maintenanceDate: todayAppDateKey()
   });
 
   const calculatedVolume = (parseFloat(formData.length) || 0) * (parseFloat(formData.width) || 0) * (parseFloat(formData.height) || 0);

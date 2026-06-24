@@ -30,6 +30,7 @@ import { useRouter } from "next/navigation";
 import { bookingService } from "@/services/bookingService";
 import { goodsTypeService } from "@/services/goodsTypeService";
 import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES, CITY_TO_STATE } from "@/lib/africaLocations";
+import { todayAppDateKey } from "@/lib/datetime";
 
 const TRUCK_TYPES = [
    { name: "Flat Bed", icon: "🚛", desc: "Open Platform", cap: "Required" },
@@ -523,7 +524,7 @@ export default function NewBookingPage() {
    const [formData, setFormData] = useState({
       goodsType: [] as string[],
       weight: "",
-      scheduleDate: new Date().toISOString().split('T')[0],
+      scheduleDate: todayAppDateKey(),
       pickupLocations: [emptyLocation()],
       dropoffLocations: [emptyLocation()],
       truckType: "Flat Bed"
@@ -707,7 +708,7 @@ export default function NewBookingPage() {
                      <input
                         type="date"
                         value={formData.scheduleDate}
-                        min={new Date().toISOString().split('T')[0]}
+                        min={todayAppDateKey()}
                         onChange={(e) => setFormData(prev => ({ ...prev, scheduleDate: e.target.value }))}
                         className="w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white focus:border-primary/20 outline-none transition-all"
                      />

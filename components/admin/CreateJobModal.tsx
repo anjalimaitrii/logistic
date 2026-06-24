@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { todayAppDateKey } from "@/lib/datetime";
 import { 
   X, 
   Package, 
@@ -33,7 +34,7 @@ export default function CreateJobModal({ isOpen, onClose, onSubmit }: CreateJobM
     weight: "",
     truckType: "",
     advancePaid: "",
-    scheduleDate: new Date().toISOString().split('T')[0],
+    scheduleDate: todayAppDateKey(),
     scheduleTime: "10:00"
   });
 

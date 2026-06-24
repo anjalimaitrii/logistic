@@ -10,6 +10,7 @@ import { clientService } from "@/services/clientService";
 import { bookingService } from "@/services/bookingService";
 import { goodsTypeService } from "@/services/goodsTypeService";
 import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES, CITY_TO_STATE } from "@/lib/africaLocations";
+import { todayAppDateKey } from "@/lib/datetime";
 
 const DIAL_CODES = [
   { code: "+260", label: "ZM +260", maxLen: 9 },
@@ -53,7 +54,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
     clientId: "",
     goodsType: [] as string[],
     weight: "",
-    scheduleDate: new Date().toISOString().split("T")[0],
+    scheduleDate: todayAppDateKey(),
     pickupLocations: [emptyLocation()],
     dropoffLocations: [emptyLocation()],
     truckType: "Flat Bed",
@@ -265,7 +266,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
       onClose();
       setStep(1);
       setShowContact2({ pickup: [false], dropoff: [false] });
-      setFormData({ clientId: "", goodsType: [], weight: "", scheduleDate: new Date().toISOString().split("T")[0], pickupLocations: [emptyLocation()], dropoffLocations: [emptyLocation()], truckType: "Flat Bed" });
+      setFormData({ clientId: "", goodsType: [], weight: "", scheduleDate: todayAppDateKey(), pickupLocations: [emptyLocation()], dropoffLocations: [emptyLocation()], truckType: "Flat Bed" });
     } catch (err) {
       console.error(err);
       alert("Failed to create job. Please try again.");
@@ -431,7 +432,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                     <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Schedule Date <span className="text-red-500">*</span></label>
                     <div className="relative">
                       <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400" />
-                      <input type="date" value={formData.scheduleDate} min={new Date().toISOString().split("T")[0]} onChange={(e) => setFormData({ ...formData, scheduleDate: e.target.value })} className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm" />
+                      <input type="date" value={formData.scheduleDate} min={todayAppDateKey()} onChange={(e) => setFormData({ ...formData, scheduleDate: e.target.value })} className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm" />
                     </div>
                   </div>
 

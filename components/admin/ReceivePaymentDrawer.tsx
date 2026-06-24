@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X, Wallet, ArrowRight } from "lucide-react";
+import { todayAppDateKey } from "@/lib/datetime";
 
 interface ReceivePaymentDrawerProps {
   isOpen: boolean;
@@ -111,7 +112,7 @@ export default function ReceivePaymentDrawer({ isOpen, onClose, booking, onSubmi
               <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Date</label>
               <input
                 type="date"
-                max={new Date().toISOString().split("T")[0]}
+                max={todayAppDateKey()}
                 value={paidAt}
                 onChange={(e) => setPaidAt(e.target.value)}
                 className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 px-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm"

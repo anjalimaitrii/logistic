@@ -10,7 +10,7 @@ import { settlementService }      from "@/services/settlementService";
 import { truckInspectionService } from "@/services/truckInspectionService";
 import { assignmentService }      from "@/services/assignmentService";
 import { routeService }           from "@/services/routeService";
-import { formatDate } from "@/lib/datetime";
+import { formatDate, todayAppDateKey } from "@/lib/datetime";
 import { cleanDriverName } from "@/services/liveTrackingService";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -252,7 +252,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
 
   const currentYear = new Date().getFullYear();
   const [from, setFrom] = useState(`${currentYear}-01-01`);
-  const [to,   setTo]   = useState(new Date().toISOString().slice(0, 10));
+  const [to,   setTo]   = useState(todayAppDateKey());
 
   const loadAll = async () => {
     setIsLoading(true);
@@ -454,7 +454,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
             </div>
             <div className="space-y-1">
               <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">To</label>
-              <input type="date" value={to} min={from} max={new Date().toISOString().slice(0, 10)} onChange={e => setTo(e.target.value)}
+              <input type="date" value={to} min={from} max={todayAppDateKey()} onChange={e => setTo(e.target.value)}
                 className="border border-neutral-200 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary bg-white" />
             </div>
             <button onClick={loadAll} disabled={isLoading}

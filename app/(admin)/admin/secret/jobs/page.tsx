@@ -9,7 +9,7 @@ import InvoiceDrawer from "@/components/admin/InvoiceDrawer";
 import { bookingService } from "@/services/bookingService";
 import { completionService } from "@/services/completionService";
 import { Package, ChevronRight, Receipt, ShieldOff } from "lucide-react";
-import { formatDate } from "@/lib/datetime";
+import { formatDate, toAppDateKey } from "@/lib/datetime";
 
 export default function SecretJobsPage() {
   const [jobs, setJobs] = useState<any[]>([]);
@@ -103,7 +103,7 @@ export default function SecretJobsPage() {
 
       let matchesDate = true;
       if (dateFilter) {
-        const created = b.createdAt ? new Date(b.createdAt).toISOString().slice(0, 10) : "";
+        const created = b.createdAt ? toAppDateKey(b.createdAt) : "";
         matchesDate = created === dateFilter;
       }
 
