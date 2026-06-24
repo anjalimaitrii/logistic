@@ -2,8 +2,9 @@ module.exports = {
   apps: [
     {
       name: 'fleet-frontend',
-      script: 'node_modules/.bin/next',
+      script: 'node_modules/next/dist/bin/next',
       args: 'start',
+      interpreter: 'node',
       exec_mode: 'fork',
       autorestart: true,
       watch: false,
