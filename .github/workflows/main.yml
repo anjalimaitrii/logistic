@@ -25,6 +25,8 @@ jobs:
           cache: pnpm
 
       - name: Install dependencies and build
+        env:
+          NEXT_PUBLIC_API_URL: http://145.223.19.138:6006
         run: |
           pnpm install --frozen-lockfile --ignore-scripts
           pnpm build
