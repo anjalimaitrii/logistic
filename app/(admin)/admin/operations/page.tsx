@@ -87,10 +87,10 @@ export default function AdminOperations() {
   const handleAssignJob = async (assignmentData: any) => {
     if (!selectedJob) return;
     try {
-      // Assigning a new job to a returning driver ends their return leg — freeze the
-      // truck's current position so the prior trip gets a real GPS end point.
+      // Assigning a new job to an offloading/returning driver ends their current leg —
+      // freeze the truck's current position so the prior trip gets a real GPS end point.
       const returningEndCoords =
-        assignmentData.driverStatus === "returning"
+        assignmentData.driverStatus === "returning" || assignmentData.driverStatus === "offloading"
           ? await captureTruckCoords(assignmentData.truckNumber)
           : undefined;
 

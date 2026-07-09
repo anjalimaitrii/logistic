@@ -47,8 +47,9 @@ export default function RootLayout({
     <html
       lang="en"
       className={cn("h-full", "antialiased", sora.variable, dmSans.variable, "font-sans", geist.variable)}
+      suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col relative">
+      <body className="min-h-full flex flex-col relative" suppressHydrationWarning>
         <div className="africa-pattern" />
         <NotificationProvider>
           <main className="relative z-10 flex-1 flex flex-col">

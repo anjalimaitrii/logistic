@@ -120,8 +120,8 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
         setTruckDocs([]);
       }
 
-      // Fetch current queue for on_trip or returning drivers
-      if (ds === "on_trip" || ds === "returning") {
+      // Fetch current queue for on_trip, offloading or returning drivers
+      if (ds === "on_trip" || ds === "offloading" || ds === "returning") {
         try {
           const assignments = await assignmentService.getByDriverId(driver._id);
           setDriverQueueInfo((assignments || []).filter((a: any) =>
@@ -201,9 +201,11 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
 
   // Group drivers for optgroups.
   // On trip = driverStatus on_trip OR has an active/queued assignment (robust against stale status),
-  // but NOT returning. Returning = trip done, coming back — available for a new assignment.
+  // but NOT offloading/returning. Offloading = cargo being dropped, returning = coming back —
+  // both are available for a new assignment (assigning auto-completes the current trip).
   const isOnTrip = (d: any) =>
     d.driverStatus !== "returning" &&
+    d.driverStatus !== "offloading" &&
     (d.driverStatus === "on_trip" || busyDriverIds.has(d._id?.toString()));
   const onTripDrivers = drivers.filter(isOnTrip);
   const availableDrivers = drivers.filter(d => !isOnTrip(d));
@@ -385,7 +387,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                                 <optgroup label="── Available ──">
                                   {availableDrivers.map((d) => (
                                     <option key={d._id} value={d._id}>
-                                      {complianceDot(d.assignedTruck?.complianceDocs)} {cleanDriverName(d.name)} · {d.assignedTruck?.truckId || "No Truck"}{d.driverStatus === "returning" ? " — RETURNING" : ""}
+                                      {complianceDot(d.assignedTruck?.complianceDocs)} {cleanDriverName(d.name)} · {d.assignedTruck?.truckId || "No Truck"}{d.driverStatus === "returning" ? " — RETURNING" : d.driverStatus === "offloading" ? " — OFFLOADING" : ""}
                                     </option>
                                   ))}
                                 </optgroup>
@@ -458,13 +460,24 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                                 );
                               })()}
 
-                              {/* Queue info for on_trip drivers; returning drivers get a simple note */}
+                              {/* Queue info for on_trip drivers; offloading/returning drivers get a simple note */}
                               {formData.driverStatus === "returning" && (
                                 <div className="mt-1 pt-2 border-t border-blue-100">
                                   <div className="flex items-center gap-1.5 px-2 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
                                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
                                     <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wide">
                                       Driver returning — trip starts after truck inspection
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+
+                              {formData.driverStatus === "offloading" && (
+                                <div className="mt-1 pt-2 border-t border-blue-100">
+                                  <div className="flex items-center gap-1.5 px-2 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
+                                    <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wide">
+                                      Driver offloading — current trip completes automatically on assignment
                                     </span>
                                   </div>
                                 </div>

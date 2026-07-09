@@ -513,7 +513,7 @@ export default function RoutesMasterPage() {
                 <label className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest flex items-center gap-1.5">
                   <Gauge className="w-3.5 h-3.5" /> Loaded Mileage (km/L)
                 </label>
-                <p className="text-[9px] text-neutral-400">Truck maal lekar jaa rha ho tab</p>
+                <p className="text-[9px] text-neutral-400">When the truck is carrying cargo</p>
                 <input
                   type="number" min="0" step="0.1"
                   value={mileage.loadedMileage || ""}
@@ -526,7 +526,7 @@ export default function RoutesMasterPage() {
                 <label className="text-[10px] font-bold text-blue-600 uppercase tracking-widest flex items-center gap-1.5">
                   <Gauge className="w-3.5 h-3.5" /> Unloaded Mileage (km/L)
                 </label>
-                <p className="text-[9px] text-neutral-400">Truck khali wapas aa rha ho tab (return)</p>
+                <p className="text-[9px] text-neutral-400">When the truck is returning empty</p>
                 <input
                   type="number" min="0" step="0.1"
                   value={mileage.unloadedMileage || ""}

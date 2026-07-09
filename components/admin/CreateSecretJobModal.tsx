@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, ChevronRight, MapPin, Package, Calendar,
@@ -352,7 +353,12 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                 <div className="space-y-4">
                   <h3 className="text-[11px] font-semibold text-neutral-400 uppercase tracking-[0.15em] border-b border-neutral-50 pb-2">Client & Cargo</h3>
                   <div className="space-y-1.5">
-                    <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Select Client <span className="text-red-500">*</span></label>
+                    <div className="flex items-center justify-between ml-1">
+                      <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest">Select Client <span className="text-red-500">*</span></label>
+                      <Link href="/admin/clients" className="flex items-center gap-1 text-[9px] font-bold text-primary uppercase tracking-widest hover:underline">
+                        <UserPlus className="w-3 h-3" /> Add Client
+                      </Link>
+                    </div>
                     <div className="relative group">
                       <Users className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-primary transition-colors" />
                       <select
@@ -361,7 +367,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                         className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-semibold text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm cursor-pointer appearance-none"
                       >
                         <option value="">Choose Client...</option>
-                        {clients.map(c => <option key={c._id} value={c._id}>{c.name} ({c.email})</option>)}
+                        {clients.map(c => <option key={c._id} value={c._id}>{c.company?.companyName ? `${c.company.companyName} (${c.name})` : c.name}</option>)}
                       </select>
                     </div>
                     {isLoadingClients && <p className="text-[9px] text-primary animate-pulse ml-1">Fetching clients...</p>}

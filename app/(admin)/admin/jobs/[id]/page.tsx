@@ -90,16 +90,22 @@ export default function JobDetailReport() {
     vehicleCondition: "Good",
     tyreCondition: "Good",
     tyreNumber: "",
-    tollAmount: "",
     challans: "",
-    deliveryOrders: [""],
-    damages: [{ quantity: "", amount: "" }],
     notes: "",
   });
   const [isSubmittingCompletion, setIsSubmittingCompletion] = useState(false);
-  const [completionFiles, setCompletionFiles] = useState<File[]>([]);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const [isCancelling, setIsCancelling] = useState(false);
+
+  // Offloading Modal State
+  const [showOffloadingModal, setShowOffloadingModal] = useState(false);
+  const [offloadingTargetStatus, setOffloadingTargetStatus] = useState("");
+  const [offloadingForm, setOffloadingForm] = useState({
+    deliveryOrders: [""],
+    damages: [{ quantity: "", amount: "" }],
+  });
+  const [isSubmittingOffloading, setIsSubmittingOffloading] = useState(false);
+  const [offloadingFiles, setOffloadingFiles] = useState<File[]>([]);
+  const offloadingFileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Earlier trips auto-completed while this driver was returning (truck never came
   // back for inspection) — their damages/DO are collected in this completion modal.
@@ -285,7 +291,7 @@ export default function JobDetailReport() {
       return;
     }
 
-    const calculatedAmount = newExpenseEntry.category === "Fuel" 
+    const calculatedAmount = newExpenseEntry.category === "Fuel"
       ? (parseFloat(newExpenseEntry.litres) || 0) * (parseFloat(newExpenseEntry.rate) || 0)
       : parseFloat(newExpenseEntry.amount) || 0;
 
@@ -358,25 +364,17 @@ export default function JobDetailReport() {
   };
 
   const handleStatusUpdate = async (newStatus: string) => {
+    if (newStatus.toUpperCase().startsWith("OFFLOADING")) {
+      setOffloadingTargetStatus(newStatus);
+      setOffloadingForm({
+        deliveryOrders: [""],
+        damages: [{ quantity: "", amount: "" }],
+      });
+      setOffloadingFiles([]);
+      setShowOffloadingModal(true);
+      return;
+    }
     if (newStatus === "COMPLETED") {
-      // Pull this truck's earlier trips auto-completed while returning that still need damages/DO
-      if (assignment?.truckNumber && assignment.truckNumber !== "N/A") {
-        try {
-          const pending = (await assignmentService.getPendingInspections(assignment.truckNumber)) || [];
-          // Never list the trip currently being completed
-          const others = pending.filter((t: any) => String(t.bookingId) !== String(id));
-          setPendingTrips(others);
-          const init: Record<string, { deliveryOrders: string[]; damages: { quantity: string; amount: string }[] }> = {};
-          others.forEach((t: any) => {
-            init[t.bookingId] = { deliveryOrders: [""], damages: [{ quantity: "", amount: "" }] };
-          });
-          setPastTripForms(init);
-        } catch (err) {
-          console.warn("[PendingInspections] fetch failed:", err);
-          setPendingTrips([]);
-          setPastTripForms({});
-        }
-      }
       setShowCompletionModal(true);
       return;
     }
@@ -397,51 +395,56 @@ export default function JobDetailReport() {
   const handleSubmitCompletion = async () => {
     setIsSubmittingCompletion(true);
     try {
-      // Upload files to S3 — store URLs in DB
-      const attachments = completionFiles.length > 0
-        ? await uploadService.uploadToS3(completionFiles, "job-attachments")
-        : [];
-
-      const { tollAmount, deliveryOrders, damages, ...inspectionData } = completionForm;
-      // Damages/DO entered for earlier auto-completed trips — skip any left blank
-      const pastTrips = pendingTrips
-        .map((t: any) => {
-          const f = pastTripForms[t.bookingId] || { deliveryOrders: [], damages: [] };
-          return {
-            bookingId: t.bookingId,
-            deliveryOrders: (f.deliveryOrders || []).filter(d => d.trim()),
-            damages: (f.damages || []).filter(d => d.quantity.trim()),
-          };
-        })
-        .filter(t => t.deliveryOrders.length > 0 || t.damages.length > 0);
+      const inspectionData = completionForm;
 
       if (assignment?.driverId) {
         await assignmentService.markTruckInspected(assignment.driverId, {
           ...inspectionData,
           bookingId: id,
-          deliveryOrders: deliveryOrders.filter(d => d.trim()),
-          damages: damages.filter(d => d.quantity.trim()),
-          attachments,
-          ...(pastTrips.length > 0 ? { pastTrips } : {}),
         });
-      }
-      const tollAmt = parseFloat(tollAmount);
-      if (tollAmt > 0) {
-        await settlementService.process({ bookingId: id, tollAmount: tollAmt });
       }
       // Freeze the truck's position at the moment the trip is completed (end point)
       const tripEndCoords = await captureTruckCoords(assignment?.truckNumber);
       await bookingService.updateTripStatus(id, "completed", { tripEndCoords });
       setShowCompletionModal(false);
-      setCompletionFiles([]);
-      setPendingTrips([]);
-      setPastTripForms({});
       await loadData();
     } catch (error) {
       console.error("Completion failed:", error);
       alert("Failed to complete job");
     } finally {
       setIsSubmittingCompletion(false);
+    }
+  };
+
+  const handleSubmitOffloading = async () => {
+    setIsSubmittingOffloading(true);
+    try {
+      // Upload files to S3
+      const attachments = offloadingFiles.length > 0
+        ? await uploadService.uploadToS3(offloadingFiles, "job-attachments")
+        : [];
+
+      const payload = {
+        tripStatus: offloadingTargetStatus.toLowerCase(),
+        deliveryOrders: offloadingForm.deliveryOrders.filter(d => d.trim()),
+        damages: offloadingForm.damages.filter(d => d.quantity.trim()),
+        attachments,
+      };
+
+      await bookingService.updateTripStatus(id, payload.tripStatus, {
+        deliveryOrders: payload.deliveryOrders,
+        damages: payload.damages,
+        attachments: payload.attachments,
+      });
+
+      setShowOffloadingModal(false);
+      setOffloadingFiles([]);
+      await loadData();
+    } catch (error) {
+      console.error("Offloading submission failed:", error);
+      alert("Failed to submit offloading data");
+    } finally {
+      setIsSubmittingOffloading(false);
     }
   };
 
@@ -474,7 +477,7 @@ export default function JobDetailReport() {
       return;
     }
     try {
-      await bookingService.changeAddress(id, 
+      await bookingService.changeAddress(id,
         {
           contactPerson: addressChangeData.pContactPerson,
           contactNumber: addressChangeData.pContactNumber,
@@ -483,7 +486,7 @@ export default function JobDetailReport() {
             street: addressChangeData.pStreet,
             city: addressChangeData.pCity,
           }
-        }, 
+        },
         {
           contactPerson: addressChangeData.dContactPerson,
           contactNumber: addressChangeData.dContactNumber,
@@ -493,7 +496,7 @@ export default function JobDetailReport() {
             city: addressChangeData.dCity,
           }
         },
-        addressChangeData.reason, 
+        addressChangeData.reason,
         {
           newPickupKm: Number(addressChangeData.newPickupKm) || 0,
           newDropoffKm: Number(addressChangeData.newDropoffKm) || 0,
@@ -502,10 +505,10 @@ export default function JobDetailReport() {
       );
 
       setShowAddressModal(false);
-      setAddressChangeData({ 
+      setAddressChangeData({
         pContactPerson: "", pContactNumber: "", pPlotNo: "", pStreet: "", pCity: "",
         dContactPerson: "", dContactNumber: "", dPlotNo: "", dStreet: "", dCity: "",
-        reason: "", newPickupKm: "", newDropoffKm: "", newFinalAmount: "" 
+        reason: "", newPickupKm: "", newDropoffKm: "", newFinalAmount: ""
       });
       await loadData();
     } catch (error) {
@@ -553,9 +556,9 @@ export default function JobDetailReport() {
       const [, action, numStr] = m;
       const n = parseInt(numStr) - 1;
       const a = action.toLowerCase();
-      if (a === "loading")   return `Loading ${getLabel(n)}`;
-      if (a === "departed")  return `Departed ${getLabel(n)}`;
-      if (a === "reached")   return `Reached ${getLabel(pCount + n)}`;
+      if (a === "loading") return `Loading ${getLabel(n)}`;
+      if (a === "departed") return `Departed ${getLabel(n)}`;
+      if (a === "reached") return `Reached ${getLabel(pCount + n)}`;
       if (a === "offloading") return `Offloaded ${getLabel(pCount + n)}`;
       return raw;
     };
@@ -569,9 +572,9 @@ export default function JobDetailReport() {
       const loc = isPick ? pLocs[n] : dLocs[n];
       const label = isPick ? getLabel(n) : getLabel(pCount + n);
       const city = loc?.address?.city ? ` – ${loc.address.city}` : "";
-      if (a === "loading")    return `Cargo loaded at ${label}${city}`;
-      if (a === "departed")   return `Truck departed from ${label}${city}`;
-      if (a === "reached")    return `Vehicle arrived at ${label}${city}`;
+      if (a === "loading") return `Cargo loaded at ${label}${city}`;
+      if (a === "departed") return `Truck departed from ${label}${city}`;
+      if (a === "reached") return `Vehicle arrived at ${label}${city}`;
       if (a === "offloading") return `Unloading completed at ${label}${city}`;
       return fallback;
     };
@@ -582,15 +585,15 @@ export default function JobDetailReport() {
       time: item.time ? formatCAT(item.time) : "---",
       status: "completed",
       icon: item.title === "Petrol Refilled" ? <Fuel className="w-3.5 h-3.5" /> :
-            item.title?.toLowerCase().includes("reached") ? <Flag className="w-3.5 h-3.5" /> :
-            item.title?.toLowerCase().includes("loading") ? <Box className="w-3.5 h-3.5" /> :
+        item.title?.toLowerCase().includes("reached") ? <Flag className="w-3.5 h-3.5" /> :
+          item.title?.toLowerCase().includes("loading") ? <Box className="w-3.5 h-3.5" /> :
             item.title?.toLowerCase().includes("departed") ? <Truck className="w-3.5 h-3.5" /> :
-            item.title?.toLowerCase().includes("offload") ? <ArrowDownCircle className="w-3.5 h-3.5" /> :
-            item.title === "Driver Assigned" ? <Truck className="w-3.5 h-3.5" /> :
-            item.title === "New Job Assigned" ? <RotateCcw className="w-3.5 h-3.5" /> :
-            item.title === "Booking Created" ? <Package className="w-3.5 h-3.5" /> :
-            item.title === "Trip Approved" ? <CreditCard className="w-3.5 h-3.5" /> :
-            <CheckCircle2 className="w-3.5 h-3.5" />
+              item.title?.toLowerCase().includes("offload") ? <ArrowDownCircle className="w-3.5 h-3.5" /> :
+                item.title === "Driver Assigned" ? <Truck className="w-3.5 h-3.5" /> :
+                  item.title === "New Job Assigned" ? <RotateCcw className="w-3.5 h-3.5" /> :
+                    item.title === "Booking Created" ? <Package className="w-3.5 h-3.5" /> :
+                      item.title === "Trip Approved" ? <CreditCard className="w-3.5 h-3.5" /> :
+                        <CheckCircle2 className="w-3.5 h-3.5" />
     }));
 
     // Single Trip Start
@@ -643,7 +646,7 @@ export default function JobDetailReport() {
           status: status === reachedId ? "active" : "pending",
           icon: <Flag className="w-3.5 h-3.5" />,
           hide: isPast(reachedId) || status === offloadId ||
-                backendTimeline.some((e: any) => e.title.toLowerCase().includes("reached"))
+            backendTimeline.some((e: any) => e.title.toLowerCase().includes("reached"))
         },
         {
           title: multi ? `Offloaded ${label}` : "Offloaded",
@@ -652,7 +655,7 @@ export default function JobDetailReport() {
           status: status === offloadId ? "active" : "pending",
           icon: <ArrowDownCircle className="w-3.5 h-3.5" />,
           hide: isPast(offloadId) ||
-                backendTimeline.some((e: any) => e.title.toLowerCase().includes("offload"))
+            backendTimeline.some((e: any) => e.title.toLowerCase().includes("offload"))
         }
       ];
     });
@@ -730,13 +733,12 @@ export default function JobDetailReport() {
             </div>
 
             <div className="flex items-center gap-2">
-              <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border ${
-                jobInfo?.status?.startsWith("STARTED") || jobInfo?.status?.startsWith("REACHED") ? "bg-blue-50 text-blue-600 border-blue-100" :
+              <div className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-[0.2em] border ${jobInfo?.status?.startsWith("STARTED") || jobInfo?.status?.startsWith("REACHED") ? "bg-blue-50 text-blue-600 border-blue-100" :
                 jobInfo?.status === "FINALIZED" || jobInfo?.status === "COMPLETED" ? "bg-emerald-50 text-emerald-600 border-emerald-100" :
-                jobInfo?.status?.startsWith("LOADING") || jobInfo?.status?.startsWith("OFFLOADING") ? "bg-orange-50 text-orange-600 border-orange-100" :
-                jobInfo?.status === "CANCELLED" ? "bg-rose-50 text-rose-500 border-rose-100" :
-                "bg-neutral-50 text-neutral-400 border-neutral-100"
-              }`}>
+                  jobInfo?.status?.startsWith("LOADING") || jobInfo?.status?.startsWith("OFFLOADING") ? "bg-orange-50 text-orange-600 border-orange-100" :
+                    jobInfo?.status === "CANCELLED" ? "bg-rose-50 text-rose-500 border-rose-100" :
+                      "bg-neutral-50 text-neutral-400 border-neutral-100"
+                }`}>
                 {jobInfo?.status?.replace(/_(\d+)$/, ' (Stop $1)')}
               </div>
               {!booking?.tripStatus && booking?.status !== "cancelled" && (
@@ -778,7 +780,7 @@ export default function JobDetailReport() {
                   <div>
                     <h2 className="text-sm font-bold text-slate-900 uppercase tracking-widest">GPS Trip Stats</h2>
                     <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest mt-0.5">
-                      {gpsStats ? `${gpsStats.dateRange?.from?.slice(0,10)} → ${gpsStats.dateRange?.to?.slice(0,10)}` : "Loading from Trakzee…"}
+                      {gpsStats ? `${gpsStats.dateRange?.from?.slice(0, 10)} → ${gpsStats.dateRange?.to?.slice(0, 10)}` : "Loading from Trakzee…"}
                     </p>
                   </div>
                 </div>
@@ -949,11 +951,10 @@ export default function JobDetailReport() {
                           <div className="absolute left-[15px] top-10 bottom-[-48px] w-px bg-slate-100 border-l border-dashed border-slate-300" />
                         )}
                         <div className="flex gap-6 items-start relative z-10">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
-                            type === 'pickup'
-                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-emerald-100'
-                              : 'bg-rose-50 text-rose-600 border border-rose-100 shadow-rose-100'
-                          }`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${type === 'pickup'
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-emerald-100'
+                            : 'bg-rose-50 text-rose-600 border border-rose-100 shadow-rose-100'
+                            }`}>
                             <MapPin className="w-4 h-4" />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -1025,9 +1026,9 @@ export default function JobDetailReport() {
                       <div className="w-1 h-4 bg-indigo-500 rounded-full" />
                       <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Add Expense Entry</span>
                     </div>
-                    <select 
-                      value={newExpenseEntry.category} 
-                      onChange={(e) => setNewExpenseEntry({...newExpenseEntry, category: e.target.value})}
+                    <select
+                      value={newExpenseEntry.category}
+                      onChange={(e) => setNewExpenseEntry({ ...newExpenseEntry, category: e.target.value })}
                       className="bg-white border border-slate-200 rounded-lg py-1 px-2 text-[10px] font-bold text-slate-600 outline-none uppercase"
                     >
                       <option value="Fuel">⛽ Fuel</option>
@@ -1042,17 +1043,17 @@ export default function JobDetailReport() {
                       <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">
                         {newExpenseEntry.category === "Fuel" ? "Petrol Pump Name" : "Description / Remarks"}
                       </label>
-                      <input 
-                        type="text" 
-                        value={newExpenseEntry.description} 
-                        onChange={(e) => setNewExpenseEntry({...newExpenseEntry, description: e.target.value})} 
-                        placeholder={newExpenseEntry.category === "Fuel" ? "e.g. NNPC Station" : "e.g. Bridge Toll / Dinner"} 
-                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-medium text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder:text-slate-300" 
+                      <input
+                        type="text"
+                        value={newExpenseEntry.description}
+                        onChange={(e) => setNewExpenseEntry({ ...newExpenseEntry, description: e.target.value })}
+                        placeholder={newExpenseEntry.category === "Fuel" ? "e.g. NNPC Station" : "e.g. Bridge Toll / Dinner"}
+                        className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-medium text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all placeholder:text-slate-300"
                       />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Date</label>
-                      <input type="date" value={newExpenseEntry.date} onChange={(e) => setNewExpenseEntry({...newExpenseEntry, date: e.target.value})} className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-medium text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
+                      <input type="date" value={newExpenseEntry.date} onChange={(e) => setNewExpenseEntry({ ...newExpenseEntry, date: e.target.value })} className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-medium text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
                     </div>
                   </div>
 
@@ -1060,11 +1061,11 @@ export default function JobDetailReport() {
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-5">
                       <div className="space-y-1.5">
                         <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Litres</label>
-                        <input type="number" value={newExpenseEntry.litres} onChange={(e) => setNewExpenseEntry({...newExpenseEntry, litres: e.target.value})} placeholder="0" className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
+                        <input type="number" value={newExpenseEntry.litres} onChange={(e) => setNewExpenseEntry({ ...newExpenseEntry, litres: e.target.value })} placeholder="0" className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Rate (K/L)</label>
-                        <input type="number" value={newExpenseEntry.rate} onChange={(e) => setNewExpenseEntry({...newExpenseEntry, rate: e.target.value})} placeholder="0" className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
+                        <input type="number" value={newExpenseEntry.rate} onChange={(e) => setNewExpenseEntry({ ...newExpenseEntry, rate: e.target.value })} placeholder="0" className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Total (K)</label>
@@ -1077,11 +1078,11 @@ export default function JobDetailReport() {
                     <div className="grid grid-cols-1 mb-5">
                       <div className="space-y-1.5">
                         <label className="text-[8px] font-bold text-slate-400 uppercase tracking-widest ml-1">Amount (K)</label>
-                        <input type="number" value={newExpenseEntry.amount} onChange={(e) => setNewExpenseEntry({...newExpenseEntry, amount: e.target.value})} placeholder="0" className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
+                        <input type="number" value={newExpenseEntry.amount} onChange={(e) => setNewExpenseEntry({ ...newExpenseEntry, amount: e.target.value })} placeholder="0" className="w-full bg-white border border-slate-200 rounded-xl py-2.5 px-4 text-[12px] font-bold text-slate-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-50 transition-all" />
                       </div>
                     </div>
                   )}
-                  
+
                   <button onClick={handleAddExpense} className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-800 active:scale-[0.98] transition-all flex items-center gap-2 shadow-sm">
                     <Receipt className="w-3.5 h-3.5" /> Log Trip Expense
                   </button>
@@ -1092,23 +1093,21 @@ export default function JobDetailReport() {
                   {tripExpenses.length > 0 ? tripExpenses.map((entry, idx) => (
                     <div key={entry.id ?? idx} className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl hover:shadow-md hover:border-transparent transition-all group">
                       <div className="flex items-center gap-4">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${
-                          entry.category === "Fuel" ? "bg-amber-50 text-amber-500 border border-amber-100" :
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform ${entry.category === "Fuel" ? "bg-amber-50 text-amber-500 border border-amber-100" :
                           entry.category === "Food" ? "bg-emerald-50 text-emerald-500 border border-emerald-100" :
-                          "bg-slate-50 text-slate-500 border border-slate-100"
-                        }`}>
-                          {entry.category === "Fuel" ? <Fuel className="w-4 h-4" /> : 
-                           entry.category === "Food" ? <Coffee className="w-4 h-4" /> :
-                           <Receipt className="w-4 h-4" />}
+                            "bg-slate-50 text-slate-500 border border-slate-100"
+                          }`}>
+                          {entry.category === "Fuel" ? <Fuel className="w-4 h-4" /> :
+                            entry.category === "Food" ? <Coffee className="w-4 h-4" /> :
+                              <Receipt className="w-4 h-4" />}
                         </div>
                         <div>
                           <div className="text-[13px] font-bold text-slate-900">{entry.description}</div>
                           <div className="flex items-center gap-2 mt-0.5">
-                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest ${
-                              entry.category === "Fuel" ? "bg-amber-50 text-amber-600" :
+                            <span className={`text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-widest ${entry.category === "Fuel" ? "bg-amber-50 text-amber-600" :
                               entry.category === "Food" ? "bg-emerald-50 text-emerald-600" :
-                              "bg-slate-50 text-slate-400"
-                            }`}>{entry.category}</span>
+                                "bg-slate-50 text-slate-400"
+                              }`}>{entry.category}</span>
                             {entry.category === "Fuel" && (
                               <span className="text-[9px] font-bold text-slate-400">{entry.litres}L @ K{entry.rate}</span>
                             )}
@@ -1155,19 +1154,18 @@ export default function JobDetailReport() {
                 <div className="relative pl-8 space-y-10">
                   {/* Vertical Line */}
                   <div className="absolute left-[15px] top-2 bottom-2 w-px bg-slate-100 border-l border-dashed border-slate-300" />
-                  
+
                   {timelineEvents.map((event, idx) => (
                     <div key={idx} className="relative">
                       {/* Timeline Dot */}
-                      <div className={`absolute -left-[25px] w-5 h-5 rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 ${
-                        event.status === 'completed' ? 'bg-emerald-500' : 
-                        event.status === 'active' ? 'bg-blue-500 animate-pulse' : 
-                        event.status === 'warning' ? 'bg-amber-500' : 'bg-slate-200'
-                      }`}>
+                      <div className={`absolute -left-[25px] w-5 h-5 rounded-full border-4 border-white shadow-sm flex items-center justify-center z-10 ${event.status === 'completed' ? 'bg-emerald-500' :
+                        event.status === 'active' ? 'bg-blue-500 animate-pulse' :
+                          event.status === 'warning' ? 'bg-amber-500' : 'bg-slate-200'
+                        }`}>
                         {/* Status Icon/Indicator */}
                         {event.status === 'completed' && <CheckCircle2 className="w-2.5 h-2.5 text-white" />}
                       </div>
-                      
+
                       <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
@@ -1209,144 +1207,144 @@ export default function JobDetailReport() {
                 </div>
 
                 {(() => {
-                    const pLocs = booking.pickupLocations?.length > 0 ? booking.pickupLocations : (booking.pickup ? [booking.pickup] : [{}]);
-                    const dLocs = booking.dropoffLocations?.length > 0 ? booking.dropoffLocations : (booking.dropoff ? [booking.dropoff] : [{}]);
-                    const multi = pLocs.length > 1 || dLocs.length > 1;
-                    const lbl = (idx: number) => String.fromCharCode(65 + idx);
+                  const pLocs = booking.pickupLocations?.length > 0 ? booking.pickupLocations : (booking.pickup ? [booking.pickup] : [{}]);
+                  const dLocs = booking.dropoffLocations?.length > 0 ? booking.dropoffLocations : (booking.dropoff ? [booking.dropoff] : [{}]);
+                  const multi = pLocs.length > 1 || dLocs.length > 1;
+                  const lbl = (idx: number) => String.fromCharCode(65 + idx);
 
-                    const statusOrder = [
-                      "STARTED",
-                      ...pLocs.flatMap((_: any, i: number) => [
-                        multi ? `LOADING_${i + 1}` : "LOADING",
-                        multi ? `DEPARTED_${i + 1}` : "DEPARTED"
-                      ]),
-                      ...dLocs.flatMap((_: any, i: number) => [
-                        multi ? `REACHED_${i + 1}` : "REACHED",
-                        multi ? `OFFLOADING_${i + 1}` : "OFFLOADING"
-                      ]),
-                      "RETURNING", "COMPLETED"
-                    ];
+                  const statusOrder = [
+                    "STARTED",
+                    ...pLocs.flatMap((_: any, i: number) => [
+                      multi ? `LOADING_${i + 1}` : "LOADING",
+                      multi ? `DEPARTED_${i + 1}` : "DEPARTED"
+                    ]),
+                    ...dLocs.flatMap((_: any, i: number) => [
+                      multi ? `REACHED_${i + 1}` : "REACHED",
+                      multi ? `OFFLOADING_${i + 1}` : "OFFLOADING"
+                    ]),
+                    "RETURNING", "COMPLETED"
+                  ];
 
-                    const rawStatus = booking.tripStatus ? booking.tripStatus.toUpperCase() : "PENDING";
-                    const currentIdx = statusOrder.indexOf(rawStatus);
+                  const rawStatus = booking.tripStatus ? booking.tripStatus.toUpperCase() : "PENDING";
+                  const currentIdx = statusOrder.indexOf(rawStatus);
 
-                    // A "New Job Assigned" entry means this trip was auto-completed because
-                    // the driver/truck picked up a new trip while returning. The trip is already
-                    // "completed" in the DB (with its end point); show the Completed button locked
-                    // with that as the reason, instead of a tappable / generic "current" state.
-                    const newJobEntry = (booking.timeline || []).find((e: any) => e.title === "New Job Assigned");
-                    const newJobBlocked = !!newJobEntry;
+                  // A "New Job Assigned" entry means this trip was auto-completed because
+                  // the driver/truck picked up a new trip while returning. The trip is already
+                  // "completed" in the DB (with its end point); show the Completed button locked
+                  // with that as the reason, instead of a tappable / generic "current" state.
+                  const newJobEntry = (booking.timeline || []).find((e: any) => e.title === "New Job Assigned");
+                  const newJobBlocked = !!newJobEntry;
 
-                    const btnCls = (id: string) => {
-                      const idx = statusOrder.indexOf(id);
-                      const isDone   = idx !== -1 && idx < currentIdx;
-                      const isActive = idx === currentIdx;
-                      const isNext   = idx === currentIdx + 1;
-                      if (isDone)    return { cls: "bg-emerald-50 border-emerald-100 text-emerald-600 cursor-not-allowed opacity-80", isDone, isActive, isNext };
-                      if (isActive)  return { cls: "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 cursor-not-allowed", isDone, isActive, isNext };
-                      if (isNext)    return { cls: "bg-orange-500 border-orange-400 text-white shadow-md shadow-orange-100 hover:bg-orange-600 active:scale-[0.98] cursor-pointer", isDone, isActive, isNext };
-                      return { cls: "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed opacity-50", isDone, isActive, isNext };
-                    };
+                  const btnCls = (id: string) => {
+                    const idx = statusOrder.indexOf(id);
+                    const isDone = idx !== -1 && idx < currentIdx;
+                    const isActive = idx === currentIdx;
+                    const isNext = idx === currentIdx + 1;
+                    if (isDone) return { cls: "bg-emerald-50 border-emerald-100 text-emerald-600 cursor-not-allowed opacity-80", isDone, isActive, isNext };
+                    if (isActive) return { cls: "bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100 cursor-not-allowed", isDone, isActive, isNext };
+                    if (isNext) return { cls: "bg-orange-500 border-orange-400 text-white shadow-md shadow-orange-100 hover:bg-orange-600 active:scale-[0.98] cursor-pointer", isDone, isActive, isNext };
+                    return { cls: "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed opacity-50", isDone, isActive, isNext };
+                  };
 
-                    const Btn = ({ id, label, icon, city, full }: { id: string; label: string; icon: React.ReactNode; city?: string; full?: boolean }) => {
-                      const { cls, isDone, isActive, isNext } = btnCls(id);
-                      const isLockedByNewJob = id === "COMPLETED" && newJobBlocked;
-                      const effectiveCls = isLockedByNewJob
-                        ? "bg-amber-50 border-amber-200 text-amber-600 cursor-not-allowed"
-                        : cls;
-                      return (
-                        <button
-                          disabled={(!isNext) || isLockedByNewJob}
-                          onClick={() => isNext && !isLockedByNewJob && handleStatusUpdate(id)}
-                          className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1 ${full ? "w-full" : "flex-1"} ${effectiveCls}`}
-                        >
-                          <div>{isDone ? <CheckCircle2 className="w-4 h-4" /> : icon}</div>
-                          <span className="text-[9px] font-bold uppercase tracking-widest leading-tight text-center">{label}</span>
-                          {city && (
-                            <span className={`text-[7px] font-medium normal-case truncate max-w-full text-center ${isActive ? "text-white/70" : isDone ? "text-emerald-400" : isNext ? "text-white/80" : "text-slate-200"}`}>
-                              {city}
-                            </span>
-                          )}
-                          {isDone           && <span className="text-[7px] font-bold uppercase tracking-widest text-emerald-500">Done</span>}
-                          {isLockedByNewJob  && <span className="text-[7px] font-bold uppercase tracking-widest text-amber-500">New Job Assigned</span>}
-                          {isNext && !isLockedByNewJob && <span className="text-[7px] font-bold uppercase tracking-widest text-white/80">Tap to Update</span>}
-                          {isActive && !isLockedByNewJob && <span className="text-[7px] font-bold uppercase tracking-widest text-white/70">Current</span>}
-                        </button>
-                      );
-                    };
-
+                  const Btn = ({ id, label, icon, city, full }: { id: string; label: string; icon: React.ReactNode; city?: string; full?: boolean }) => {
+                    const { cls, isDone, isActive, isNext } = btnCls(id);
+                    const isLockedByNewJob = id === "COMPLETED" && newJobBlocked;
+                    const effectiveCls = isLockedByNewJob
+                      ? "bg-amber-50 border-amber-200 text-amber-600 cursor-not-allowed"
+                      : cls;
                     return (
-                      <div className="space-y-3">
-                        {/* Step 1: Trip Start — full width */}
-                        <Btn id="STARTED" label="Trip Start" icon={<Play className="w-4 h-4" />} full />
-
-                        {/* Pickup steps — Load + Depart per location in one row */}
-                        {pLocs.map((loc: any, i: number) => {
-                          const l = lbl(i);
-                          const city = multi ? (loc?.address?.city || undefined) : undefined;
-                          return (
-                            <div key={`p-${i}`} className="space-y-1.5">
-                              {multi && (
-                                <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 px-1">
-                                  Pickup {l} {city ? `· ${city}` : ""}
-                                </p>
-                              )}
-                              <div className="flex gap-3">
-                                <Btn
-                                  id={multi ? `LOADING_${i + 1}` : "LOADING"}
-                                  label={multi ? `${l} · Load` : "Loading"}
-                                  icon={<Box className="w-4 h-4" />}
-                                />
-                                <Btn
-                                  id={multi ? `DEPARTED_${i + 1}` : "DEPARTED"}
-                                  label={multi ? `${l} · Depart` : "Departed"}
-                                  icon={<Truck className="w-4 h-4" />}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                        {/* Dropoff steps — Reached + Offload per location in one row */}
-                        {dLocs.map((loc: any, i: number) => {
-                          const l = lbl(pLocs.length + i);
-                          const city = multi ? (loc?.address?.city || undefined) : undefined;
-                          return (
-                            <div key={`d-${i}`} className="space-y-1.5">
-                              {multi && (
-                                <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 px-1">
-                                  Dropoff {l} {city ? `· ${city}` : ""}
-                                </p>
-                              )}
-                              <div className="flex gap-3">
-                                <Btn
-                                  id={multi ? `REACHED_${i + 1}` : "REACHED"}
-                                  label={multi ? `${l} · Reached` : "Reached"}
-                                  icon={<Flag className="w-4 h-4" />}
-                                />
-                                <Btn
-                                  id={multi ? `OFFLOADING_${i + 1}` : "OFFLOADING"}
-                                  label={multi ? `${l} · Offload` : "Offloading"}
-                                  icon={<ArrowDownCircle className="w-4 h-4" />}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-
-                        {/* Final steps — full width */}
-                        <Btn id="RETURNING" label="Returning" icon={<RotateCcw className="w-4 h-4" />} full />
-                        <Btn id="COMPLETED" label="Completed" icon={<CheckCircle2 className="w-4 h-4" />} full />
-                      </div>
+                      <button
+                        disabled={(!isNext) || isLockedByNewJob}
+                        onClick={() => isNext && !isLockedByNewJob && handleStatusUpdate(id)}
+                        className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1 ${full ? "w-full" : "flex-1"} ${effectiveCls}`}
+                      >
+                        <div>{isDone ? <CheckCircle2 className="w-4 h-4" /> : icon}</div>
+                        <span className="text-[9px] font-bold uppercase tracking-widest leading-tight text-center">{label}</span>
+                        {city && (
+                          <span className={`text-[7px] font-medium normal-case truncate max-w-full text-center ${isActive ? "text-white/70" : isDone ? "text-emerald-400" : isNext ? "text-white/80" : "text-slate-200"}`}>
+                            {city}
+                          </span>
+                        )}
+                        {isDone && <span className="text-[7px] font-bold uppercase tracking-widest text-emerald-500">Done</span>}
+                        {isLockedByNewJob && <span className="text-[7px] font-bold uppercase tracking-widest text-amber-500">New Job Assigned</span>}
+                        {isNext && !isLockedByNewJob && <span className="text-[7px] font-bold uppercase tracking-widest text-white/80">Tap to Update</span>}
+                        {isActive && !isLockedByNewJob && <span className="text-[7px] font-bold uppercase tracking-widest text-white/70">Current</span>}
+                      </button>
                     );
-                  })()}
+                  };
+
+                  return (
+                    <div className="space-y-3">
+                      {/* Step 1: Trip Start — full width */}
+                      <Btn id="STARTED" label="Trip Start" icon={<Play className="w-4 h-4" />} full />
+
+                      {/* Pickup steps — Load + Depart per location in one row */}
+                      {pLocs.map((loc: any, i: number) => {
+                        const l = lbl(i);
+                        const city = multi ? (loc?.address?.city || undefined) : undefined;
+                        return (
+                          <div key={`p-${i}`} className="space-y-1.5">
+                            {multi && (
+                              <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 px-1">
+                                Pickup {l} {city ? `· ${city}` : ""}
+                              </p>
+                            )}
+                            <div className="flex gap-3">
+                              <Btn
+                                id={multi ? `LOADING_${i + 1}` : "LOADING"}
+                                label={multi ? `${l} · Load` : "Loading"}
+                                icon={<Box className="w-4 h-4" />}
+                              />
+                              <Btn
+                                id={multi ? `DEPARTED_${i + 1}` : "DEPARTED"}
+                                label={multi ? `${l} · Depart` : "Departed"}
+                                icon={<Truck className="w-4 h-4" />}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Dropoff steps — Reached + Offload per location in one row */}
+                      {dLocs.map((loc: any, i: number) => {
+                        const l = lbl(pLocs.length + i);
+                        const city = multi ? (loc?.address?.city || undefined) : undefined;
+                        return (
+                          <div key={`d-${i}`} className="space-y-1.5">
+                            {multi && (
+                              <p className="text-[8px] font-bold uppercase tracking-widest text-slate-400 px-1">
+                                Dropoff {l} {city ? `· ${city}` : ""}
+                              </p>
+                            )}
+                            <div className="flex gap-3">
+                              <Btn
+                                id={multi ? `REACHED_${i + 1}` : "REACHED"}
+                                label={multi ? `${l} · Reached` : "Reached"}
+                                icon={<Flag className="w-4 h-4" />}
+                              />
+                              <Btn
+                                id={multi ? `OFFLOADING_${i + 1}` : "OFFLOADING"}
+                                label={multi ? `${l} · Offload` : "Offloading"}
+                                icon={<ArrowDownCircle className="w-4 h-4" />}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Final steps — full width */}
+                      <Btn id="RETURNING" label="Returning" icon={<RotateCcw className="w-4 h-4" />} full />
+                      <Btn id="COMPLETED" label="Completed" icon={<CheckCircle2 className="w-4 h-4" />} full />
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Job Settlement Summary */}
               <div className="bg-white rounded-[24px] p-8 shadow-sm border border-slate-100">
                 <div className="flex items-center gap-3 mb-8">
-                   <CreditCard className="w-5 h-5 text-orange-400" />
-                   <h2 className="text-[12px] font-bold text-slate-900 uppercase tracking-[0.1em]">Settlement Overview</h2>
+                  <CreditCard className="w-5 h-5 text-orange-400" />
+                  <h2 className="text-[12px] font-bold text-slate-900 uppercase tracking-[0.1em]">Settlement Overview</h2>
                 </div>
 
                 <div className="space-y-6">
@@ -1410,6 +1408,127 @@ export default function JobDetailReport() {
           </div>
         </div>
       </div>
+      {/* Offloading Modal */}
+      {showOffloadingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={() => setShowOffloadingModal(false)} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
+            <div className="px-6 pt-6 pb-4 border-b border-neutral-100 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center">
+                  <ArrowDownCircle className="w-5 h-5 text-orange-600" />
+                </div>
+                <div>
+                  <h2 className="text-[15px] font-bold text-slate-900">Cargo Offloading Receipt</h2>
+                  <p className="text-[11px] text-neutral-400 font-medium">
+                    {assignment?.driverName ? cleanDriverName(assignment.driverName) : "Driver"} · {assignment?.truckNumber || "N/A"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Delivery Orders</label>
+                  <button type="button" onClick={() => setOffloadingForm(f => ({ ...f, deliveryOrders: [...f.deliveryOrders, ""] }))} className="text-[9px] font-bold text-primary uppercase tracking-widest hover:underline">+ Add</button>
+                </div>
+                {offloadingForm.deliveryOrders.map((do_, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input type="text" value={do_} onChange={e => { const arr = [...offloadingForm.deliveryOrders]; arr[i] = e.target.value; setOffloadingForm(f => ({ ...f, deliveryOrders: arr })); }} placeholder={`DO #${i + 1}`} className="flex-1 bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
+                    {offloadingForm.deliveryOrders.length > 1 && <button type="button" onClick={() => setOffloadingForm(f => ({ ...f, deliveryOrders: f.deliveryOrders.filter((_, idx) => idx !== i) }))} className="px-2 text-rose-400 hover:text-rose-600 text-[11px] font-bold">✕</button>}
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Damages</label>
+                  <button type="button" onClick={() => setOffloadingForm(f => ({ ...f, damages: [...f.damages, { quantity: "", amount: "" }] }))} className="text-[9px] font-bold text-rose-500 uppercase tracking-widest hover:underline">+ Add</button>
+                </div>
+                {offloadingForm.damages.map((dmg, i) => (
+                  <div key={i} className="flex gap-2 items-start">
+                    <input type="text" value={dmg.quantity} onChange={e => { const arr = offloadingForm.damages.map((d, idx) => idx === i ? { ...d, quantity: e.target.value } : d); setOffloadingForm(f => ({ ...f, damages: arr })); }} placeholder="Qty with units (e.g. 2 bags)" className="flex-1 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-rose-300 transition-all" />
+                    <input type="number" value={dmg.amount} onChange={e => { const arr = offloadingForm.damages.map((d, idx) => idx === i ? { ...d, amount: e.target.value } : d); setOffloadingForm(f => ({ ...f, damages: arr })); }} placeholder="Amount" className="w-24 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-rose-300 transition-all" />
+                    {offloadingForm.damages.length > 1 && <button type="button" onClick={() => setOffloadingForm(f => ({ ...f, damages: f.damages.filter((_, idx) => idx !== i) }))} className="px-2 pt-2 text-rose-400 hover:text-rose-600 text-[11px] font-bold">✕</button>}
+                  </div>
+                ))}
+              </div>
+
+              {/* File Upload */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Offloading Attachments</label>
+                <div
+                  onClick={() => offloadingFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-neutral-200 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-all"
+                >
+                  <Paperclip className="w-5 h-5 text-neutral-300" />
+                  <p className="text-[11px] font-semibold text-neutral-400">Click to attach files</p>
+                  <p className="text-[9px] text-neutral-300">PDF, Images, Docs — any format</p>
+                </div>
+                <input
+                  ref={offloadingFileInputRef}
+                  type="file"
+                  multiple
+                  className="hidden"
+                  onChange={e => {
+                    const selected = Array.from(e.target.files || []);
+                    setOffloadingFiles(prev => {
+                      const existing = new Set(prev.map(f => f.name));
+                      return [...prev, ...selected.filter(f => !existing.has(f.name))];
+                    });
+                    e.target.value = "";
+                  }}
+                />
+                {offloadingFiles.length > 0 && (
+                  <div className="space-y-1.5">
+                    {offloadingFiles.map((file, i) => (
+                      <div key={i} className="flex items-center gap-2 px-3 py-2 bg-neutral-50 border border-neutral-100 rounded-xl">
+                        <Paperclip className="w-3 h-3 text-neutral-400 shrink-0" />
+                        <span className="text-[11px] font-medium text-slate-700 truncate flex-1">{file.name}</span>
+                        <span className="text-[9px] text-neutral-400 shrink-0">{(file.size / 1024).toFixed(0)} KB</span>
+                        <button
+                          type="button"
+                          onClick={() => setOffloadingFiles(prev => prev.filter((_, idx) => idx !== i))}
+                          className="text-neutral-300 hover:text-rose-500 transition-colors shrink-0"
+                        >
+                          <XIcon className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-neutral-100 flex items-center justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                disabled={isSubmittingOffloading}
+                onClick={() => setShowOffloadingModal(false)}
+                className="px-5 py-2.5 rounded-xl border border-neutral-100 text-[12px] font-bold text-slate-500 hover:bg-neutral-50 transition-colors uppercase tracking-widest disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSubmittingOffloading}
+                onClick={handleSubmitOffloading}
+                className="px-6 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-[12px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                {isSubmittingOffloading ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Submitting…
+                  </>
+                ) : (
+                  "Submit Offloading"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Completion Inspection Modal */}
       {showCompletionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -1452,157 +1571,14 @@ export default function JobDetailReport() {
                   <input type="text" value={completionForm.tyreNumber} onChange={e => setCompletionForm(f => ({ ...f, tyreNumber: e.target.value }))} placeholder="e.g. TY-2024-001" className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Toll Challans</label>
+                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Challans</label>
                   <input type="text" value={completionForm.challans} onChange={e => setCompletionForm(f => ({ ...f, challans: e.target.value }))} placeholder="Challan no. or ref." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[10px] font-bold text-amber-500 uppercase tracking-widest">Toll Amount</label>
-                <input type="number" value={completionForm.tollAmount} onChange={e => setCompletionForm(f => ({ ...f, tollAmount: e.target.value }))} placeholder="0 — leave blank if none" className="w-full bg-amber-50 border border-amber-100 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-amber-300 transition-all" />
-                <p className="text-[9px] text-neutral-400 italic">Deducted from toll wallet on submission</p>
-              </div>
-
-              {/* Which trip the Delivery Orders / Damages below belong to */}
-              <div className="flex items-center gap-2 pt-1">
-                <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest">
-                  {newId || booking?.tripId || `#${id.slice(-6).toUpperCase()}`}
-                </span>
-                <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Current Trip</span>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Delivery Orders</label>
-                  <button type="button" onClick={() => setCompletionForm(f => ({ ...f, deliveryOrders: [...f.deliveryOrders, ""] }))} className="text-[9px] font-bold text-primary uppercase tracking-widest hover:underline">+ Add</button>
-                </div>
-                {completionForm.deliveryOrders.map((do_, i) => (
-                  <div key={i} className="flex gap-2">
-                    <input type="text" value={do_} onChange={e => { const arr = [...completionForm.deliveryOrders]; arr[i] = e.target.value; setCompletionForm(f => ({ ...f, deliveryOrders: arr })); }} placeholder={`DO #${i + 1}`} className="flex-1 bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
-                    {completionForm.deliveryOrders.length > 1 && <button type="button" onClick={() => setCompletionForm(f => ({ ...f, deliveryOrders: f.deliveryOrders.filter((_, idx) => idx !== i) }))} className="px-2 text-rose-400 hover:text-rose-600 text-[11px] font-bold">✕</button>}
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Damages</label>
-                  <button type="button" onClick={() => setCompletionForm(f => ({ ...f, damages: [...f.damages, { quantity: "", amount: "" }] }))} className="text-[9px] font-bold text-rose-500 uppercase tracking-widest hover:underline">+ Add</button>
-                </div>
-                {completionForm.damages.map((dmg, i) => (
-                  <div key={i} className="flex gap-2 items-start">
-                    <input type="text" value={dmg.quantity} onChange={e => { const arr = completionForm.damages.map((d, idx) => idx === i ? { ...d, quantity: e.target.value } : d); setCompletionForm(f => ({ ...f, damages: arr })); }} placeholder="Qty with units (e.g. 2 tyres)" className="flex-1 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-rose-300 transition-all" />
-                    <input type="number" value={dmg.amount} onChange={e => { const arr = completionForm.damages.map((d, idx) => idx === i ? { ...d, amount: e.target.value } : d); setCompletionForm(f => ({ ...f, damages: arr })); }} placeholder="Amount" className="w-24 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-rose-300 transition-all" />
-                    {completionForm.damages.length > 1 && <button type="button" onClick={() => setCompletionForm(f => ({ ...f, damages: f.damages.filter((_, idx) => idx !== i) }))} className="px-2 pt-2 text-rose-400 hover:text-rose-600 text-[11px] font-bold">✕</button>}
-                  </div>
-                ))}
-              </div>
-
-              {/* Earlier trips closed while returning — record their Damages & DO here too */}
-              {pendingTrips.length > 0 && (
-                <div className="space-y-3 p-4 rounded-2xl bg-amber-50/50 border border-amber-100">
-                  <div className="flex items-start gap-2">
-                    <RotateCcw className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
-                    <p className="text-[10px] font-bold text-amber-700 uppercase tracking-widest leading-relaxed">
-                      {pendingTrips.length} earlier trip{pendingTrips.length > 1 ? "s" : ""} closed while returning — record their damages & DO too
-                    </p>
-                  </div>
-                  {pendingTrips.map((t: any) => {
-                    const f = pastTripForms[t.bookingId] || { deliveryOrders: [""], damages: [{ quantity: "", amount: "" }] };
-                    const setF = (upd: Partial<typeof f>) =>
-                      setPastTripForms(prev => {
-                        const cur = prev[t.bookingId] || { deliveryOrders: [""], damages: [{ quantity: "", amount: "" }] };
-                        return { ...prev, [t.bookingId]: { ...cur, ...upd } };
-                      });
-                    return (
-                      <div key={t.bookingId} className="p-3 bg-white rounded-xl border border-amber-100 space-y-3">
-                        <div className="flex items-center gap-2">
-                          <span className="px-2 py-0.5 rounded-md bg-slate-900 text-white text-[9px] font-bold uppercase tracking-widest">{t.tripId}</span>
-                          <span className="text-[9px] font-bold text-slate-300 uppercase tracking-widest">Past Trip</span>
-                        </div>
-
-                        {/* Delivery Orders */}
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Delivery Orders</label>
-                            <button type="button" onClick={() => setF({ deliveryOrders: [...f.deliveryOrders, ""] })} className="text-[9px] font-bold text-primary uppercase tracking-widest hover:underline">+ Add</button>
-                          </div>
-                          {f.deliveryOrders.map((do_, i) => (
-                            <div key={i} className="flex gap-2">
-                              <input type="text" value={do_} onChange={e => { const arr = [...f.deliveryOrders]; arr[i] = e.target.value; setF({ deliveryOrders: arr }); }} placeholder={`DO #${i + 1}`} className="flex-1 bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
-                              {f.deliveryOrders.length > 1 && <button type="button" onClick={() => setF({ deliveryOrders: f.deliveryOrders.filter((_, idx) => idx !== i) })} className="px-2 text-rose-400 hover:text-rose-600 text-[11px] font-bold">✕</button>}
-                            </div>
-                          ))}
-                        </div>
-
-                        {/* Damages */}
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Damages</label>
-                            <button type="button" onClick={() => setF({ damages: [...f.damages, { quantity: "", amount: "" }] })} className="text-[9px] font-bold text-rose-500 uppercase tracking-widest hover:underline">+ Add</button>
-                          </div>
-                          {f.damages.map((dmg, i) => (
-                            <div key={i} className="flex gap-2 items-start">
-                              <input type="text" value={dmg.quantity} onChange={e => { const arr = f.damages.map((d, idx) => idx === i ? { ...d, quantity: e.target.value } : d); setF({ damages: arr }); }} placeholder="Qty with units (e.g. 2 tyres)" className="flex-1 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-rose-300 transition-all" />
-                              <input type="number" value={dmg.amount} onChange={e => { const arr = f.damages.map((d, idx) => idx === i ? { ...d, amount: e.target.value } : d); setF({ damages: arr }); }} placeholder="Amount" className="w-24 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-rose-300 transition-all" />
-                              {f.damages.length > 1 && <button type="button" onClick={() => setF({ damages: f.damages.filter((_, idx) => idx !== i) })} className="px-2 pt-2 text-rose-400 hover:text-rose-600 text-[11px] font-bold">✕</button>}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Notes</label>
                 <textarea rows={2} value={completionForm.notes} onChange={e => setCompletionForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any observations or issues..." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] text-slate-700 outline-none focus:border-primary/30 transition-all resize-none" />
-              </div>
-
-              {/* File Upload */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Attachments</label>
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-neutral-200 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-all"
-                >
-                  <Paperclip className="w-5 h-5 text-neutral-300" />
-                  <p className="text-[11px] font-semibold text-neutral-400">Click to attach files</p>
-                  <p className="text-[9px] text-neutral-300">PDF, Images, Docs — any format</p>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={e => {
-                    const selected = Array.from(e.target.files || []);
-                    setCompletionFiles(prev => {
-                      const existing = new Set(prev.map(f => f.name));
-                      return [...prev, ...selected.filter(f => !existing.has(f.name))];
-                    });
-                    e.target.value = "";
-                  }}
-                />
-                {completionFiles.length > 0 && (
-                  <div className="space-y-1.5">
-                    {completionFiles.map((file, i) => (
-                      <div key={i} className="flex items-center gap-2 px-3 py-2 bg-neutral-50 border border-neutral-100 rounded-xl">
-                        <Paperclip className="w-3 h-3 text-neutral-400 shrink-0" />
-                        <span className="text-[11px] font-medium text-slate-700 truncate flex-1">{file.name}</span>
-                        <span className="text-[9px] text-neutral-400 shrink-0">{(file.size / 1024).toFixed(0)} KB</span>
-                        <button
-                          type="button"
-                          onClick={() => setCompletionFiles(prev => prev.filter((_, idx) => idx !== i))}
-                          className="text-neutral-300 hover:text-rose-500 transition-colors shrink-0"
-                        >
-                          <XIcon className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             </div>
 
@@ -1646,7 +1622,7 @@ export default function JobDetailReport() {
                       <input
                         type="text"
                         value={addressChangeData.pContactPerson}
-                        onChange={(e) => setAddressChangeData(p => ({...p, pContactPerson: e.target.value}))}
+                        onChange={(e) => setAddressChangeData(p => ({ ...p, pContactPerson: e.target.value }))}
                         className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
                       />
                     </div>
@@ -1655,7 +1631,7 @@ export default function JobDetailReport() {
                       <input
                         type="text"
                         value={addressChangeData.pContactNumber}
-                        onChange={(e) => setAddressChangeData(p => ({...p, pContactNumber: e.target.value}))}
+                        onChange={(e) => setAddressChangeData(p => ({ ...p, pContactNumber: e.target.value }))}
                         className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
                       />
                     </div>
@@ -1666,7 +1642,7 @@ export default function JobDetailReport() {
                       <input
                         type="text"
                         value={addressChangeData.pPlotNo}
-                        onChange={(e) => setAddressChangeData(p => ({...p, pPlotNo: e.target.value}))}
+                        onChange={(e) => setAddressChangeData(p => ({ ...p, pPlotNo: e.target.value }))}
                         className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
                       />
                     </div>
@@ -1675,7 +1651,7 @@ export default function JobDetailReport() {
                       <input
                         type="text"
                         value={addressChangeData.pStreet}
-                        onChange={(e) => setAddressChangeData(p => ({...p, pStreet: e.target.value}))}
+                        onChange={(e) => setAddressChangeData(p => ({ ...p, pStreet: e.target.value }))}
                         className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
                       />
                     </div>
@@ -1685,7 +1661,7 @@ export default function JobDetailReport() {
                     <input
                       type="text"
                       value={addressChangeData.pCity}
-                      onChange={(e) => setAddressChangeData(p => ({...p, pCity: e.target.value}))}
+                      onChange={(e) => setAddressChangeData(p => ({ ...p, pCity: e.target.value }))}
                       className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-emerald-300 transition-colors"
                     />
                   </div>
@@ -1702,7 +1678,7 @@ export default function JobDetailReport() {
                       <input
                         type="text"
                         value={addressChangeData.dContactPerson}
-                        onChange={(e) => setAddressChangeData(p => ({...p, dContactPerson: e.target.value}))}
+                        onChange={(e) => setAddressChangeData(p => ({ ...p, dContactPerson: e.target.value }))}
                         className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
                       />
                     </div>
@@ -1711,7 +1687,7 @@ export default function JobDetailReport() {
                       <input
                         type="text"
                         value={addressChangeData.dContactNumber}
-                        onChange={(e) => setAddressChangeData(p => ({...p, dContactNumber: e.target.value}))}
+                        onChange={(e) => setAddressChangeData(p => ({ ...p, dContactNumber: e.target.value }))}
                         className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
                       />
                     </div>
@@ -1722,7 +1698,7 @@ export default function JobDetailReport() {
                       <input
                         type="text"
                         value={addressChangeData.dPlotNo}
-                        onChange={(e) => setAddressChangeData(p => ({...p, dPlotNo: e.target.value}))}
+                        onChange={(e) => setAddressChangeData(p => ({ ...p, dPlotNo: e.target.value }))}
                         className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
                       />
                     </div>
@@ -1731,7 +1707,7 @@ export default function JobDetailReport() {
                       <input
                         type="text"
                         value={addressChangeData.dStreet}
-                        onChange={(e) => setAddressChangeData(p => ({...p, dStreet: e.target.value}))}
+                        onChange={(e) => setAddressChangeData(p => ({ ...p, dStreet: e.target.value }))}
                         className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
                       />
                     </div>
@@ -1741,7 +1717,7 @@ export default function JobDetailReport() {
                     <input
                       type="text"
                       value={addressChangeData.dCity}
-                      onChange={(e) => setAddressChangeData(p => ({...p, dCity: e.target.value}))}
+                      onChange={(e) => setAddressChangeData(p => ({ ...p, dCity: e.target.value }))}
                       className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-rose-300 transition-colors"
                     />
                   </div>
@@ -1752,7 +1728,7 @@ export default function JobDetailReport() {
                   <input
                     type="text"
                     value={addressChangeData.reason}
-                    onChange={(e) => setAddressChangeData(p => ({...p, reason: e.target.value}))}
+                    onChange={(e) => setAddressChangeData(p => ({ ...p, reason: e.target.value }))}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-amber-300 transition-colors"
                     placeholder="e.g. Client changed location"
                   />
@@ -1767,7 +1743,7 @@ export default function JobDetailReport() {
                       <input
                         type="number"
                         value={addressChangeData.newPickupKm}
-                        onChange={(e) => setAddressChangeData(p => ({...p, newPickupKm: e.target.value}))}
+                        onChange={(e) => setAddressChangeData(p => ({ ...p, newPickupKm: e.target.value }))}
                         className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-amber-300 transition-colors"
                       />
                     </div>
@@ -1776,7 +1752,7 @@ export default function JobDetailReport() {
                       <input
                         type="number"
                         value={addressChangeData.newDropoffKm}
-                        onChange={(e) => setAddressChangeData(p => ({...p, newDropoffKm: e.target.value}))}
+                        onChange={(e) => setAddressChangeData(p => ({ ...p, newDropoffKm: e.target.value }))}
                         className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-amber-300 transition-colors"
                       />
                     </div>
@@ -1786,7 +1762,7 @@ export default function JobDetailReport() {
                     <input
                       type="number"
                       value={addressChangeData.newFinalAmount}
-                      onChange={(e) => setAddressChangeData(p => ({...p, newFinalAmount: e.target.value}))}
+                      onChange={(e) => setAddressChangeData(p => ({ ...p, newFinalAmount: e.target.value }))}
                       className="w-full border border-slate-200 rounded-xl px-3 py-2 text-[12px] text-slate-800 outline-none focus:border-amber-300 transition-colors"
                     />
                   </div>
