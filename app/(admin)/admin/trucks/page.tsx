@@ -12,33 +12,13 @@ import { truckService } from "@/services/truckService";
 import { fetchLiveVehicles, cleanDriverName } from "@/services/liveTrackingService";
 import { driverService } from "@/services/driverService";
 import { formatDate } from "@/lib/datetime";
+import { getComplianceAlerts } from "@/lib/complianceAlerts";
 
 function gpsStatusToTruck(s: string) {
   if (s === "RUNNING") return "Active";
   if (s === "IDLE")    return "Idle";
   if (s === "STOP")    return "Stopped";
   return "Inactive";
-}
-
-function daysUntil(dateStr: string): number | null {
-  if (!dateStr) return null;
-  const diff = new Date(dateStr).setHours(0,0,0,0) - new Date().setHours(0,0,0,0);
-  return Math.ceil(diff / 86400000);
-}
-
-interface ComplianceAlert { truckId: string; label: string; days: number; }
-
-function getComplianceAlerts(trucks: any[]): ComplianceAlert[] {
-  const alerts: ComplianceAlert[] = [];
-  trucks.forEach(t => {
-    (t.complianceDocs || []).forEach((doc: any) => {
-      const d = daysUntil(doc.dueDate);
-      if (d !== null && d <= 20) alerts.push({ truckId: t.truckId, label: doc.type, days: d });
-    });
-    const sd = daysUntil(t.nextServiceDate);
-    if (sd !== null && sd <= 20) alerts.push({ truckId: t.truckId, label: "Service", days: sd });
-  });
-  return alerts.sort((a, b) => a.days - b.days);
 }
 
 export default function AdminTrucks() {

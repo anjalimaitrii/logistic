@@ -4,6 +4,7 @@ import { useState } from "react";
 import SecretSidebar from "./SecretSidebar";
 import AdminTopbar from "./AdminTopbar";
 import AdminNotifPanel from "./AdminNotifPanel";
+import AlertsSidebar from "./AlertsSidebar";
 
 export default function SecretLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -43,6 +44,8 @@ export default function SecretLayout({ children }: { children: React.ReactNode }
           {children}
         </main>
       </div>
+
+      <AlertsSidebar />
     </div>
   );
 }

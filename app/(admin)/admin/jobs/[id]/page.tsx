@@ -364,14 +364,30 @@ export default function JobDetailReport() {
   };
 
   const handleStatusUpdate = async (newStatus: string) => {
-    if (newStatus.toUpperCase().startsWith("OFFLOADING")) {
-      setOffloadingTargetStatus(newStatus);
-      setOffloadingForm({
-        deliveryOrders: [""],
-        damages: [{ quantity: "", amount: "" }],
-      });
-      setOffloadingFiles([]);
-      setShowOffloadingModal(true);
+    const upperStatus = newStatus.toUpperCase();
+    if (upperStatus.startsWith("OFFLOADING")) {
+      const dLocs = booking?.dropoffLocations?.length > 0 ? booking.dropoffLocations : (booking?.dropoff ? [booking.dropoff] : [{}]);
+      const m = upperStatus.match(/^OFFLOADING_(\d+)$/);
+      const isLastDropoff = !m || parseInt(m[1], 10) === dLocs.length;
+
+      if (isLastDropoff) {
+        setOffloadingTargetStatus(newStatus);
+        setOffloadingForm({
+          deliveryOrders: [""],
+          damages: [{ quantity: "", amount: "" }],
+        });
+        setOffloadingFiles([]);
+        setShowOffloadingModal(true);
+        return;
+      }
+
+      // Intermediate dropoff on a multi-route trip — advance status directly, no receipt form.
+      try {
+        await bookingService.updateTripStatus(id, newStatus.toLowerCase());
+        await loadData();
+      } catch (error) {
+        console.error("Status update failed:", error);
+      }
       return;
     }
     if (newStatus === "COMPLETED") {

@@ -10,6 +10,7 @@ import { settlementService }      from "@/services/settlementService";
 import { truckInspectionService } from "@/services/truckInspectionService";
 import { assignmentService }      from "@/services/assignmentService";
 import { routeService }           from "@/services/routeService";
+import { tollService }            from "@/services/tollService";
 import { formatDate, todayAppDateKey } from "@/lib/datetime";
 import { cleanDriverName } from "@/services/liveTrackingService";
 
@@ -172,7 +173,7 @@ function inPeriod(dateStr: string | undefined, from: string, to: string) {
 }
 
 // ── types ─────────────────────────────────────────────────────────────────────
-type DetailType = "allocation" | "fuel" | "levy" | "damages" | "revenue" | "advance" | "pending" | null;
+type DetailType = "allocation" | "fuel" | "toll" | "levy" | "damages" | "revenue" | "advance" | "pending" | null;
 
 // ── accent map ────────────────────────────────────────────────────────────────
 const AM: Record<string, { text: string; border: string; iconBg: string }> = {
@@ -244,6 +245,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
   const [inspections, setInspections] = useState<any[]>([]);
   const [assignments, setAssignments] = useState<any[]>([]);
   const [routes,      setRoutes]      = useState<any[]>([]);
+  const [tollEntries, setTollEntries] = useState<any[]>([]);
   const [isLoading,   setIsLoading]   = useState(true);
   const [error,       setError]       = useState<string | null>(null);
   const [detail,      setDetail]      = useState<DetailType>(null);
@@ -258,18 +260,20 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
     setIsLoading(true);
     setError(null);
     try {
-      const [b, s, i, a, r] = await Promise.allSettled([
+      const [b, s, i, a, r, t] = await Promise.allSettled([
         bookingService.getAll(),
         settlementService.getAll(),
         truckInspectionService.getAll(),
         assignmentService.getAll(),
         routeService.getAll(),
+        tollService.getEntries(),
       ]);
       setBookings(    b.status === "fulfilled" ? (b.value || []) : []);
       setSettlements( s.status === "fulfilled" ? (s.value || []) : []);
       setInspections( i.status === "fulfilled" ? (i.value || []) : []);
       setAssignments( a.status === "fulfilled" ? (a.value || []) : []);
       setRoutes(      r.status === "fulfilled" ? (r.value || []) : []);
+      setTollEntries( t.status === "fulfilled" ? ((t.value as any)?.entries || []) : []);
     } catch (e: any) {
       setError(e?.message || "Failed to load report data");
     } finally {
@@ -313,6 +317,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
   const filteredBookings    = useMemo(() => visibleBookings.filter(b  => inPeriod(b.cargoDetails?.loadingDate || b.createdAt, from, to)), [visibleBookings, from, to]);
   const filteredSettlements = useMemo(() => visibleSettlements.filter(s => inPeriod(s.createdAt, from, to)), [visibleSettlements, from, to]);
   const filteredInspections = useMemo(() => inspections.filter(i => inPeriod(i.createdAt, from, to)), [inspections, from, to]);
+  const filteredTollEntries = useMemo(() => tollEntries.filter(e => inPeriod(e.date, from, to)), [tollEntries, from, to]);
 
   // ── aggregates ────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -328,7 +333,8 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
 
     const allocationCost = filteredSettlements.reduce((s, st) => s + N(st.financials?.cashAllocation), 0);
     const fuelCost       = filteredSettlements.reduce((s, st) => s + N(st.financials?.fuelTotal), 0);
-    const tollAmount     = filteredSettlements.reduce((s, st) => s + N(st.tollAmount), 0);
+    // Actual toll = every eToll sheet entry in the period (matched + unmatched)
+    const tollAmount     = filteredTollEntries.reduce((s, e) => s + N(e.charge), 0);
     const councilLevy    = filteredSettlements.reduce((s, st) => s + N(st.financials?.councilLevy), 0);
     const otherExpenses  = filteredSettlements.reduce((s, st) =>
       s + (Array.isArray(st.expenses) ? st.expenses : []).reduce((ea: number, ex: any) => ea + N(ex.amount), 0), 0);
@@ -354,7 +360,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
       totalDamages, damageIncidents, totalCosts, netPnL,
       categoryTotals, totalBookings: filteredBookings.length, totalSettlements: filteredSettlements.length,
     };
-  }, [filteredBookings, filteredSettlements, filteredInspections]);
+  }, [filteredBookings, filteredSettlements, filteredInspections, filteredTollEntries]);
 
   // ── Secret (without-tax) sub-totals — only meaningful on the secret report ──────
   const secretStats = useMemo(() => {
@@ -392,11 +398,15 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
       const dropArr = b?.dropoffLocations;
       const dropoff = cityOf(Array.isArray(dropArr) ? dropArr[dropArr.length - 1] : (dropArr || b?.dropoffLocation));
       const route = b ? map.get(`${norm(pickup)}|${norm(dropoff)}`) : null;
-      if (!route) { unmatched++; return; }
+      // Prefer the Route Master values frozen on the settlement at approval time
+      // (financials.assume*); fall back to a live route lookup for older settlements.
+      const f = st.financials || {};
+      const hasSaved = N(f.assumeCashAllocation) > 0 || N(f.assumeCouncilLevy) > 0 || N(f.assumeTollAmount) > 0;
+      if (!route && !hasSaved) { unmatched++; return; }
       matched++;
-      allocation += N(route.allocationMoney);
-      toll       += N(route.tollAmount);
-      levy       += N(route.councilLevy);
+      allocation += N(f.assumeCashAllocation) > 0 ? N(f.assumeCashAllocation) : N(route?.allocationMoney);
+      toll       += N(f.assumeTollAmount)     > 0 ? N(f.assumeTollAmount)     : N(route?.tollAmount);
+      levy       += N(f.assumeCouncilLevy)    > 0 ? N(f.assumeCouncilLevy)    : N(route?.councilLevy);
     });
     return { allocation, toll, levy, matched, unmatched, total: filteredSettlements.length };
   }, [routes, bookings, filteredSettlements]);
@@ -424,6 +434,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
   const drawerMeta: Record<NonNullable<DetailType>, { title: string; sub: string; accent: string }> = {
     allocation: { title: "Driver Allocation Details", sub: "Cash allocated per trip settlement",      accent: "text-blue-600" },
     fuel:       { title: "Fuel Cost Details",         sub: "Fuel legs & consumption per trip",        accent: "text-amber-600" },
+    toll:       { title: "Toll — Assumed vs Actual",  sub: "Route Master estimate vs eToll sheet per trip", accent: "text-orange-600" },
     levy:       { title: "Council Levy Details",      sub: "Council levy charged per trip",            accent: "text-violet-600" },
     damages:    { title: "Damage Details by Driver",  sub: "Per-driver damage items & amounts",        accent: "text-rose-600" },
     revenue:    { title: "Revenue Breakdown",         sub: "Final amount per booking in this period",  accent: "text-emerald-700" },
@@ -590,7 +601,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <SummaryCard label="Driver Allocation" value={cmpValue(stats.allocationCost, routePlanned.allocation)} sub={cmpSub(`${stats.totalSettlements} settlements`, stats.allocationCost, routePlanned.allocation)} icon={<Wallet className="w-5 h-5" />}     accent="blue"   onClick={() => setDetail("allocation")} />
                 <SummaryCard label="Fuel Cost"         value={naira(stats.fuelCost)}       sub="Total fuel across all trips"                                          icon={<Fuel className="w-5 h-5" />}       accent="amber"  onClick={() => setDetail("fuel")} />
-                <SummaryCard label="Toll Charges"      value={cmpValue(stats.tollAmount, routePlanned.toll)} sub={cmpSub("Accumulated toll fees", stats.tollAmount, routePlanned.toll)}                              icon={<Landmark className="w-5 h-5" />}   accent="orange" />
+                <SummaryCard label="Toll Charges"      value={cmpValue(stats.tollAmount, routePlanned.toll)} sub={cmpSub(`eToll sheet total · ${filteredTollEntries.length} entries (matched + unmatched)`, stats.tollAmount, routePlanned.toll)} icon={<Landmark className="w-5 h-5" />}   accent="orange" onClick={() => setDetail("toll")} />
                 <SummaryCard label="Damages"           value={naira(stats.totalDamages)}   sub={`${stats.damageIncidents} incident${stats.damageIncidents !== 1 ? "s" : ""}`} icon={<ShieldAlert className="w-5 h-5" />} accent="rose"   onClick={() => setDetail("damages")} />
                 <SummaryCard label="Council Levy"      value={cmpValue(stats.councilLevy, routePlanned.levy)} sub={cmpSub("Municipal / council taxes", stats.councilLevy, routePlanned.levy)}                          icon={<Landmark className="w-5 h-5" />}   accent="violet" onClick={() => setDetail("levy")} />
                 <SummaryCard label="Other Expenses"    value={naira(stats.otherExpenses)}  sub="Misc trip expenses"                                                   icon={<ReceiptText className="w-5 h-5" />} accent="slate" />
@@ -789,6 +800,106 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
                   </div>
                 </div>
               )}
+
+              {/* ── TOLL — ASSUMED vs ACTUAL ── */}
+              {detail === "toll" && (() => {
+                const norm = (s: any) => String(s ?? "").trim().toLowerCase();
+                const cityOf = (loc: any): string => {
+                  if (!loc) return "";
+                  if (typeof loc === "string") return loc;
+                  return loc?.address?.city || loc?.city || "";
+                };
+                const routeMap = new Map<string, any>();
+                routes.forEach((r: any) => {
+                  const a = norm(r.pickupCity), b = norm(r.dropoffCity);
+                  routeMap.set(`${a}|${b}`, r);
+                  if (!routeMap.has(`${b}|${a}`)) routeMap.set(`${b}|${a}`, r);
+                });
+                // actual = matched eToll entries per booking
+                const actualByBooking: Record<string, number> = {};
+                filteredTollEntries.forEach((e: any) => {
+                  if (e.matchStatus === "matched" && e.bookingId) {
+                    const id = String(e.bookingId);
+                    actualByBooking[id] = (actualByBooking[id] || 0) + N(e.charge);
+                  }
+                });
+                const settByBooking: Record<string, any> = {};
+                filteredSettlements.forEach((st: any) => {
+                  const bId = typeof st.bookingId === "string" ? st.bookingId : st.bookingId?._id;
+                  if (bId) settByBooking[bId] = st;
+                });
+                const rows = filteredBookings.map((b: any) => {
+                  const id = String(b._id);
+                  const st = settByBooking[id];
+                  const pickup  = cityOf(Array.isArray(b?.pickupLocations)  ? b.pickupLocations[0]  : (b?.pickupLocations  || b?.pickupLocation));
+                  const dropArr = b?.dropoffLocations;
+                  const dropoff = cityOf(Array.isArray(dropArr) ? dropArr[dropArr.length - 1] : (dropArr || b?.dropoffLocation));
+                  const route = routeMap.get(`${norm(pickup)}|${norm(dropoff)}`);
+                  const savedAssume = N(st?.financials?.assumeTollAmount);
+                  const assumed = savedAssume > 0 ? savedAssume : N(route?.tollAmount);
+                  const actual = actualByBooking[id] || 0;
+                  return {
+                    id,
+                    trip: b.tripId || `#${id.slice(-6).toUpperCase()}`,
+                    driver: driverByBooking[id] || "—",
+                    assumed, actual, delta: actual - assumed,
+                  };
+                }).filter(r => r.assumed > 0 || r.actual > 0);
+                const unmatchedTotal = filteredTollEntries
+                  .filter((e: any) => e.matchStatus !== "matched")
+                  .reduce((s: number, e: any) => s + N(e.charge), 0);
+                const totAssumed = rows.reduce((s, r) => s + r.assumed, 0);
+                const totActual  = rows.reduce((s, r) => s + r.actual, 0);
+                return (
+                  <div className="space-y-3">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-neutral-100">
+                          <Th>Trip</Th><Th>Driver</Th>
+                          <th className="pb-2.5 pr-4 text-right text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Assumed</th>
+                          <th className="pb-2.5 pr-4 text-right text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Actual (eToll)</th>
+                          <th className="pb-2.5 text-right text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Δ</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-neutral-50">
+                        {rows.length === 0 && (
+                          <tr><td colSpan={5} className="py-6 text-center text-[11px] text-neutral-300 font-medium">No toll data for trips in this period</td></tr>
+                        )}
+                        {rows.map((r) => (
+                          <tr key={r.id}>
+                            <Td><span className="font-mono text-[10px] text-slate-500">{r.trip}</span></Td>
+                            <Td><span className="font-semibold text-slate-900">{r.driver}</span></Td>
+                            <td className="py-2.5 pr-4 text-right font-bold text-slate-500 text-[12px]">{naira(r.assumed)}</td>
+                            <td className="py-2.5 pr-4 text-right font-bold text-orange-600 text-[12px]">{naira(r.actual)}</td>
+                            <td className={`py-2.5 text-right font-bold text-[11px] ${r.delta > 0 ? "text-rose-500" : r.delta < 0 ? "text-emerald-600" : "text-neutral-300"}`}>
+                              {r.delta === 0 ? "—" : `${r.delta > 0 ? "+" : "−"}${naira(Math.abs(r.delta))}`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-neutral-100">
+                          <td colSpan={2} className="pt-3 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Total (trips)</td>
+                          <td className="pt-3 pr-4 text-right text-[13px] font-bold text-slate-500">{naira(totAssumed)}</td>
+                          <td className="pt-3 pr-4 text-right text-[13px] font-bold text-orange-600">{naira(totActual)}</td>
+                          <td className={`pt-3 text-right text-[12px] font-bold ${totActual - totAssumed > 0 ? "text-rose-500" : totActual - totAssumed < 0 ? "text-emerald-600" : "text-neutral-300"}`}>
+                            {totActual - totAssumed === 0 ? "—" : `${totActual - totAssumed > 0 ? "+" : "−"}${naira(Math.abs(totActual - totAssumed))}`}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                    {unmatchedTotal > 0 && (
+                      <div className="flex items-center justify-between px-3 py-2.5 bg-amber-50 border border-amber-100 rounded-xl">
+                        <span className="text-[10px] font-bold text-amber-700 uppercase tracking-widest">Unmatched tolls (no trip)</span>
+                        <span className="text-[12px] font-bold text-amber-700">{naira(unmatchedTotal)}</span>
+                      </div>
+                    )}
+                    <p className="text-[9px] text-neutral-400">
+                      Assumed = Route Master value frozen at approval (live route lookup for older trips) · Actual = matched eToll sheet entries · card total also includes unmatched tolls
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* ── COUNCIL LEVY ── */}
               {detail === "levy" && (

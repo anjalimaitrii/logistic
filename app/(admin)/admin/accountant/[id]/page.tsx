@@ -37,9 +37,10 @@ export default function AccountantJobDetail() {
   const [fuelRate, setFuelRate] = useState("0");
   const [allocationMoney, setAllocationMoney] = useState("0");
   const [councilLevy, setCouncilLevy] = useState("0");
+  const [tollAmount, setTollAmount] = useState("0");
 
   // Route Master original values — to detect manual overrides
-  const [routeDefaults, setRouteDefaults] = useState<{ km: number; allocationMoney: number } | null>(null);
+  const [routeDefaults, setRouteDefaults] = useState<{ km: number; allocationMoney: number; councilLevy: number; tollAmount: number } | null>(null);
 
   useEffect(() => {
     if (id) loadJobDetails();
@@ -137,8 +138,14 @@ export default function AccountantJobDetail() {
         : null;
 
       if (routeMatch) {
-        setRouteDefaults({ km: routeMatch.distance, allocationMoney: routeMatch.allocationMoney });
+        setRouteDefaults({
+          km: routeMatch.distance,
+          allocationMoney: routeMatch.allocationMoney,
+          councilLevy: routeMatch.councilLevy || 0,
+          tollAmount: routeMatch.tollAmount || 0,
+        });
         setCouncilLevy(routeMatch.councilLevy?.toString() || "0");
+        setTollAmount(routeMatch.tollAmount?.toString() || "0");
       }
 
       // Always fetch global mileage config
@@ -166,6 +173,10 @@ export default function AccountantJobDetail() {
         setAllocationMoney(savedAllocation);
         if (settlement.financials.councilLevy) {
           setCouncilLevy(settlement.financials.councilLevy.toString());
+        }
+        const savedToll = settlement.financials.tollAmount ?? settlement.financials.assumeTollAmount;
+        if (savedToll) {
+          setTollAmount(savedToll.toString());
         }
 
         // Notify if saved values differ from Route Master
@@ -249,9 +260,15 @@ export default function AccountantJobDetail() {
         },
         expenses: jobSettlement?.expenses || [],
         financials: {
+          // actual values being approved
           cashAllocation: Number(allocationMoney),
           fuelTotal: calculations.fuelTotal,
           councilLevy: Number(councilLevy) || 0,
+          tollAmount: Number(tollAmount) || 0,
+          // Route Master values — saved alongside for actual-vs-assumed comparison
+          assumeCashAllocation: routeDefaults?.allocationMoney ?? 0,
+          assumeCouncilLevy: routeDefaults?.councilLevy ?? 0,
+          assumeTollAmount: routeDefaults?.tollAmount ?? 0,
         },
       };
 
@@ -336,6 +353,12 @@ export default function AccountantJobDetail() {
       icon: <DollarSign className="w-4 h-4 text-emerald-500" />,
       color: "border-emerald-500",
     },
+    {
+      label: "Toll Amount",
+      value: tollAmount && parseFloat(tollAmount) > 0 ? `K${parseFloat(tollAmount).toLocaleString()}` : "---",
+      icon: <DollarSign className="w-4 h-4 text-violet-500" />,
+      color: "border-violet-500",
+    },
   ];
 
   return (
@@ -403,7 +426,7 @@ export default function AccountantJobDetail() {
             );
           })()}
 
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
             {statCards.map((card, i) => (
               <div
                 key={i}
@@ -419,7 +442,7 @@ export default function AccountantJobDetail() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 flex flex-col gap-6">
 
               {/* Route Flow */}
               <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100">
@@ -510,8 +533,8 @@ export default function AccountantJobDetail() {
                 </div>
               </div>
 
-              {/* Cash Allocation */}
-              <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100">
+              {/* Cash Allocation — flex-1 so the left column's bottom lines up with the right column */}
+              <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100 flex-1">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="p-1 px-1.5 rounded-lg bg-blue-50 text-blue-600"><DollarSign className="w-3.5 h-3.5" /></div>
                   <div>
@@ -561,6 +584,7 @@ export default function AccountantJobDetail() {
                     className="w-full bg-emerald-50/40 border border-emerald-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-emerald-400 focus:bg-white transition-all placeholder:text-neutral-300"
                   />
                 </div>
+
               </div>
             </div>
 
@@ -723,6 +747,39 @@ export default function AccountantJobDetail() {
                       <span className="text-base md:text-xl font-bold text-amber-600">K{calculations.fuelTotal.toLocaleString()}</span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Toll Amount — Route Master estimate, NOT part of driver's allowance */}
+              <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1 px-1.5 rounded-lg bg-violet-50 text-violet-600"><DollarSign className="w-3.5 h-3.5" /></div>
+                  <div>
+                    <h2 className="text-xs md:text-sm font-semibold text-slate-950">Toll Amount</h2>
+                    <p className="text-[8px] md:text-[9px] font-normal text-neutral-400 uppercase tracking-widest">Route Master value</p>
+                  </div>
+                </div>
+                <div className="p-4 rounded-xl bg-violet-50/30 border border-violet-100/50 mb-4">
+                  <p className="text-[10px] font-medium text-violet-700 leading-relaxed">
+                    Estimated toll cost for this route. This is <strong>not</strong> part of the driver&apos;s allowance — it is tracked separately.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between ml-1">
+                    <label className="text-[9px] font-bold text-slate-600 uppercase tracking-widest font-sans">Toll Amount (K)</label>
+                    {routeDefaults && parseFloat(tollAmount) !== routeDefaults.tollAmount && parseFloat(tollAmount) > 0 && (
+                      <span className="text-[7px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                        Route: K{routeDefaults.tollAmount.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="number"
+                    value={tollAmount}
+                    onChange={(e) => setTollAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-violet-50/40 border border-violet-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-violet-400 focus:bg-white transition-all placeholder:text-neutral-300"
+                  />
                 </div>
               </div>
             </div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import AdminSidebar from "./AdminSidebar";
 import AdminTopbar from "./AdminTopbar";
 import AdminNotifPanel from "./AdminNotifPanel";
+import AlertsSidebar from "./AlertsSidebar";
 import PinModal from "./PinModal";
 import { motion } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -68,6 +69,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           isOpen={showPinModal}
           onClose={() => setShowPinModal(false)}
         />
+
+        <AlertsSidebar />
       </div>
   );
 }
