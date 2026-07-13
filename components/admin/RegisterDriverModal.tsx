@@ -86,7 +86,9 @@ export default function RegisterDriverModal({ isOpen, onClose, drivers, onRegist
             <select value={driverId} onChange={(e) => setDriverId(e.target.value)} className={inputClass}>
               <option value="">Select a driver</option>
               {unregisteredDrivers.map((d) => (
-                <option key={d._id} value={d._id}>{d.name} — {d.phone}</option>
+                <option key={d._id} value={d._id}>
+                  {d.name}{d.phone && d.phone !== "--" ? ` — ${d.phone}` : ""}
+                </option>
               ))}
             </select>
             {unregisteredDrivers.length === 0 && (
@@ -97,7 +99,15 @@ export default function RegisterDriverModal({ isOpen, onClose, drivers, onRegist
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">Email</label>
             <div className="relative">
-              <input type="email" placeholder="e.g. driver@example.com" value={email} onChange={(e) => setEmail(e.target.value)} className={`${inputClass} pl-10`} />
+              <input
+                type="email"
+                name="driver-register-email"
+                autoComplete="off"
+                placeholder="e.g. driver@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className={`${inputClass} pl-10`}
+              />
               <Mail className="w-3.5 h-3.5 text-neutral-300 absolute left-3.5 top-1/2 -translate-y-1/2" />
             </div>
           </div>
@@ -105,7 +115,15 @@ export default function RegisterDriverModal({ isOpen, onClose, drivers, onRegist
           <div className="space-y-1.5">
             <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">Password</label>
             <div className="relative">
-              <input type={showPassword ? "text" : "password"} placeholder="Min. 6 characters" value={password} onChange={(e) => setPassword(e.target.value)} className={`${inputClass} pl-10 pr-12`} />
+              <input
+                type={showPassword ? "text" : "password"}
+                name="driver-register-password"
+                autoComplete="new-password"
+                placeholder="Min. 6 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className={`${inputClass} pl-10 pr-12`}
+              />
               <Lock className="w-3.5 h-3.5 text-neutral-300 absolute left-3.5 top-1/2 -translate-y-1/2" />
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-slate-900 transition-colors cursor-pointer">
                 {showPassword ? (
