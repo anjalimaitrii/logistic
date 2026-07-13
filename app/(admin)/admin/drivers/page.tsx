@@ -202,6 +202,22 @@ export default function AdminDrivers() {
     { label: "Assigned Truck", key: "truck", render: (val: string) => <span className="font-semibold text-slate-700">{val}</span> },
     { label: "Contact", key: "contact", render: (val: string) => <span className="text-neutral-500">{val}</span> },
     {
+      label: "Login",
+      key: "login",
+      render: (val: any, row: any) => (
+        row.raw.email ? (
+          <span title={row.raw.email} className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest bg-emerald-50 text-emerald-600 border border-emerald-100">
+            <span className="w-1 h-1 rounded-full bg-emerald-500" />
+            Registered
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest bg-neutral-50 text-neutral-400 border border-neutral-100">
+            Not Registered
+          </span>
+        )
+      ),
+    },
+    {
       label: "Actions",
       key: "actions",
       align: "center" as const,

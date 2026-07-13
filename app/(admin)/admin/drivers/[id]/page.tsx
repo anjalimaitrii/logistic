@@ -5,16 +5,17 @@ import { useParams, useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
-import { 
-  ChevronRight, 
-  ArrowLeft, 
-  Calendar, 
-  MapPin, 
-  Truck, 
+import {
+  ChevronRight,
+  ArrowLeft,
+  Calendar,
+  MapPin,
+  Truck,
   Award,
   Clock,
   Navigation,
-  Package
+  Package,
+  Mail
 } from "lucide-react";
 import { driverService } from "@/services/driverService";
 import { assignmentService } from "@/services/assignmentService";
@@ -195,7 +196,18 @@ export default function DriverProfilePage() {
                     </div>
                     <div className="flex items-center gap-4 mt-1.5 text-[11px] text-neutral-400 font-medium">
                        <span className="flex items-center gap-1.5"><Award className="w-3.5 h-3.5 text-amber-500" /> {driver.experience || 0} Yrs Exp</span>
-                       <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Registered {formatDate(driver.createdAt, { day: undefined })}</span>
+                       <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> Added {formatDate(driver.createdAt, { day: undefined })}</span>
+                       {driver.email ? (
+                         <>
+                           <span className="text-neutral-200">|</span>
+                           <span className="flex items-center gap-1.5"><Mail className="w-3.5 h-3.5" /> {driver.email}</span>
+                         </>
+                       ) : (
+                         <>
+                           <span className="text-neutral-200">|</span>
+                           <span className="text-amber-600 font-semibold">Not registered for login</span>
+                         </>
+                       )}
                        <span className="text-neutral-200">|</span>
                        <span>ID: <span className="text-slate-900 font-bold tracking-wider">{driverId}</span></span>
                     </div>
