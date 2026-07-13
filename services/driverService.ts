@@ -10,10 +10,22 @@ export interface DriverPayload {
   status?: string;
 }
 
+export interface DriverCredentialsPayload {
+  email: string;
+  password: string;
+}
+
 export const driverService = {
   create: async (payload: DriverPayload) => {
     return await fetchApi('/api/drivers', {
       method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
+  registerCredentials: async (id: string, payload: DriverCredentialsPayload) => {
+    return await fetchApi(`/api/drivers/${id}/credentials`, {
+      method: 'PATCH',
       body: JSON.stringify(payload),
     });
   },

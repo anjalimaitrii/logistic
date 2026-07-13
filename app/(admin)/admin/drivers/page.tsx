@@ -6,6 +6,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateDriverModal from "@/components/admin/CreateDriverModal";
+import RegisterDriverModal from "@/components/admin/RegisterDriverModal";
 import { ChevronRight, Eye, Phone, Plus, Edit2 } from "lucide-react";
 import { driverService } from "@/services/driverService";
 import { truckService } from "@/services/truckService";
@@ -14,6 +15,7 @@ import { fetchLiveVehicles, getDriverName, cleanDriverName } from "@/services/li
 export default function AdminDrivers() {
   const [isModalOpen, setModalOpen] = useState(false);
   const [selectedDriver, setSelectedDriver] = useState<any>(null);
+  const [isRegisterModalOpen, setRegisterModalOpen] = useState(false);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -254,6 +256,15 @@ export default function AdminDrivers() {
             </div>
             Add New Driver
           </button> */}
+          <button
+            onClick={() => setRegisterModalOpen(true)}
+            className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-semibold text-[10px] uppercase tracking-widest shadow-xl shadow-slate-200 hover:brightness-110 transition-all w-fit flex items-center gap-2"
+          >
+            <div className="p-0.5 rounded-md bg-white/20">
+              <Plus className="w-3 h-3" />
+            </div>
+            Register Driver
+          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -293,6 +304,13 @@ export default function AdminDrivers() {
         }}
         onSubmit={handleSubmitDriver}
         initialData={selectedDriver}
+      />
+
+      <RegisterDriverModal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setRegisterModalOpen(false)}
+        drivers={drivers}
+        onRegistered={loadDrivers}
       />
     </AdminLayout>
   );
