@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { X, UserCheck, Mail, Lock } from "lucide-react";
+import { X, UserCheck, Mail, KeyRound } from "lucide-react";
 import { driverService } from "@/services/driverService";
 
 interface RegisterDriverModalProps {
@@ -11,14 +11,17 @@ interface RegisterDriverModalProps {
   onRegistered: () => void;
 }
 
+// Every driver logs in with this same fixed password (backend default:
+// DRIVER_DEFAULT_PASSWORD, or "Fleet@123" if unset) — shown here so the
+// admin knows what to tell the driver. Keep in sync with the backend value.
+const DEFAULT_DRIVER_PASSWORD = "Fleet@123";
+
 const inputClass =
   "w-full bg-neutral-50 border border-neutral-100 rounded-xl py-2.5 px-4 text-[13px] font-medium text-slate-900 outline-none focus:border-primary/30 focus:bg-white focus:ring-4 focus:ring-primary/5 transition-all";
 
 export default function RegisterDriverModal({ isOpen, onClose, drivers, onRegistered }: RegisterDriverModalProps) {
   const [driverId, setDriverId] = useState("");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -28,21 +31,19 @@ export default function RegisterDriverModal({ isOpen, onClose, drivers, onRegist
     if (isOpen) {
       setDriverId("");
       setEmail("");
-      setPassword("");
-      setShowPassword(false);
       setError("");
     }
   }, [isOpen]);
 
   const handleSubmit = async () => {
-    if (!driverId || !email || !password) {
-      setError("Select a driver and fill in email and password");
+    if (!driverId || !email) {
+      setError("Select a driver and enter an email");
       return;
     }
     setError("");
     setIsSubmitting(true);
     try {
-      await driverService.registerCredentials(driverId, { email, password });
+      await driverService.registerCredentials(driverId, { email });
       onRegistered();
       onClose();
     } catch (err: any) {
@@ -62,7 +63,7 @@ export default function RegisterDriverModal({ isOpen, onClose, drivers, onRegist
         <div className="px-7 pt-8 pb-5 border-b border-neutral-100 flex items-center justify-between shrink-0">
           <div>
             <h2 className="text-[17px] font-semibold text-slate-900 tracking-tight">Register Driver</h2>
-            <p className="text-[11px] text-neutral-400 mt-0.5">Set login credentials for an existing driver.</p>
+            <p className="text-[11px] text-neutral-400 mt-0.5">Set a login email for an existing driver.</p>
           </div>
           <button onClick={onClose} className="w-9 h-9 rounded-xl bg-neutral-50 flex items-center justify-center text-neutral-400 hover:text-slate-900 hover:bg-neutral-100 transition-all cursor-pointer">
             <X className="w-4 h-4" />
@@ -112,27 +113,11 @@ export default function RegisterDriverModal({ isOpen, onClose, drivers, onRegist
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">Password</label>
-            <div className="relative">
-              <input
-                type={showPassword ? "text" : "password"}
-                name="driver-register-password"
-                autoComplete="new-password"
-                placeholder="Min. 6 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className={`${inputClass} pl-10 pr-12`}
-              />
-              <Lock className="w-3.5 h-3.5 text-neutral-300 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-slate-900 transition-colors cursor-pointer">
-                {showPassword ? (
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
-                ) : (
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
-                )}
-              </button>
-            </div>
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-100 flex items-center gap-2.5">
+            <KeyRound className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+            <p className="text-[10px] text-amber-700">
+              All drivers log in with the shared password <span className="font-bold">{DEFAULT_DRIVER_PASSWORD}</span> — only the email tells accounts apart.
+            </p>
           </div>
 
           {error && (
@@ -145,7 +130,7 @@ export default function RegisterDriverModal({ isOpen, onClose, drivers, onRegist
           <button onClick={onClose} className="flex-1 py-3 rounded-xl bg-neutral-100 text-slate-500 text-[11px] font-bold uppercase tracking-widest hover:bg-neutral-200 transition-all cursor-pointer">Cancel</button>
           <button
             onClick={handleSubmit}
-            disabled={isSubmitting || !driverId || !email || !password}
+            disabled={isSubmitting || !driverId || !email}
             className={`flex-1 py-3 rounded-xl text-white text-[11px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-slate-200 cursor-pointer ${isSubmitting ? "bg-slate-400 cursor-not-allowed" : "bg-slate-900 hover:brightness-110"} disabled:bg-slate-300 disabled:cursor-not-allowed`}
           >
             {isSubmitting ? "Registering..." : "Register Driver"}

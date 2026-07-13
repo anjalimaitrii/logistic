@@ -12,7 +12,6 @@ export interface DriverPayload {
 
 export interface DriverCredentialsPayload {
   email: string;
-  password: string;
 }
 
 export const driverService = {
