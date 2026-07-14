@@ -267,7 +267,8 @@ export default function JobDetailReport() {
   }, [booking, assignment, settlement, newId]);
 
   const financialSummary = useMemo(() => {
-    if (!settlement) return { fuelTotal: 0, otherLogs: 0, totalCost: 0, allocationMoney: 0, councilLevy: 0, remainingProfit: 0 };
+    const tollAmount = booking?.tollAmount || 0;
+    if (!settlement) return { fuelTotal: 0, otherLogs: 0, totalCost: 0, allocationMoney: 0, councilLevy: 0, tollAmount, remainingProfit: 0 };
 
     const fuelTotal = settlement.financials?.fuelTotal || 0;
     const otherLogs = (settlement.expenses || []).reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
@@ -281,9 +282,10 @@ export default function JobDetailReport() {
       totalCost,
       allocationMoney,
       councilLevy,
+      tollAmount,
       remainingProfit: allocationMoney - totalCost
     };
-  }, [settlement]);
+  }, [settlement, booking]);
 
   const handleAddExpense = async () => {
     if (!newExpenseEntry.description || (!newExpenseEntry.amount && !newExpenseEntry.litres)) {
@@ -699,6 +701,7 @@ export default function JobDetailReport() {
     { label: "Other Logs", value: `K ${financialSummary.otherLogs.toLocaleString()}`, icon: <Receipt className="w-4 h-4 text-blue-500" />, color: "border-blue-500" },
     { label: "Allocation", value: `K ${financialSummary.allocationMoney.toLocaleString()}`, icon: <DollarSign className="w-4 h-4 text-violet-500" />, color: "border-violet-500" },
     { label: "Council Levy", value: `K ${financialSummary.councilLevy.toLocaleString()}`, icon: <DollarSign className="w-4 h-4 text-slate-500" />, color: "border-slate-400" },
+    { label: "Toll", value: `K ${financialSummary.tollAmount.toLocaleString()}`, icon: <Route className="w-4 h-4 text-teal-500" />, color: "border-teal-500" },
   ];
 
   if (isLoading) {
@@ -772,7 +775,7 @@ export default function JobDetailReport() {
 
         <div className="p-4 md:p-6 max-w-[1400px] mx-auto space-y-6">
           {/* Top KPI Cards */}
-          <div className="grid grid-cols-5 gap-3">
+          <div className="grid grid-cols-3 lg:grid-cols-6 gap-3">
             {statCards.map((card, i) => (
               <div key={i} className={`bg-white rounded-2xl p-4 shadow-sm border border-slate-100 border-t-4 ${card.color}`}>
                 <div className="p-1.5 rounded-lg bg-slate-50 w-fit mb-2">
