@@ -107,6 +107,16 @@ export default function BookingRequestsPage() {
   const getStatusLabel = (req: any): RequestStatus =>
     isPaid(req) ? 'Paid' : isFinalized(req) ? 'Finalized' : 'Active';
 
+  // Completed/delivered trips leave this page entirely — table AND cards.
+  const isCompleted = (req: any): boolean => {
+    const ts = (req?.tripStatus || "").toLowerCase();
+    return ts === "completed" || ts === "delivered";
+  };
+
+  // The page's working set: everything except completed trips. Cards count
+  // from this same set so they always match what the table can show.
+  const pageRequests = requests.filter(r => !isCompleted(r));
+
   const getRequestRoute = (req: any): string[] => {
     const pickups = (req.pickupLocations?.length ? req.pickupLocations : req.pickup ? [req.pickup] : [])
       .map((l: any) => l.address?.city).filter(Boolean);
@@ -118,19 +128,16 @@ export default function BookingRequestsPage() {
 
   // Derive unique companies and clients for filter dropdowns
   const uniqueCompanies = Array.from(new Set(
-    requests.map(req => (req.clientId as any)?.company?.companyName).filter(Boolean)
+    pageRequests.map(req => (req.clientId as any)?.company?.companyName).filter(Boolean)
   )) as string[];
 
   const uniqueClients = Array.from(new Set(
-    requests.map(req => (req.clientId as any)?.name).filter(Boolean)
+    pageRequests.map(req => (req.clientId as any)?.name).filter(Boolean)
   )) as string[];
 
-  const filteredRequests = requests.filter(req => {
+  const filteredRequests = pageRequests.filter(req => {
     // Once a deal is finalized (or paid), it leaves this page
     if (isFinalized(req)) return false;
-    // Completed/delivered trips also leave this page
-    const ts = (req?.tripStatus || "").toLowerCase();
-    if (ts === "completed" || ts === "delivered") return false;
     const pickupCity = req.pickupLocations?.[0]?.address?.city || req.pickup?.address?.city || "";
     const dropoffCity = req.dropoffLocations?.[0]?.address?.city || req.dropoff?.address?.city || "";
     const matchesSearch =
@@ -168,10 +175,8 @@ export default function BookingRequestsPage() {
       key: "customer",
       render: (val: string, row: any) => (
         <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <span className="px-1.5 py-0.5 rounded bg-slate-900 text-white text-[7.5px] font-bold uppercase tracking-wider">{row.companyName}</span>
-          </div>
-          <span className="text-[12px] font-bold text-slate-700">{val}</span>
+          <span className="text-[13px] font-bold text-slate-900">{row.companyName}</span>
+          <span className="text-[10px] font-medium text-slate-400">{val}</span>
         </div>
       )
     },
@@ -277,10 +282,10 @@ export default function BookingRequestsPage() {
   ];
 
   const stats = [
-    { label: "Total Submissions", value: requests.length.toString(), icon: "📩", subText: "Overall Requests", trend: "Live", variant: "primary" as const },
-    { label: "Active Bookings", value: requests.filter(r => !isFinalized(r)).length.toString(), icon: "🤝", subText: "Awaiting Finalization", trend: "Live", variant: "success" as const },
-    { label: "Finalized", value: requests.filter(r => isFinalized(r)).length.toString(), icon: "✅", subText: "Deals Closed", trend: "Sync", variant: "warning" as const },
-    { label: "Fully Paid", value: requests.filter(r => isPaid(r)).length.toString(), icon: "💰", subText: "Payment Settled", trend: "Sync", variant: "success" as const },
+    { label: "Total Submissions", value: pageRequests.length.toString(), icon: "📩", subText: "Overall Requests", trend: "Live", variant: "primary" as const },
+    { label: "Active Bookings", value: pageRequests.filter(r => !isFinalized(r)).length.toString(), icon: "🤝", subText: "Awaiting Finalization", trend: "Live", variant: "success" as const },
+    { label: "Finalized", value: pageRequests.filter(r => isFinalized(r)).length.toString(), icon: "✅", subText: "Deals Closed", trend: "Sync", variant: "warning" as const },
+    { label: "Fully Paid", value: pageRequests.filter(r => isPaid(r)).length.toString(), icon: "💰", subText: "Payment Settled", trend: "Sync", variant: "success" as const },
   ];
 
   return (

@@ -121,28 +121,39 @@ export default function AdminOperations() {
     }
   };
 
+  // Job leaves this page only once the trip is completed (assigned/in-progress still show)
+  const isCompleted = (b: any): boolean => {
+    const ts = (b.tripStatus || "").toLowerCase();
+    const hasNewJob = (b.timeline || []).some((e: any) => e.title === "New Job Assigned");
+    return ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob);
+  };
+
+  // The page's working set — cards count from this same set so they always
+  // match what the table can show.
+  const pageBookings = bookings.filter(b => !isCompleted(b));
+
+  const isAssigned = (b: any): boolean =>
+    !!assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
+
+  const inTransitStatuses = ["started", "loading", "departed", "reached", "offloading", "returning"];
+
   const kpis = [
-    { label: "Total Finalized", value: bookings.length.toString(), icon: <Truck className="w-5 h-5 text-primary" />, subText: "Ready for operations", trend: "Live", variant: "primary" as const },
-    { label: "Unassigned", value: bookings.filter(b => !assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id)).length.toString(), icon: <AlertTriangle className="w-5 h-5 text-rose-500" />, subText: "Needs driver/truck", trend: "Critical", variant: "danger" as const },
-    { label: "Assigned", value: assignments.length.toString(), icon: <Users className="w-5 h-5 text-emerald-500" />, subText: "Fleet coordinated", trend: "Ready", variant: "success" as const },
-    { label: "In Transit", value: "0", icon: <Clock className="w-5 h-5 text-amber-500" />, subText: "On the road", trend: "Tracking", variant: "warning" as const },
+    { label: "Total Finalized", value: pageBookings.length.toString(), icon: <Truck className="w-5 h-5 text-primary" />, subText: "Ready for operations", trend: "Live", variant: "primary" as const },
+    { label: "Unassigned", value: pageBookings.filter(b => !isAssigned(b)).length.toString(), icon: <AlertTriangle className="w-5 h-5 text-rose-500" />, subText: "Needs driver/truck", trend: "Critical", variant: "danger" as const },
+    { label: "Assigned", value: pageBookings.filter(isAssigned).length.toString(), icon: <Users className="w-5 h-5 text-emerald-500" />, subText: "Fleet coordinated", trend: "Ready", variant: "success" as const },
+    { label: "In Transit", value: pageBookings.filter(b => inTransitStatuses.includes((b.tripStatus || "").toLowerCase())).length.toString(), icon: <Clock className="w-5 h-5 text-amber-500" />, subText: "On the road", trend: "Tracking", variant: "warning" as const },
   ];
 
   // Derive unique companies and clients for filter dropdowns
   const uniqueCompanies = Array.from(new Set(
-    bookings.map(b => (b.clientId as any)?.company?.companyName).filter(Boolean)
+    pageBookings.map(b => (b.clientId as any)?.company?.companyName).filter(Boolean)
   )) as string[];
 
   const uniqueClients = Array.from(new Set(
-    bookings.map(b => (b.clientId as any)?.name).filter(Boolean)
+    pageBookings.map(b => (b.clientId as any)?.name).filter(Boolean)
   )) as string[];
 
-  const filteredBookings = bookings.filter(b => {
-    // Job leaves this page only once the trip is completed (assigned/in-progress still show)
-    const ts = (b.tripStatus || "").toLowerCase();
-    const hasNewJob = (b.timeline || []).some((e: any) => e.title === "New Job Assigned");
-    const isCompleted = ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob);
-    if (isCompleted) return false;
+  const filteredBookings = pageBookings.filter(b => {
     const pickupCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "";
     const dropoffCity = b.dropoffLocations?.[0]?.address?.city || b.dropoff?.address?.city || "";
     const matchesSearch =
@@ -187,10 +198,8 @@ export default function AdminOperations() {
       key: "companyName",
       render: (val: string, row: any) => (
         <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <span className="px-1.5 py-0.5 rounded bg-slate-900 text-white text-[8px] font-bold uppercase tracking-wider">{val}</span>
-          </div>
-          <span className="text-[11px] font-bold text-slate-700 ml-0.5 capitalize">{row.clientName}</span>
+          <span className="text-[13px] font-bold text-slate-900">{val}</span>
+          <span className="text-[10px] font-medium text-slate-400 ml-0.5 capitalize">{row.clientName}</span>
         </div>
       )
     },

@@ -75,10 +75,26 @@ export default function AdminAccountant() {
   const [assignments, setAssignments] = useState<any[]>([]);
   const [settlements, setSettlements] = useState<any[]>([]);
 
+  // Job leaves this ledger only once the trip is completed (approved/in-progress still show)
+  const isCompleted = (b: any): boolean => {
+    const ts = (b.tripStatus || "").toLowerCase();
+    const hasNewJob = (b.timeline || []).some((e: any) => e.title === "New Job Assigned");
+    return ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob);
+  };
+
+  // The page's working set — cards count from this same set so they always
+  // match what the table can show.
+  const pageBookings = bookings.filter(b => !isCompleted(b));
+
+  const settledBookingIds = new Set(
+    settlements.map((s: any) => (s.bookingId?._id || s.bookingId)?.toString())
+  );
+  const isApprovedBooking = (b: any): boolean => settledBookingIds.has(b._id.toString());
+
   const kpis = [
     {
       label: "Total Ledger",
-      value: bookings.length.toString(),
+      value: pageBookings.length.toString(),
       icon: <Wallet className="w-5 h-5 text-emerald-600" />,
       subText: "Finalized bookings",
       trend: "Live",
@@ -86,7 +102,7 @@ export default function AdminAccountant() {
     },
     {
       label: "Pending Settlement",
-      value: (bookings.length - settlements.length).toString(),
+      value: pageBookings.filter(b => !isApprovedBooking(b)).length.toString(),
       icon: <Clock className="w-5 h-5 text-amber-500" />,
       subText: "Awaiting payments",
       trend: "Action Required",
@@ -94,7 +110,9 @@ export default function AdminAccountant() {
     },
     {
       label: "Assigned Trips",
-      value: assignments.length.toString(),
+      value: pageBookings.filter(b =>
+        assignments.some(a => (a.bookingId?._id || a.bookingId) === b._id)
+      ).length.toString(),
       icon: <Truck className="w-5 h-5 text-primary" />,
       subText: "Units allocated",
       trend: "Active",
@@ -102,7 +120,7 @@ export default function AdminAccountant() {
     },
     {
       label: "Approved Trips",
-      value: settlements.length.toString(),
+      value: pageBookings.filter(isApprovedBooking).length.toString(),
       icon: <CheckCircle2 className="w-5 h-5 text-emerald-500" />,
       subText: "Verified Ledger",
       trend: "Live",
@@ -112,19 +130,14 @@ export default function AdminAccountant() {
 
   // Derive unique companies and clients for filter dropdowns
   const uniqueCompanies = Array.from(new Set(
-    bookings.map(b => (b.clientId as any)?.company?.companyName).filter(Boolean)
+    pageBookings.map(b => (b.clientId as any)?.company?.companyName).filter(Boolean)
   )) as string[];
 
   const uniqueClients = Array.from(new Set(
-    bookings.map(b => (b.clientId as any)?.name).filter(Boolean)
+    pageBookings.map(b => (b.clientId as any)?.name).filter(Boolean)
   )) as string[];
 
-  const filteredBookings = bookings.filter(b => {
-    // Job leaves this ledger only once the trip is completed (approved/in-progress still show)
-    const ts = (b.tripStatus || "").toLowerCase();
-    const hasNewJob = (b.timeline || []).some((e: any) => e.title === "New Job Assigned");
-    const isCompleted = ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob);
-    if (isCompleted) return false;
+  const filteredBookings = pageBookings.filter(b => {
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -136,13 +149,9 @@ export default function AdminAccountant() {
     return matchesSearch && matchesCompany && matchesClient;
   });
 
-  const settledBookingIds = new Set(
-    settlements.map((s: any) => (s.bookingId?._id || s.bookingId)?.toString())
-  );
-
   const tableData = filteredBookings.map(b => {
     const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
-    const isApproved = settledBookingIds.has(b._id.toString());
+    const isApproved = isApprovedBooking(b);
     const routeStops = [
       ...(b.pickupLocations?.length ? b.pickupLocations : b.pickup ? [b.pickup] : []).map((l: any) => l.address?.city).filter(Boolean),
       ...(b.dropoffLocations?.length ? b.dropoffLocations : b.dropoff ? [b.dropoff] : []).map((l: any) => l.address?.city).filter(Boolean),
@@ -167,10 +176,8 @@ export default function AdminAccountant() {
       key: "companyName",
       render: (val: string, row: any) => (
         <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <span className="px-1.5 py-0.5 rounded bg-emerald-600 text-white text-[7.5px] font-bold uppercase tracking-wider">{val}</span>
-          </div>
-          <span className="text-[11px] font-bold text-slate-700 ml-0.5">{row.clientName}</span>
+          <span className="text-[13px] font-bold text-slate-900">{val}</span>
+          <span className="text-[10px] font-medium text-slate-400 ml-0.5">{row.clientName}</span>
         </div>
       )
     },

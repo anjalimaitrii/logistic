@@ -7,7 +7,6 @@ import CommonTable from "@/components/admin/CommonTable";
 import {
   Package,
   Clock,
-  CheckSquare,
   Truck,
   ChevronRight,
   Eye,
@@ -132,16 +131,28 @@ export default function AdminJobsPage() {
     return 'bg-blue-50 text-blue-500 border-blue-100';
   };
 
+  // Phase of each approved job: notStarted (before start) · active (start→returning) · completed
+  const phaseOf = (b: any): "notStarted" | "active" | "completed" => {
+    const ts = (b?.tripStatus || "").toLowerCase();
+    const hasNewJob = (b?.timeline || []).some((e: any) => e.title === "New Job Assigned");
+    if (ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob)) return "completed";
+    return ts && ts !== "pending" ? "active" : "notStarted";
+  };
+
+  // Completed jobs leave this page entirely — table, cards and filters all
+  // count from this same set.
+  const pageBookings = bookings.filter(b => phaseOf(b) !== "completed");
+
   // Derive unique companies and clients for filter dropdowns
   const uniqueCompanies = Array.from(new Set(
-    bookings.map(b => (b.clientId as any)?.company?.companyName).filter(Boolean)
+    pageBookings.map(b => (b.clientId as any)?.company?.companyName).filter(Boolean)
   )) as string[];
 
   const uniqueClients = Array.from(new Set(
-    bookings.map(b => (b.clientId as any)?.name).filter(Boolean)
+    pageBookings.map(b => (b.clientId as any)?.name).filter(Boolean)
   )) as string[];
 
-  const filteredBookings = bookings.filter(b => {
+  const filteredBookings = pageBookings.filter(b => {
     const pickupCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "";
     const dropoffCity = b.dropoffLocations?.[b.dropoffLocations?.length - 1]?.address?.city || b.dropoff?.address?.city || "";
     const matchesSearch =
@@ -216,10 +227,8 @@ export default function AdminJobsPage() {
       key: "client",
       render: (val: string, row: any) => (
         <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <span className="px-1.5 py-0.5 rounded bg-slate-900 text-white text-[7.5px] font-bold uppercase tracking-wider">{row.companyName}</span>
-          </div>
-          <span className="text-[12px] font-bold text-slate-700">{val}</span>
+          <span className="text-[13px] font-bold text-slate-900">{row.companyName}</span>
+          <span className="text-[10px] font-medium text-slate-400">{val}</span>
         </div>
       )
     },
@@ -294,16 +303,8 @@ export default function AdminJobsPage() {
     }
   ];
 
-  // Phase of each approved job: notStarted (before start) · active (start→returning) · completed
-  const phaseOf = (b: any): "notStarted" | "active" | "completed" => {
-    const ts = (b?.tripStatus || "").toLowerCase();
-    const hasNewJob = (b?.timeline || []).some((e: any) => e.title === "New Job Assigned");
-    if (ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob)) return "completed";
-    return ts && ts !== "pending" ? "active" : "notStarted";
-  };
-  const notStartedCount = bookings.filter(b => phaseOf(b) === "notStarted").length;
-  const activeCount     = bookings.filter(b => phaseOf(b) === "active").length;
-  const completedCount  = bookings.filter(b => phaseOf(b) === "completed").length;
+  const notStartedCount = pageBookings.filter(b => phaseOf(b) === "notStarted").length;
+  const activeCount     = pageBookings.filter(b => phaseOf(b) === "active").length;
 
   const kpis = [
     {
@@ -323,18 +324,10 @@ export default function AdminJobsPage() {
       variant: "primary" as const
     },
     {
-      label: "COMPLETED",
-      value: completedCount.toString(),
-      icon: <CheckSquare className="w-5 h-5 text-emerald-500" />,
-      subText: "Trips delivered",
-      trend: "Done",
-      variant: "success" as const
-    },
-    {
       label: "TOTAL JOBS",
-      value: bookings.length.toString(),
+      value: pageBookings.length.toString(),
       icon: <Package className="w-5 h-5 text-indigo-500" />,
-      subText: "All approved jobs",
+      subText: "Queue + in progress",
       trend: "Overall",
       variant: "indigo" as const
     },
@@ -355,7 +348,7 @@ export default function AdminJobsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {kpis.map((kpi, i) => (
             <div key={i} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:border-primary/20 transition-all">
               <div className="flex items-start justify-between">
@@ -363,8 +356,7 @@ export default function AdminJobsPage() {
                   <div className="flex items-center gap-2">
                     <span className="text-[24px] font-bold text-slate-900">{kpi.value}</span>
                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${kpi.variant === 'primary' ? 'bg-emerald-50 text-emerald-500' :
-                      kpi.variant === 'warning' ? 'bg-amber-50 text-amber-500' :
-                        kpi.variant === 'success' ? 'bg-blue-50 text-blue-500' : 'bg-emerald-50 text-emerald-500'
+                      kpi.variant === 'warning' ? 'bg-amber-50 text-amber-500' : 'bg-emerald-50 text-emerald-500'
                       }`}>
                       {kpi.trend}
                     </span>
