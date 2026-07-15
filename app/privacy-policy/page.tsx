@@ -6,8 +6,7 @@ import { ArrowLeft, ShieldCheck, MapPin, Camera, User, Trash2, Mail } from "luci
 const NAVY = "#1B2340";
 const RED = "#E11D2A";
 
-// <<< UPDATE with Piyush's email >>>
-const SUPPORT_EMAIL = "piyush@maitriiinfotech.com";
+const SUPPORT_EMAIL = "goyalpiyush7@gmail.com";
 const APP_NAME = "Speedogistic Driver";
 const LAST_UPDATED = "14 July 2026";
 

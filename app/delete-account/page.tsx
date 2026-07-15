@@ -6,8 +6,8 @@ import { ArrowLeft, Trash2, ShieldCheck, Mail } from "lucide-react";
 const NAVY = "#1B2340";
 const RED = "#E11D2A";
 
-// Where deletion requests are received. <<< UPDATE with Piyush's email >>>
-const SUPPORT_EMAIL = "piyush@maitriiinfotech.com";
+// Where deletion requests are received.
+const SUPPORT_EMAIL = "goyalpiyush7@gmail.com";
 const APP_NAME = "Speedogistic Driver";
 
 export default function DeleteAccountPage() {
