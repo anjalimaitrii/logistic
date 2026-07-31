@@ -267,13 +267,13 @@ export default function JobDetailReport() {
   }, [booking, assignment, settlement, newId]);
 
   const financialSummary = useMemo(() => {
-    const tollAmount = booking?.tollAmount || 0;
-    if (!settlement) return { fuelTotal: 0, otherLogs: 0, totalCost: 0, allocationMoney: 0, councilLevy: 0, tollAmount, remainingProfit: 0 };
+    if (!settlement) return { fuelTotal: 0, otherLogs: 0, totalCost: 0, allocationMoney: 0, councilLevy: 0, tollAmount: 0, remainingProfit: 0 };
 
     const fuelTotal = settlement.financials?.fuelTotal || 0;
     const otherLogs = (settlement.expenses || []).reduce((sum: number, exp: any) => sum + (exp.amount || 0), 0);
     const allocationMoney = settlement.financials?.cashAllocation || 0;
     const councilLevy = settlement.financials?.councilLevy || 0;
+    const tollAmount = settlement.financials?.tollAmount || 0;
     const totalCost = fuelTotal + otherLogs + allocationMoney + councilLevy;
 
     return {
