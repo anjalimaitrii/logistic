@@ -7,6 +7,7 @@ import { ChevronRight, Eye, Plus, X, Building2, Mail, Phone, User, MapPin, Credi
 import { companyService } from "@/services/companyService";
 import { clientService } from "@/services/clientService";
 import LedgerDrawer from "@/components/admin/LedgerDrawer";
+import { getAdminAccountType, type AdminAccountType } from "@/lib/adminRole";
 
 interface Client {
   id: string;
@@ -43,8 +44,11 @@ export default function AdminClients() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formStep, setFormStep] = useState(1);
 
-  // Ledger State
+  // Ledger State — ledger is admin-only, employees never see it
   const [ledgerTarget, setLedgerTarget] = useState<{ id: string; name: string; type: "company" | "client" } | null>(null);
+  const [accountType, setAccountType] = useState<AdminAccountType>("admin");
+  useEffect(() => { setAccountType(getAdminAccountType()); }, []);
+  const canViewLedger = accountType !== "employee";
 
   // Relationship State
   const [targetCompanyForForm, setTargetCompanyForForm] = useState<any>(null);
@@ -393,23 +397,27 @@ export default function AdminClients() {
                           <Eye className="w-3 h-3" />
                           View Details
                         </button>
+                        {canViewLedger && (
+                          <button
+                            onClick={() => setLedgerTarget({ id: item._id, name: item.companyName || item.name, type: "company" })}
+                            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all cursor-pointer"
+                            title="View Ledger"
+                          >
+                            <BookOpen className="w-3 h-3" />
+                            Ledger
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      canViewLedger && (
                         <button
-                          onClick={() => setLedgerTarget({ id: item._id, name: item.companyName || item.name, type: "company" })}
+                          onClick={() => setLedgerTarget({ id: item._id, name: item.name, type: "client" })}
                           className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all cursor-pointer"
-                          title="View Ledger"
                         >
                           <BookOpen className="w-3 h-3" />
                           Ledger
                         </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => setLedgerTarget({ id: item._id, name: item.name, type: "client" })}
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-[10px] font-bold uppercase tracking-wider hover:bg-amber-100 transition-all cursor-pointer"
-                      >
-                        <BookOpen className="w-3 h-3" />
-                        Ledger
-                      </button>
+                      )
                     )}
                   </div>
                 </div>

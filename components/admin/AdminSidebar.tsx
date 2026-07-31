@@ -147,11 +147,11 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
     },
   ];
 
-  // Tabs an employee account never sees
-  const employeeHiddenLabels = ["Booking Requests", "Route Master", "Completed Jobs"];
-  const visibleNavItems = navItems.filter(
-    (item) => !(accountType === "employee" && employeeHiddenLabels.includes(item.label))
-  );
+  // Tabs an employee account never sees (applies to both Main and Operations groups)
+  const employeeHiddenLabels = ["Booking Requests", "Route Master", "Completed Jobs", "Reports"];
+  const hideForEmployee = (item: NavItem) =>
+    accountType === "employee" && employeeHiddenLabels.includes(item.label);
+  const visibleNavItems = navItems.filter((item) => !hideForEmployee(item));
 
   const operationsItems: NavItem[] = [
     {
@@ -188,6 +188,8 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
       ),
     },
   ];
+
+  const visibleOperationsItems = operationsItems.filter((item) => !hideForEmployee(item));
 
   return (
     <motion.aside
@@ -285,7 +287,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
           );
         })}
 
-        {isExpanded && (
+        {isExpanded && visibleOperationsItems.length > 0 && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -294,7 +296,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
             Operations
           </motion.div>
         )}
-        {operationsItems.map((item) => (
+        {visibleOperationsItems.map((item) => (
           <Link
             key={item.label}
             href={item.href}
