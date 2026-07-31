@@ -45,6 +45,7 @@ export default function Home() {
         localStorage.setItem('token', adminRes.token);
         localStorage.setItem('adminName', adminRes.name || 'Admin');
         localStorage.setItem('adminEmail', adminRes.email || identifier);
+        localStorage.setItem('adminAccountType', adminRes.accountType === 'employee' ? 'employee' : 'admin');
         localStorage.removeItem('user');
         router.push("/admin/dashboard");
         return;

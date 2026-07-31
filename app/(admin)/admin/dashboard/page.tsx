@@ -6,6 +6,7 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
 import CreateJobModal from "@/components/admin/CreateJobModal";
+import CreateBookingDrawer from "@/components/admin/CreateBookingDrawer";
 import { ChevronRight, Eye, Check, X, MessageSquare, Package } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { fetchLiveVehicles, getVehicleStatus, cleanDriverName } from "@/services/liveTrackingService";
@@ -26,6 +27,7 @@ const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniM
 export default function AdminDashboard() {
 
    const [isCreateJobOpen, setCreateJobOpen] = useState(false);
+   const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
    const [bookings, setBookings] = useState<any[]>([]);
    const [isLoading, setIsLoading] = useState(true);
    const [assignments, setAssignments] = useState<any[]>([]);
@@ -228,16 +230,25 @@ export default function AdminDashboard() {
       <AdminLayout>
          <div className="p-4 md:p-6 pb-20 space-y-6 max-w-[1400px] mx-auto">
             {/* Header */}
-            <div>
-               <div className="flex items-center gap-1.5 text-[9px] text-neutral-400 mb-1 font-medium uppercase tracking-widest">
-                  <span>Speedogistic</span>
-                  <ChevronRight className="w-2.5 h-2.5" />
-                  <span className="text-primary">Dashboard</span>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+               <div>
+                  <div className="flex items-center gap-1.5 text-[9px] text-neutral-400 mb-1 font-medium uppercase tracking-widest">
+                     <span>Speedogistic</span>
+                     <ChevronRight className="w-2.5 h-2.5" />
+                     <span className="text-primary">Dashboard</span>
+                  </div>
+                  <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Fleet Overview</h1>
+                  <p className="text-[11px] text-neutral-400 mt-0.5">
+                     {new Date().toLocaleDateString("en", { month: "long", year: "numeric", timeZone: "Africa/Lusaka" })} · Global Logistics Hub · {fleetCounts.total > 0 ? `${fleetCounts.total} trucks` : "loading fleet…"}
+                  </p>
                </div>
-               <h1 className="text-lg md:text-xl font-semibold tracking-tight text-slate-900">Fleet Overview</h1>
-               <p className="text-[11px] text-neutral-400 mt-0.5">
-                  {new Date().toLocaleDateString("en", { month: "long", year: "numeric", timeZone: "Africa/Lusaka" })} · Global Logistics Hub · {fleetCounts.total > 0 ? `${fleetCounts.total} trucks` : "loading fleet…"}
-               </p>
+
+               <button
+                  onClick={() => setIsCreateDrawerOpen(true)}
+                  className="bg-slate-900 text-white px-6 py-2.5 rounded-lg font-bold text-[10px] uppercase tracking-[0.2em] shadow-lg shadow-slate-200 hover:brightness-110 transition-all w-fit"
+               >
+                  ＋ NEW BOOKING
+               </button>
             </div>
 
             {/* KPI Grid */}
@@ -367,6 +378,12 @@ export default function AdminDashboard() {
                status: "Active" as any,
             } : null}
             onFinalize={() => setIsChatOpen(false)}
+         />
+
+         <CreateBookingDrawer
+            isOpen={isCreateDrawerOpen}
+            onClose={() => setIsCreateDrawerOpen(false)}
+            onSubmit={() => loadData()}
          />
       </AdminLayout >
    );

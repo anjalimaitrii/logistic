@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import PinModal from "./PinModal";
 import { useNotifications } from "@/context/NotificationContext";
+import { getAdminAccountType, type AdminAccountType } from "@/lib/adminRole";
 
 interface AdminTopbarProps {
   onToggleSidebar: () => void;
@@ -23,7 +24,11 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
 
   // Logged-in admin name (set at login) — falls back to "Admin"
   const [adminName, setAdminName] = useState("Admin");
-  useEffect(() => { setAdminName(localStorage.getItem("adminName") || "Admin"); }, []);
+  const [accountType, setAccountType] = useState<AdminAccountType>("admin");
+  useEffect(() => {
+    setAdminName(localStorage.getItem("adminName") || "Admin");
+    setAccountType(getAdminAccountType());
+  }, []);
   const initials = adminName.split(" ").map((n) => n[0]).filter(Boolean).join("").slice(0, 2).toUpperCase() || "AD";
 
   // Close profile menu on outside click
@@ -43,6 +48,7 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
     localStorage.removeItem('user');
     localStorage.removeItem('adminName');
     localStorage.removeItem('adminEmail');
+    localStorage.removeItem('adminAccountType');
     setShowProfileMenu(false);
     router.push("/");
   };
@@ -116,18 +122,20 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
         <div className="h-6 w-px bg-neutral-100" />
 
         <div className="flex items-center gap-2">
-          <span 
-            className={`${
-              isSecretMode 
-                ? "bg-indigo-600 text-white border-indigo-600" 
-                : "bg-primary/10 text-primary border-primary/20"
-            } border text-[10px] font-extrabold px-2.5 py-1 rounded-full tracking-widest uppercase transition-all select-none ${
-              !isSecretMode ? "cursor-pointer hover:bg-primary/20 active:scale-95" : ""
-            }`}
-            onClick={handleAdminBadgeClick}
-          >
-            {isSecretMode ? "master" : "admin"}
-          </span>
+          {accountType !== "employee" && (
+            <span
+              className={`${
+                isSecretMode
+                  ? "bg-indigo-600 text-white border-indigo-600"
+                  : "bg-primary/10 text-primary border-primary/20"
+              } border text-[10px] font-extrabold px-2.5 py-1 rounded-full tracking-widest uppercase transition-all select-none ${
+                !isSecretMode ? "cursor-pointer hover:bg-primary/20 active:scale-95" : ""
+              }`}
+              onClick={handleAdminBadgeClick}
+            >
+              {isSecretMode ? "master" : "admin"}
+            </span>
+          )}
 
           {/* Profile Avatar + Dropdown */}
           <div className="relative" ref={profileMenuRef}>

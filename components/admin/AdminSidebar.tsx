@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
+import { getAdminAccountType, type AdminAccountType } from "@/lib/adminRole";
 
 interface NavItem {
   label: string;
@@ -24,7 +25,11 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
 
   // Logged-in admin name (set at login)
   const [adminName, setAdminName] = useState("Admin");
-  useEffect(() => { setAdminName(localStorage.getItem("adminName") || "Admin"); }, []);
+  const [accountType, setAccountType] = useState<AdminAccountType>("admin");
+  useEffect(() => {
+    setAdminName(localStorage.getItem("adminName") || "Admin");
+    setAccountType(getAdminAccountType());
+  }, []);
   const initials = adminName.split(" ").map((n) => n[0]).filter(Boolean).join("").slice(0, 2).toUpperCase() || "AD";
 
   const navItems: NavItem[] = [
@@ -142,6 +147,12 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
     },
   ];
 
+  // Tabs an employee account never sees
+  const employeeHiddenLabels = ["Booking Requests", "Route Master", "Completed Jobs"];
+  const visibleNavItems = navItems.filter(
+    (item) => !(accountType === "employee" && employeeHiddenLabels.includes(item.label))
+  );
+
   const operationsItems: NavItem[] = [
     {
       label: "Reports",
@@ -220,7 +231,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
             Main
           </motion.div>
         )}
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const isActive = pathname === item.href;
           return (
             <Link
