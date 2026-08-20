@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Eye,
   Edit2,
-  Search
+  Search,
+  RotateCcw
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
@@ -20,6 +21,7 @@ import { completionService } from "@/services/completionService";
 import { cleanDriverName } from "@/services/liveTrackingService";
 import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
+import { isTripCompleted } from "@/lib/tripCompletion";
 
 export default function AdminJobsPage() {
   const router = useRouter();
@@ -32,6 +34,8 @@ export default function AdminJobsPage() {
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
   const [gpsStatusMap, setGpsStatusMap] = useState<Record<string, string>>({});
+  // Booking currently being marked as returning, so its button can show progress.
+  const [returningId, setReturningId] = useState<string | null>(null);
   // bookingId → new completion id (inv-001 / cash-001) shown once the trip completes
   const [newIdByBooking, setNewIdByBooking] = useState<Record<string, string>>({});
 
@@ -67,7 +71,9 @@ export default function AdminJobsPage() {
 
       // Only jobs that have been approved by accountant (settlement exists)
       const approvedBookingIds = new Set(
-        settlements.map((s: any) => (s.bookingId?._id || s.bookingId)?.toString())
+        settlements
+          .filter((s: any) => s.status === "Approved")
+          .map((s: any) => (s.bookingId?._id || s.bookingId)?.toString())
       );
 
       const visibleJobs = (bookingsData || []).filter((b: any) => {
@@ -134,8 +140,7 @@ export default function AdminJobsPage() {
   // Phase of each approved job: notStarted (before start) · active (start→returning) · completed
   const phaseOf = (b: any): "notStarted" | "active" | "completed" => {
     const ts = (b?.tripStatus || "").toLowerCase();
-    const hasNewJob = (b?.timeline || []).some((e: any) => e.title === "New Job Assigned");
-    if (ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob)) return "completed";
+    if (isTripCompleted(b)) return "completed";
     return ts && ts !== "pending" ? "active" : "notStarted";
   };
 
@@ -175,12 +180,10 @@ export default function AdminJobsPage() {
     const truckNo = String(assignment?.truckNumber || "").toUpperCase();
     const gpsStatus = truckNo ? (gpsStatusMap[truckNo] || null) : null;
     const tripStatus = (b?.tripStatus || b?.status || "").toLowerCase();
-    // A returning trip with a "New Job Assigned" marker is effectively done —
-    // the driver was reassigned, so the return leg concluded.
-    const hasNewJob = (b?.timeline || []).some((e: any) => e.title === "New Job Assigned");
-    const reassigned = hasNewJob && tripStatus === "returning";
-    const effectiveStatus = reassigned ? "completed" : (b?.tripStatus || b?.status);
-    const isComplete = effectiveStatus?.toLowerCase() === "delivered" || effectiveStatus?.toLowerCase() === "completed";
+    // A reassigned trip is NOT done — it is driving the empty leg to the next
+    // job's pickup, and it completes on arrival there.
+    const effectiveStatus = b?.tripStatus || b?.status;
+    const isComplete = isTripCompleted(b) || effectiveStatus?.toLowerCase() === "delivered";
     return {
       id: newIdByBooking[b?._id] || b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
       client: (b?.clientId as any)?.name || "Direct Client",
@@ -196,6 +199,30 @@ export default function AdminJobsPage() {
 
   // Only in-progress trips show here: approved → returning, never completed.
   const displayedData = jobsData.filter(j => !j.isComplete);
+
+  // Offered once the cargo is off and the trip has not already been diverted to
+  // another job's pickup — a diverted trip is not going back to the yard.
+  const canMarkReturning = (b: any): boolean => {
+    const ts = (b?.tripStatus || "").trim().toLowerCase();
+    if (b?.lastPoint?.source === "reassignment") return false;
+    return ts.startsWith("offloading");
+  };
+
+  const handleMarkReturning = async (b: any) => {
+    const bookingId = b?._id || b?.id;
+    if (!bookingId) return;
+    if (!confirm("Mark this truck as returning to the yard?")) return;
+    try {
+      setReturningId(bookingId);
+      await bookingService.updateTripStatus(bookingId, "returning");
+      await loadBookings();
+    } catch (error) {
+      console.error("Failed to mark returning:", error);
+      alert("Could not mark the trip as returning.");
+    } finally {
+      setReturningId(null);
+    }
+  };
 
   const columns = [
     {
@@ -278,6 +305,26 @@ export default function AdminJobsPage() {
       align: "center" as const,
       render: (_: any, row: any) => (
         <div className="flex gap-2 justify-center">
+          {/* Returning is not a step in the trip's status flow — at offloading
+              time nobody knows whether the truck heads home or gets a new job.
+              It is this button instead, offered only once the cargo is off and
+              only while the trip has not already been given a next job. */}
+          {canMarkReturning(row.raw) && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleMarkReturning(row.raw);
+              }}
+              disabled={returningId === (row.raw._id || row.raw.id)}
+              className="px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-all flex items-center gap-1.5"
+              title="Truck is heading back to the yard"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold uppercase tracking-widest">
+                {returningId === (row.raw._id || row.raw.id) ? "…" : "Return"}
+              </span>
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();

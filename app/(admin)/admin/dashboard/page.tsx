@@ -14,6 +14,7 @@ import { assignmentService } from "@/services/assignmentService";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
 import { formatDate } from "@/lib/datetime";
 import { canChatForTrip } from "@/lib/chatAvailability";
+import { isTripCompleted } from "@/lib/tripCompletion";
 
 const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniMap"), {
   ssr: false,
@@ -82,8 +83,7 @@ export default function AdminDashboard() {
       const s = (b?.status || "").toLowerCase();
       if (["cancelled", "rejected"].includes(s)) return "dropped";
       const ts = (b?.tripStatus || "").toLowerCase();
-      const hasNewJob = (b?.timeline || []).some((e: any) => e.title === "New Job Assigned");
-      if (ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob)) return "completed";
+      if (isTripCompleted(b)) return "completed";
       return ts && ts !== "pending" ? "active" : "notStarted";
    };
 

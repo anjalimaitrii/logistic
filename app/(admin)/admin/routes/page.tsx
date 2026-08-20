@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import { routeService, RouteEntry } from "@/services/routeService";
 import { mileageService, MileageConfig } from "@/services/mileageService";
-import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES } from "@/lib/africaLocations";
+import { warehouseService, WarehouseConfig } from "@/services/warehouseService";
+import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES, CITY_TO_STATE } from "@/lib/africaLocations";
 import {
   Plus, MapPin, Ruler, Landmark, Wallet, Receipt,
   Pencil, Trash2, X, ChevronRight, CheckCircle2, ArrowRight, Gauge,
@@ -41,9 +42,25 @@ export default function RoutesMasterPage() {
   const [mileage, setMileage] = useState<MileageConfig>({ loadedMileage: 0, unloadedMileage: 0 });
   const [isSavingMileage, setIsSavingMileage] = useState(false);
 
+  // Global base yard — the X that every trip dispatches from and returns to.
+  const [warehouseModal, setWarehouseModal] = useState(false);
+  const [warehouse, setWarehouse] = useState<WarehouseConfig>({ street: "", city: "", province: "", country: "" });
+  const [isSavingWarehouse, setIsSavingWarehouse] = useState(false);
+
   useEffect(() => {
     load();
     mileageService.get().then(setMileage).catch(() => {});
+    // Snap a previously free-typed warehouse ("lusaka" / "zambia") onto the
+    // canonical spelling, so the dropdowns open with it already selected instead
+    // of looking empty — and so the next save writes the canonical value.
+    warehouseService.get().then((w) => {
+      const eq = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+      const country = AFRICAN_COUNTRIES.find((c) => eq(c, w.country || "")) || w.country || "";
+      const city = (AFRICAN_CITIES[country] || []).find((c) => eq(c, w.city || "")) || w.city || "";
+      const province =
+        (AFRICAN_STATES[country] || []).find((s) => eq(s, w.province || "")) || w.province || "";
+      setWarehouse({ ...w, country, city, province });
+    }).catch(() => {});
   }, []);
 
   const handleSaveMileage = async () => {
@@ -54,6 +71,16 @@ export default function RoutesMasterPage() {
       setMileageModal(false);
     } catch { alert("Failed to save mileage."); }
     finally { setIsSavingMileage(false); }
+  };
+
+  const handleSaveWarehouse = async () => {
+    setIsSavingWarehouse(true);
+    try {
+      const saved = await warehouseService.save(warehouse);
+      setWarehouse(saved);
+      setWarehouseModal(false);
+    } catch { alert("Failed to save warehouse."); }
+    finally { setIsSavingWarehouse(false); }
   };
 
   const load = async () => {
@@ -135,6 +162,15 @@ export default function RoutesMasterPage() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setWarehouseModal(true)}
+              className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-slate-50 active:scale-[0.98] transition-all shadow-sm"
+            >
+              <MapPin className="w-4 h-4 text-violet-500" />
+              {warehouse.city
+                ? `${warehouse.city}${warehouse.country ? `, ${warehouse.country}` : ""}`
+                : "Set Warehouse"}
+            </button>
             <button
               onClick={() => setMileageModal(true)}
               className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-[11px] font-bold uppercase tracking-widest hover:bg-slate-50 active:scale-[0.98] transition-all shadow-sm"
@@ -548,6 +584,104 @@ export default function RoutesMasterPage() {
               >
                 <CheckCircle2 className="w-4 h-4" />
                 {isSavingMileage ? "Saving..." : "Save Mileage"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Warehouse Modal ────────────────────────────────────────────────────── */}
+      {warehouseModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={() => setWarehouseModal(false)} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm">
+            <div className="px-6 pt-6 pb-4 border-b border-neutral-100 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-violet-50 border border-violet-100 flex items-center justify-center">
+                  <MapPin className="w-4 h-4 text-violet-600" />
+                </div>
+                <div>
+                  <h2 className="text-[15px] font-bold text-slate-900">Warehouse / Base Yard</h2>
+                  <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-widest">Global — every trip starts and ends here</p>
+                </div>
+              </div>
+              <button onClick={() => setWarehouseModal(false)} className="p-2 rounded-xl hover:bg-neutral-50 text-neutral-400">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <p className="text-[10px] text-neutral-500 leading-relaxed bg-violet-50/50 border border-violet-100 rounded-xl px-3 py-2.5">
+                The accountant sees this as the start of every dispatch leg and the end of every
+                return leg. Distances are still entered by hand — this is the place name only.
+              </p>
+              {/* Dropdowns, not free text. The accountant screen matches empty-leg
+                  endpoints against this city, and a hand-typed "lusaka" would not
+                  line up with the "Lusaka" those pickers offer. */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Country</label>
+                <select
+                  value={warehouse.country}
+                  onChange={e => setWarehouse(w => ({ ...w, country: e.target.value, province: "", city: "" }))}
+                  className={selectCls}
+                >
+                  <option value="">Select country…</option>
+                  {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-violet-600 uppercase tracking-widest flex items-center gap-1.5">
+                  <MapPin className="w-3.5 h-3.5" /> City
+                </label>
+                <select
+                  value={warehouse.city}
+                  onChange={e => {
+                    const city = e.target.value;
+                    const autoProvince = warehouse.country ? (CITY_TO_STATE[warehouse.country]?.[city] || "") : "";
+                    setWarehouse(w => ({ ...w, city, province: autoProvince || w.province }));
+                  }}
+                  disabled={!warehouse.country}
+                  className={selectCls}
+                >
+                  <option value="">Select city…</option>
+                  {(AFRICAN_CITIES[warehouse.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Province</label>
+                <select
+                  value={warehouse.province}
+                  onChange={e => setWarehouse(w => ({ ...w, province: e.target.value }))}
+                  disabled={!warehouse.country}
+                  className={selectCls}
+                >
+                  <option value="">Select province…</option>
+                  {(AFRICAN_STATES[warehouse.country] || []).map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Street (optional)</label>
+                <input
+                  type="text"
+                  value={warehouse.street}
+                  onChange={e => setWarehouse(w => ({ ...w, street: e.target.value }))}
+                  placeholder="e.g. Plot 42, Great East Road"
+                  className={inputCls}
+                />
+              </div>
+            </div>
+
+            <div className="px-6 pb-6 pt-2 flex gap-3">
+              <button onClick={() => setWarehouseModal(false)} className="flex-1 py-3 border border-neutral-100 rounded-2xl text-[11px] font-bold text-neutral-400 uppercase tracking-widest hover:bg-neutral-50">
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveWarehouse}
+                disabled={isSavingWarehouse}
+                className="flex-1 py-3 bg-slate-900 text-white rounded-2xl text-[11px] font-bold uppercase tracking-widest hover:bg-slate-800 active:scale-[0.98] disabled:opacity-60 flex items-center justify-center gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                {isSavingWarehouse ? "Saving..." : "Save Warehouse"}
               </button>
             </div>
           </div>

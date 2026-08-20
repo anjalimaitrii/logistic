@@ -19,6 +19,8 @@ import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { cleanDriverName } from "@/services/liveTrackingService";
 import { settlementService } from "@/services/settlementService";
+import { isTripCompleted } from "@/lib/tripCompletion";
+import { tripGapService } from "@/services/tripGapService";
 
 export default function AdminAccountant() {
   const router = useRouter();
@@ -35,11 +37,20 @@ export default function AdminAccountant() {
   const loadBookings = async () => {
     try {
       setIsLoading(true);
-      const [bookingsData, assignmentsData, settlementsData] = await Promise.all([
+      const [bookingsData, assignmentsData, settlementsData, gapList] = await Promise.all([
         bookingService.getAll(),
         assignmentService.getAll(),
-        settlementService.getAll().catch(() => [])
+        settlementService.getAll().catch(() => []),
+        // One request for every unattributed gap, rather than one per row.
+        tripGapService.unattributed().catch(() => [])
       ]);
+
+      setGapBookingIds(new Set(
+        (gapList || []).flatMap((g: any) => [
+          String(g.prevBookingId?._id || g.prevBookingId),
+          String(g.nextBookingId?._id || g.nextBookingId),
+        ])
+      ));
 
       const assignments = assignmentsData || [];
       const settlements = settlementsData || [];
@@ -74,20 +85,19 @@ export default function AdminAccountant() {
 
   const [assignments, setAssignments] = useState<any[]>([]);
   const [settlements, setSettlements] = useState<any[]>([]);
-
-  // Job leaves this ledger only once the trip is completed (approved/in-progress still show)
-  const isCompleted = (b: any): boolean => {
-    const ts = (b.tripStatus || "").toLowerCase();
-    const hasNewJob = (b.timeline || []).some((e: any) => e.title === "New Job Assigned");
-    return ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob);
-  };
+  // Bookings sitting on either side of an unattributed empty leg.
+  const [gapBookingIds, setGapBookingIds] = useState<Set<string>>(new Set());
 
   // The page's working set — cards count from this same set so they always
-  // match what the table can show.
-  const pageBookings = bookings.filter(b => !isCompleted(b));
+  // match what the table can show. Completion is read from tripStatus alone: a
+  // trip with a queued next job is still running, and it is precisely the trip
+  // whose settlement needs its empty legs filled in.
+  const pageBookings = bookings.filter(b => !isTripCompleted(b));
 
   const settledBookingIds = new Set(
-    settlements.map((s: any) => (s.bookingId?._id || s.bookingId)?.toString())
+    settlements
+          .filter((s: any) => s.status === "Approved")
+          .map((s: any) => (s.bookingId?._id || s.bookingId)?.toString())
   );
   const isApprovedBooking = (b: any): boolean => settledBookingIds.has(b._id.toString());
 
@@ -165,12 +175,26 @@ export default function AdminAccountant() {
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Unassigned",
       truckNumber: assignment?.truckNumber || "N/A",
       collection: assignment?.collectionArea || "N/A",
+      hasUnattributedGap: gapBookingIds.has(b._id.toString()),
       raw: b
     };
   });
 
   const columns = [
-    { label: "Job ID", key: "id", render: (val: string) => <span className="font-semibold text-emerald-600">{val}</span> },
+    {
+      label: "Job ID",
+      key: "id",
+      render: (val: string, row: any) => (
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-emerald-600">{val}</span>
+          {row.hasUnattributedGap && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 text-[9px] font-bold uppercase tracking-widest whitespace-nowrap">
+              🔴 Empty leg
+            </span>
+          )}
+        </div>
+      ),
+    },
     {
       label: "Company & Client",
       key: "companyName",

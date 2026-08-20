@@ -19,6 +19,7 @@ import { cleanDriverName } from "@/services/liveTrackingService";
 import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
 import InvoiceDrawer from "@/components/admin/InvoiceDrawer";
 import ReceivePaymentDrawer from "@/components/admin/ReceivePaymentDrawer";
+import { isTripCompleted } from "@/lib/tripCompletion";
 
 export default function AdminCompletedJobsPage() {
   const router = useRouter();
@@ -67,7 +68,9 @@ export default function AdminCompletedJobsPage() {
 
       // Only jobs that have been approved by accountant (settlement exists)
       const approvedBookingIds = new Set(
-        settlements.map((s: any) => (s.bookingId?._id || s.bookingId)?.toString())
+        settlements
+          .filter((s: any) => s.status === "Approved")
+          .map((s: any) => (s.bookingId?._id || s.bookingId)?.toString())
       );
 
       const visibleJobs = (bookingsData || []).filter((b: any) => {
@@ -136,12 +139,10 @@ export default function AdminCompletedJobsPage() {
     const route = allLocs.map((l: any) => l.address?.city).filter(Boolean) as string[];
     const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
     const tripStatus = (b?.tripStatus || b?.status || "").toLowerCase();
-    // A returning trip with a "New Job Assigned" marker is effectively done —
-    // the driver was reassigned, so the return leg concluded.
-    const hasNewJob = (b?.timeline || []).some((e: any) => e.title === "New Job Assigned");
-    const reassigned = hasNewJob && tripStatus === "returning";
-    const effectiveStatus = reassigned ? "completed" : (b?.tripStatus || b?.status);
-    const isComplete = effectiveStatus?.toLowerCase() === "delivered" || effectiveStatus?.toLowerCase() === "completed";
+    // A reassigned trip is NOT done — it is driving the empty leg to the next
+    // job's pickup, and it completes on arrival there.
+    const effectiveStatus = b?.tripStatus || b?.status;
+    const isComplete = isTripCompleted(b) || effectiveStatus?.toLowerCase() === "delivered";
     return {
       id: newIdByBooking[b?._id] || b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
       client: (b?.clientId as any)?.name || "Direct Client",

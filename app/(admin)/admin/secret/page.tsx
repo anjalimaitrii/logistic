@@ -11,6 +11,7 @@ import StatCard from "@/components/admin/StatCard";
 import { bookingService } from "@/services/bookingService";
 import { fetchLiveVehicles, getVehicleStatus } from "@/services/liveTrackingService";
 import { ChevronRight, Plus, Eye, MessageSquare, Receipt, ShieldOff, Package } from "lucide-react";
+import { isTripCompleted } from "@/lib/tripCompletion";
 
 const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniMap"), {
   ssr: false,
@@ -77,11 +78,7 @@ export default function SecretDashboard() {
 
   // A secret job stays here (and can be finalized) until the trip is completed —
   // it leaves this list only once the trip is completed/delivered.
-  const isCompleted = (b: any) => {
-    const ts = (b?.tripStatus || "").toLowerCase();
-    const hasNewJob = (b?.timeline || []).some((e: any) => e.title === "New Job Assigned");
-    return ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob);
-  };
+  const isCompleted = isTripCompleted;
   // Pending table is secret-only (finalize flow); cards stay overall.
   const secretJobs = jobs.filter((b) => b.isSecret === true || b.metadata?.isSecret === true);
   const pendingJobs = secretJobs.filter((b) => !isCompleted(b));

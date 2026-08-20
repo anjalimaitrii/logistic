@@ -108,9 +108,14 @@ function exportReport(
     const bId = typeof st.bookingId === "string" ? st.bookingId : st.bookingId?._id;
     const bRef = bId ? bId.slice(-8).toUpperCase() : "-";
     const driver = cleanName(driverByBooking[bId]);
-    const legs: any[] = Array.isArray(st.fuelDetails?.legs) ? st.fuelDetails.legs : [];
+    // Cargo legs AND empty legs. financials.fuelTotal covers both, so exporting
+    // only the cargo legs would produce a sheet that fails its own footer.
+    const legs: any[] = [
+      ...(Array.isArray(st.fuelDetails?.legs) ? st.fuelDetails.legs : []),
+      ...(Array.isArray(st.extraLegs) ? st.extraLegs : []),
+    ];
     if (legs.length) {
-      legs.forEach((leg: any) => fuelRows.push(xlRow(S(bRef), S(driver), S(fmtDate(st.createdAt)), S(leg.from ?? "-"), S(leg.to ?? "-"), N2(Number(leg.km ?? 0)), N2(Number(leg.liters ?? 0)), N2(Number(leg.mileage ?? 0)), N2(Math.round(N(leg.amount))))));
+      legs.forEach((leg: any) => fuelRows.push(xlRow(S(bRef), S(driver), S(fmtDate(st.createdAt)), S(leg.kind ? `(empty) ${leg.from ?? "-"}` : (leg.from ?? "-")), S(leg.to ?? "-"), N2(Number(leg.km ?? 0)), N2(Number(leg.liters ?? 0)), N2(Number(leg.mileage ?? 0)), N2(Math.round(N(leg.amount))))));
     } else {
       fuelRows.push(xlRow(S(bRef), S(driver), S(fmtDate(st.createdAt)), S("-"), S("-"), N2(0), N2(0), N2(0), N2(Math.round(N(st.financials?.fuelTotal)))));
     }
@@ -749,7 +754,11 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
                   {filteredSettlements.filter(st => N(st.financials?.fuelTotal) > 0).map((st, i) => {
                     const bId = typeof st.bookingId === "string" ? st.bookingId : st.bookingId?._id;
                     const driver = driverByBooking[bId] || "—";
-                    const legs: any[] = Array.isArray(st.fuelDetails?.legs) ? st.fuelDetails.legs : [];
+                    // Include empty legs — the total above these rows already does.
+                    const legs: any[] = [
+                      ...(Array.isArray(st.fuelDetails?.legs) ? st.fuelDetails.legs : []),
+                      ...(Array.isArray(st.extraLegs) ? st.extraLegs : []),
+                    ];
                     return (
                       <div key={i} className="bg-neutral-50 border border-neutral-100 rounded-2xl p-4 space-y-3">
                         {/* trip header */}
@@ -775,7 +784,16 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
                             <tbody className="divide-y divide-neutral-100">
                               {legs.map((leg: any, li: number) => (
                                 <tr key={li}>
-                                  <Td><span className="text-[10px]">{leg.from} → {leg.to}</span></Td>
+                                  <Td>
+                                    <span className="text-[10px]">
+                                      {leg.kind && (
+                                        <span className="mr-1 px-1 py-0.5 rounded bg-amber-50 text-amber-700 text-[8px] font-bold uppercase tracking-wide">
+                                          empty
+                                        </span>
+                                      )}
+                                      {leg.from} → {leg.to}
+                                    </span>
+                                  </Td>
                                   <Td>{leg.km ?? "—"}</Td>
                                   <Td>{leg.liters?.toFixed(1) ?? "—"} L</Td>
                                   <Td>K{leg.mileage ?? "—"}/L</Td>

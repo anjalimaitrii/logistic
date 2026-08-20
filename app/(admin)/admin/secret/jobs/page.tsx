@@ -10,6 +10,7 @@ import { bookingService } from "@/services/bookingService";
 import { completionService } from "@/services/completionService";
 import { Package, ChevronRight, Receipt, ShieldOff } from "lucide-react";
 import { formatDate, toAppDateKey } from "@/lib/datetime";
+import { isTripCompleted } from "@/lib/tripCompletion";
 
 export default function SecretJobsPage() {
   const [jobs, setJobs] = useState<any[]>([]);
@@ -43,11 +44,7 @@ export default function SecretJobsPage() {
       ]);
       // All COMPLETED trips (with or without tax, from any source) — i.e. trips whose
       // id has already rolled over to a completion id (INV-xxx / CASH-xxx).
-      const completed = (all || []).filter((b: any) => {
-        const ts = (b.tripStatus || "").toLowerCase();
-        const hasNewJob = (b.timeline || []).some((e: any) => e.title === "New Job Assigned");
-        return ts === "completed" || ts === "delivered" || (ts === "returning" && hasNewJob);
-      });
+      const completed = (all || []).filter((b: any) => isTripCompleted(b));
       setJobs(completed);
 
       // bookingId → INV-xxx / CASH-xxx

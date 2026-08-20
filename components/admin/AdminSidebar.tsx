@@ -147,8 +147,11 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
     },
   ];
 
-  // Tabs an employee account never sees (applies to both Main and Operations groups)
-  const employeeHiddenLabels = ["Booking Requests", "Route Master", "Completed Jobs", "Reports"];
+  // Tabs an employee account never sees (applies to both Main and Operations groups).
+  // Route Master stays visible: it is where the global Warehouse and Mileage config
+  // live, and the accountant is the only role that consumes either — every dispatch
+  // and return leg they cost is labelled from the warehouse address.
+  const employeeHiddenLabels = ["Booking Requests", "Completed Jobs", "Reports"];
   const hideForEmployee = (item: NavItem) =>
     accountType === "employee" && employeeHiddenLabels.includes(item.label);
   const visibleNavItems = navItems.filter((item) => !hideForEmployee(item));

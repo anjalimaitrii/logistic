@@ -34,6 +34,7 @@ import { todayAppDateKey } from "@/lib/datetime";
 import { assignmentService } from "@/services/assignmentService";
 import { cleanDriverName } from "@/services/liveTrackingService";
 import { settlementService } from "@/services/settlementService";
+import { warehouseService, type WarehouseConfig } from "@/services/warehouseService";
 import { completionService } from "@/services/completionService";
 import JobRouteMap from "@/components/admin/JobRouteMap";
 import { uploadService } from "@/services/uploadService";
@@ -72,6 +73,11 @@ export default function JobDetailReport() {
   const [isLoading, setIsLoading] = useState(true);
   const [gpsStats, setGpsStats] = useState<any>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
+  // True when the driver already has a queued next trip: this trip then ends at
+  // that job's pickup rather than at the warehouse.
+  const [hasQueuedNextTrip, setHasQueuedNextTrip] = useState(false);
+  // Needed to name the yard on the status steps.
+  const [warehouse, setWarehouse] = useState<WarehouseConfig>({ street: "", city: "", province: "", country: "" });
 
   // Trip Expense Tracker State
   const [tripExpenses, setTripExpenses] = useState<any[]>([]);
@@ -163,11 +169,20 @@ export default function JobDetailReport() {
       if (bookingData?.tripStats) setGpsStats(bookingData.tripStats);
 
       // Fetch assignment & settlement independently so their failures don't hide the booking
-      const [assignmentData, settlementData] = await Promise.all([
+      const [assignmentData, settlementData, warehouseData] = await Promise.all([
         assignmentService.getByBookingId(id).catch(() => null),
         settlementService.getByBookingId(id).catch(() => null),
+        warehouseService.get().catch(() => ({ street: "", city: "", province: "", country: "" })),
       ]);
       setAssignment(assignmentData);
+      setWarehouse(warehouseData);
+
+      // Does this driver already have a next trip queued behind this one?
+      if (assignmentData?.driverId) {
+        const driverId = String(assignmentData.driverId?._id || assignmentData.driverId);
+        const driverAssignments = await assignmentService.getByDriverId(driverId).catch(() => []);
+        setHasQueuedNextTrip((driverAssignments || []).some((a: any) => a.queueStatus === "queued"));
+      }
       setSettlement(settlementData);
 
       // Once the trip is filed at completion, show its new id (INV-xxx / CASH-xxx)
@@ -246,12 +261,10 @@ export default function JobDetailReport() {
       id: newId || booking.tripId || `#FL-${booking._id.substring(booking._id.length - 4).toUpperCase()}`,
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Not Assigned",
       truckNumber: assignment?.truckNumber || "N/A",
-      status: (() => {
-        const raw = (booking.tripStatus || booking.status || "PENDING").toUpperCase();
-        // Returning trip with a new job assigned → the return leg is concluded
-        const hasNewJob = (booking.timeline || []).some((e: any) => e.title === "New Job Assigned");
-        return (raw === "RETURNING" && hasNewJob) ? "COMPLETED" : raw;
-      })(),
+      // A queued next job does NOT complete this trip — the truck is still
+      // driving the empty leg to that job's pickup, and this trip completes on
+      // arrival there. Showing COMPLETED here contradicted the stepper below.
+      status: (booking.tripStatus || booking.status || "PENDING").toUpperCase(),
       truckHealth: assignment?.truckHealth || "N/A",
       pickupLocations: booking.pickupLocations?.length > 0 ? booking.pickupLocations : (booking.pickup ? [booking.pickup] : [{ address: {} }]),
       dropoffLocations: booking.dropoffLocations?.length > 0 ? booking.dropoffLocations : (booking.dropoff ? [booking.dropoff] : [{ address: {} }]),
@@ -415,15 +428,23 @@ export default function JobDetailReport() {
     try {
       const inspectionData = completionForm;
 
-      if (assignment?.driverId) {
+      // Complete FIRST, inspect second. Completing runs the promotion, which —
+      // with nothing queued — puts the driver back to "returning" and re-flags
+      // the inspection. Inspecting first meant that promotion promptly undid it,
+      // leaving a driver who had just been inspected still showing as RETURNING.
+      const tripEndCoords = await captureTruckCoords(assignment?.truckNumber);
+      await bookingService.updateTripStatus(id, "completed", { tripEndCoords });
+
+      // When a next trip is queued, this trip ends at that job's PICKUP, not at
+      // the yard — the truck is at a customer site. Tyre and vehicle condition
+      // recorded there would be worse than no data, so the inspection is deferred
+      // until the driver genuinely returns (needsTruckInspection stays true).
+      if (assignment?.driverId && !hasQueuedNextTrip) {
         await assignmentService.markTruckInspected(assignment.driverId, {
           ...inspectionData,
           bookingId: id,
         });
       }
-      // Freeze the truck's position at the moment the trip is completed (end point)
-      const tripEndCoords = await captureTruckCoords(assignment?.truckNumber);
-      await bookingService.updateTripStatus(id, "completed", { tripEndCoords });
       setShowCompletionModal(false);
       await loadData();
     } catch (error) {
@@ -548,10 +569,15 @@ export default function JobDetailReport() {
     const multi = pCount > 1 || dCount > 1;
     const getLabel = (idx: number) => String.fromCharCode(65 + idx); // A, B, C, D…
 
-    // STARTED → LOADING_1 → DEPARTED_1 → LOADING_2 → DEPARTED_2 → … → REACHED_1 → OFFLOADING_1 → … → RETURNING → COMPLETED
+    // STARTED → ARRIVED_1 → LOADING_1 → DEPARTED_1 → … → REACHED_1 → OFFLOADING_1
+    //         → … → COMPLETED
+    // Returning is deliberately absent — see the stepper's copy below. Both must
+    // stay identical, or "is this step past?" is computed against a different
+    // sequence than the one being rendered.
     const statusOrder = [
       "STARTED",
       ...pLocs.flatMap((_: any, i: number) => [
+        multi ? `ARRIVED_${i + 1}` : "ARRIVED",
         multi ? `LOADING_${i + 1}` : "LOADING",
         multi ? `DEPARTED_${i + 1}` : "DEPARTED"
       ]),
@@ -559,7 +585,8 @@ export default function JobDetailReport() {
         multi ? `REACHED_${i + 1}` : "REACHED",
         multi ? `OFFLOADING_${i + 1}` : "OFFLOADING"
       ]),
-      "RETURNING", "COMPLETED"
+      booking?.lastPoint?.source === "reassignment" ? "REPOSITIONING" : "RETURNING",
+      "COMPLETED"
     ];
     const currentIdx = statusOrder.indexOf(rawStatus);
     const isPast = (id: string) => { const i = statusOrder.indexOf(id); return i !== -1 && currentIdx > i; };
@@ -608,7 +635,7 @@ export default function JobDetailReport() {
             item.title?.toLowerCase().includes("departed") ? <Truck className="w-3.5 h-3.5" /> :
               item.title?.toLowerCase().includes("offload") ? <ArrowDownCircle className="w-3.5 h-3.5" /> :
                 item.title === "Driver Assigned" ? <Truck className="w-3.5 h-3.5" /> :
-                  item.title === "New Job Assigned" ? <RotateCcw className="w-3.5 h-3.5" /> :
+                  item.title === "Next Job Queued" ? <RotateCcw className="w-3.5 h-3.5" /> :
                     item.title === "Booking Created" ? <Package className="w-3.5 h-3.5" /> :
                       item.title === "Trip Approved" ? <CreditCard className="w-3.5 h-3.5" /> :
                         <CheckCircle2 className="w-3.5 h-3.5" />
@@ -952,50 +979,93 @@ export default function JobDetailReport() {
                 </div>
 
                 <div className="space-y-12">
-                  {[
-                    ...(jobInfo?.pickupLocations || []).map((loc: any, i: number) => ({ loc, type: 'pickup' as const, idx: i })),
-                    ...(jobInfo?.dropoffLocations || []).map((loc: any, i: number) => ({ loc, type: 'dropoff' as const, idx: i }))
-                  ].map(({ loc, type, idx }, totalIdx, arr) => {
-                    const isLastTotal = totalIdx === arr.length - 1;
-                    const isFirstPickup = type === 'pickup' && idx === 0;
-                    const pickupCount = jobInfo?.pickupLocations?.length ?? 1;
-                    const dropoffCount = jobInfo?.dropoffLocations?.length ?? 1;
-                    const isLastDropoff = type === 'dropoff' && idx === dropoffCount - 1;
-                    const label = type === 'pickup'
-                      ? (pickupCount === 1 ? 'ORIGIN / PICKUP' : idx === 0 ? 'ORIGIN' : `PICKUP STOP ${idx + 1}`)
-                      : (dropoffCount === 1 ? 'DESTINATION / DROP-OFF' : idx === dropoffCount - 1 ? 'FINAL DESTINATION' : `DROP-OFF ${idx + 1}`);
-                    return (
-                      <div key={`${type}-${idx}`} className={!isLastTotal ? "relative" : ""}>
-                        {!isLastTotal && (
-                          <div className="absolute left-[15px] top-10 bottom-[-48px] w-px bg-slate-100 border-l border-dashed border-slate-300" />
-                        )}
-                        <div className="flex gap-6 items-start relative z-10">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${type === 'pickup'
-                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-emerald-100'
-                            : 'bg-rose-50 text-rose-600 border border-rose-100 shadow-rose-100'
-                            }`}>
-                            <MapPin className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{label}</div>
-                            <h3 className="text-base font-bold text-slate-900 mb-1">
-                              {[loc?.address?.plotNo, loc?.address?.street, loc?.address?.city, loc?.address?.state, loc?.address?.country].filter(Boolean).join(', ') || 'N/A'}
-                            </h3>
-                            {loc?.contactPerson && (
-                              <div className="text-[10px] font-medium text-slate-400 mt-0.5">
-                                {loc.contactPerson}{loc.contactNumber ? ` · ${loc.contactNumber}` : ''}
+                  {(() => {
+                    // The journey is the client's ordered stops PLUS the empty runs
+                    // the accountant attributed. Those live on the settlement, not
+                    // the booking — the client never ordered them and the driver
+                    // delivers nothing on them — but they are still part of what
+                    // the truck actually drove, and the Distance below already
+                    // counts them. Rendering only the stops made that total look
+                    // wrong for no reason.
+                    const extras: any[] = settlement?.extraLegs || [];
+                    const nodes: any[] = [
+                      ...extras.filter((e) => e.kind === 'dispatch').map((leg) => ({ type: 'empty', leg })),
+                      ...(jobInfo?.pickupLocations || []).map((loc: any, i: number) => ({ type: 'pickup', loc, idx: i })),
+                      ...(jobInfo?.dropoffLocations || []).map((loc: any, i: number) => ({ type: 'dropoff', loc, idx: i })),
+                      ...extras.filter((e) => e.kind !== 'dispatch').map((leg) => ({ type: 'empty', leg })),
+                    ];
+
+                    return nodes.map((node, totalIdx, arr) => {
+                      const isLastTotal = totalIdx === arr.length - 1;
+                      const connector = !isLastTotal && (
+                        <div className="absolute left-[15px] top-10 bottom-[-48px] w-px bg-slate-100 border-l border-dashed border-slate-300" />
+                      );
+
+                      if (node.type === 'empty') {
+                        const leg = node.leg;
+                        const emptyLabel =
+                          leg.kind === 'dispatch' ? 'EMPTY · DISPATCH'
+                          : leg.kind === 'return' || leg.kind === 'trimmedReturn' ? 'EMPTY · RETURN'
+                          : 'EMPTY · TRANSIT';
+                        return (
+                          <div key={`empty-${totalIdx}`} className={!isLastTotal ? "relative" : ""}>
+                            {connector}
+                            <div className="flex gap-6 items-start relative z-10">
+                              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-white text-slate-400 border border-dashed border-slate-300">
+                                <MapPin className="w-4 h-4" />
                               </div>
-                            )}
-                            <div className="flex items-center gap-3 mt-2">
-                              <div className="text-[11px] font-medium text-slate-400 italic">
-                                {type === 'pickup' ? `Scheduled: ${jobInfo?.loadingDate}` : 'Expected Completion'}
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{emptyLabel}</div>
+                                <h3 className="text-base font-bold text-slate-500 mb-1">
+                                  {leg.from || '—'} → {leg.to || '—'}
+                                </h3>
+                                <div className="text-[11px] font-medium text-slate-400 italic mt-2">
+                                  {Number(leg.km) || 0} km · no cargo
+                                  {Number(leg.amount) ? ` · K${Number(leg.amount).toLocaleString()} fuel` : ''}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      const { loc, type, idx } = node;
+                      const pickupCount = jobInfo?.pickupLocations?.length ?? 1;
+                      const dropoffCount = jobInfo?.dropoffLocations?.length ?? 1;
+                      const label = type === 'pickup'
+                        ? (pickupCount === 1 ? 'ORIGIN / PICKUP' : idx === 0 ? 'ORIGIN' : `PICKUP STOP ${idx + 1}`)
+                        : (dropoffCount === 1 ? 'DESTINATION / DROP-OFF' : idx === dropoffCount - 1 ? 'FINAL DESTINATION' : `DROP-OFF ${idx + 1}`);
+                      return (
+                        <div key={`${type}-${idx}`} className={!isLastTotal ? "relative" : ""}>
+                          {connector}
+                          <div className="flex gap-6 items-start relative z-10">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${type === 'pickup'
+                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-100 shadow-emerald-100'
+                              : 'bg-rose-50 text-rose-600 border border-rose-100 shadow-rose-100'
+                              }`}>
+                              <MapPin className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{label}</div>
+                              <h3 className="text-base font-bold text-slate-900 mb-1">
+                                {[loc?.address?.plotNo, loc?.address?.street, loc?.address?.city, loc?.address?.state, loc?.address?.country].filter(Boolean).join(', ') || 'N/A'}
+                              </h3>
+                              {loc?.contactPerson && (
+                                <div className="text-[10px] font-medium text-slate-400 mt-0.5">
+                                  {loc.contactPerson}{loc.contactNumber ? ` · ${loc.contactNumber}` : ''}
+                                </div>
+                              )}
+                              <div className="flex items-center gap-3 mt-2">
+                                <div className="text-[11px] font-medium text-slate-400 italic">
+                                  {type === 'pickup' ? `Scheduled: ${jobInfo?.loadingDate}` : 'Expected Completion'}
+                                </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
 
                 </div>
 
@@ -1233,7 +1303,12 @@ export default function JobDetailReport() {
 
                   const statusOrder = [
                     "STARTED",
+                    // ARRIVED before LOADING: a trip that begins at the warehouse
+                    // drives to the pickup first, and that leg deserves its own
+                    // step. Pickups now mirror dropoffs, which already had an
+                    // arrival step (REACHED) before their action step.
                     ...pLocs.flatMap((_: any, i: number) => [
+                      multi ? `ARRIVED_${i + 1}` : "ARRIVED",
                       multi ? `LOADING_${i + 1}` : "LOADING",
                       multi ? `DEPARTED_${i + 1}` : "DEPARTED"
                     ]),
@@ -1241,18 +1316,25 @@ export default function JobDetailReport() {
                       multi ? `REACHED_${i + 1}` : "REACHED",
                       multi ? `OFFLOADING_${i + 1}` : "OFFLOADING"
                     ]),
-                    "RETURNING", "COMPLETED"
+                    // The final unladen leg stays in the ORDER but is never
+                    // rendered as a button — it is set from the jobs list, because
+                    // at offloading time nobody knows yet whether the truck heads
+                    // home or gets a new job. Keeping it here is what stops
+                    // COMPLETED from becoming tappable straight after offloading.
+                    booking?.lastPoint?.source === "reassignment" ? "REPOSITIONING" : "RETURNING",
+                    "COMPLETED"
                   ];
 
                   const rawStatus = booking.tripStatus ? booking.tripStatus.toUpperCase() : "PENDING";
                   const currentIdx = statusOrder.indexOf(rawStatus);
+                  const onFinalLeg = rawStatus === "RETURNING" || rawStatus === "REPOSITIONING";
 
-                  // A "New Job Assigned" entry means this trip was auto-completed because
-                  // the driver/truck picked up a new trip while returning. The trip is already
-                  // "completed" in the DB (with its end point); show the Completed button locked
-                  // with that as the reason, instead of a tappable / generic "current" state.
-                  const newJobEntry = (booking.timeline || []).find((e: any) => e.title === "New Job Assigned");
-                  const newJobBlocked = !!newJobEntry;
+                  // NOTE: a retargeted trip (one carrying a "Next Job Queued" timeline
+                  // entry) is still RUNNING, and ops must be able to mark it completed
+                  // when the truck arrives. Nothing here may disable the Completed
+                  // button on that basis — it used to, which made such a trip
+                  // impossible to close and left the queued trip stuck forever. Where
+                  // the trip now ends is shown on the step itself, via `endsAt`.
 
                   const btnCls = (id: string) => {
                     const idx = statusOrder.indexOf(id);
@@ -1267,15 +1349,11 @@ export default function JobDetailReport() {
 
                   const Btn = ({ id, label, icon, city, full }: { id: string; label: string; icon: React.ReactNode; city?: string; full?: boolean }) => {
                     const { cls, isDone, isActive, isNext } = btnCls(id);
-                    const isLockedByNewJob = id === "COMPLETED" && newJobBlocked;
-                    const effectiveCls = isLockedByNewJob
-                      ? "bg-amber-50 border-amber-200 text-amber-600 cursor-not-allowed"
-                      : cls;
                     return (
                       <button
-                        disabled={(!isNext) || isLockedByNewJob}
-                        onClick={() => isNext && !isLockedByNewJob && handleStatusUpdate(id)}
-                        className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1 ${full ? "w-full" : "flex-1"} ${effectiveCls}`}
+                        disabled={!isNext}
+                        onClick={() => isNext && handleStatusUpdate(id)}
+                        className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all gap-1 ${full ? "w-full" : "flex-1"} ${cls}`}
                       >
                         <div>{isDone ? <CheckCircle2 className="w-4 h-4" /> : icon}</div>
                         <span className="text-[9px] font-bold uppercase tracking-widest leading-tight text-center">{label}</span>
@@ -1285,17 +1363,33 @@ export default function JobDetailReport() {
                           </span>
                         )}
                         {isDone && <span className="text-[7px] font-bold uppercase tracking-widest text-emerald-500">Done</span>}
-                        {isLockedByNewJob && <span className="text-[7px] font-bold uppercase tracking-widest text-amber-500">New Job Assigned</span>}
-                        {isNext && !isLockedByNewJob && <span className="text-[7px] font-bold uppercase tracking-widest text-white/80">Tap to Update</span>}
-                        {isActive && !isLockedByNewJob && <span className="text-[7px] font-bold uppercase tracking-widest text-white/70">Current</span>}
+                        {isNext && <span className="text-[7px] font-bold uppercase tracking-widest text-white/80">Tap to Update</span>}
+                        {isActive && <span className="text-[7px] font-bold uppercase tracking-widest text-white/70">Current</span>}
                       </button>
                     );
                   };
 
+                  // Name each step after the place it actually happens at, from the
+                  // same data the route history renders. A generic "Returning" gave
+                  // no hint that this trip was diverted and now ends at another
+                  // job's pickup rather than the yard.
+                  const dispatchLeg = (settlement?.extraLegs || []).find((e: any) => e.kind === "dispatch");
+                  const startsAt = dispatchLeg?.from || pLocs[0]?.address?.city || undefined;
+                  const endsAt =
+                    booking?.lastPoint?.label ||
+                    (warehouse.city ? `${warehouse.city} (Warehouse)` : undefined);
+                  const isDiverted = booking?.lastPoint?.source === "reassignment";
+
                   return (
                     <div className="space-y-3">
                       {/* Step 1: Trip Start — full width */}
-                      <Btn id="STARTED" label="Trip Start" icon={<Play className="w-4 h-4" />} full />
+                      <Btn
+                        id="STARTED"
+                        label="Trip Start"
+                        icon={<Play className="w-4 h-4" />}
+                        city={startsAt}
+                        full
+                      />
 
                       {/* Pickup steps — Load + Depart per location in one row */}
                       {pLocs.map((loc: any, i: number) => {
@@ -1308,16 +1402,27 @@ export default function JobDetailReport() {
                                 Pickup {l} {city ? `· ${city}` : ""}
                               </p>
                             )}
+                            {/* Arrival first — the drive TO the pickup is a leg of
+                                its own, especially when the trip began at the yard. */}
+                            <Btn
+                              id={multi ? `ARRIVED_${i + 1}` : "ARRIVED"}
+                              label={multi ? `${l} · Arrived` : "Reached Pickup"}
+                              icon={<Flag className="w-4 h-4" />}
+                              city={loc?.address?.city}
+                              full
+                            />
                             <div className="flex gap-3">
                               <Btn
                                 id={multi ? `LOADING_${i + 1}` : "LOADING"}
                                 label={multi ? `${l} · Load` : "Loading"}
                                 icon={<Box className="w-4 h-4" />}
+                                city={multi ? undefined : loc?.address?.city}
                               />
                               <Btn
                                 id={multi ? `DEPARTED_${i + 1}` : "DEPARTED"}
                                 label={multi ? `${l} · Depart` : "Departed"}
                                 icon={<Truck className="w-4 h-4" />}
+                                city={multi ? undefined : loc?.address?.city}
                               />
                             </div>
                           </div>
@@ -1340,20 +1445,50 @@ export default function JobDetailReport() {
                                 id={multi ? `REACHED_${i + 1}` : "REACHED"}
                                 label={multi ? `${l} · Reached` : "Reached"}
                                 icon={<Flag className="w-4 h-4" />}
+                                city={multi ? undefined : loc?.address?.city}
                               />
                               <Btn
                                 id={multi ? `OFFLOADING_${i + 1}` : "OFFLOADING"}
                                 label={multi ? `${l} · Offload` : "Offloading"}
                                 icon={<ArrowDownCircle className="w-4 h-4" />}
+                                city={multi ? undefined : loc?.address?.city}
                               />
                             </div>
                           </div>
                         );
                       })}
 
-                      {/* Final steps — full width */}
-                      <Btn id="RETURNING" label="Returning" icon={<RotateCcw className="w-4 h-4" />} full />
-                      <Btn id="COMPLETED" label="Completed" icon={<CheckCircle2 className="w-4 h-4" />} full />
+                      {/* Returning is in the order but never rendered as a button —
+                          it is set from the jobs list. Until it is set, Completed
+                          below stays out of reach, which is the point: the trip is
+                          not over just because the cargo is off. */}
+                      {!onFinalLeg && (
+                        <div className="w-full py-2.5 rounded-2xl border border-dashed border-slate-200 flex items-center justify-center">
+                          <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 text-center px-3">
+                            Awaiting return — mark it from the Jobs list, or assign a new job
+                          </span>
+                        </div>
+                      )}
+                      {onFinalLeg && (
+                        <div className="w-full py-2.5 rounded-2xl bg-indigo-50 border border-indigo-100 flex flex-col items-center gap-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <RotateCcw className="w-3.5 h-3.5 text-indigo-600" />
+                            <span className="text-[9px] font-bold uppercase tracking-widest text-indigo-700">
+                              {isDiverted ? "Repositioning" : "Returning"}
+                            </span>
+                          </div>
+                          {endsAt && (
+                            <span className="text-[8px] font-medium text-indigo-500 normal-case">{endsAt}</span>
+                          )}
+                        </div>
+                      )}
+                      <Btn
+                        id="COMPLETED"
+                        label="Completed"
+                        icon={<CheckCircle2 className="w-4 h-4" />}
+                        city={endsAt}
+                        full
+                      />
                     </div>
                   );
                 })()}
@@ -1559,7 +1694,9 @@ export default function JobDetailReport() {
                   <CheckCircle2 className="w-5 h-5 text-emerald-600" />
                 </div>
                 <div>
-                  <h2 className="text-[15px] font-bold text-slate-900">Complete Job — Final Inspection</h2>
+                  <h2 className="text-[15px] font-bold text-slate-900">
+                    {hasQueuedNextTrip ? "Complete Job — Arrived at Next Pickup" : "Complete Job — Final Inspection"}
+                  </h2>
                   <p className="text-[11px] text-neutral-400 font-medium">
                     {assignment?.driverName ? cleanDriverName(assignment.driverName) : "Driver"} · {assignment?.truckNumber || "N/A"}
                     {(newId || booking?.tripId) && <span className="text-primary ml-1">· {newId || booking.tripId}</span>}
@@ -1569,31 +1706,46 @@ export default function JobDetailReport() {
             </div>
 
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Vehicle Condition</label>
-                  <select value={completionForm.vehicleCondition} onChange={e => setCompletionForm(f => ({ ...f, vehicleCondition: e.target.value }))} className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer">
-                    <option>Excellent</option><option>Good</option><option>Fair</option><option>Poor — Needs Repair</option>
-                  </select>
+              {hasQueuedNextTrip ? (
+                <div className="px-3 py-2.5 bg-amber-50 border border-amber-100 rounded-xl">
+                  <p className="text-[11px] font-bold text-amber-700 uppercase tracking-widest mb-1">
+                    Inspection deferred
+                  </p>
+                  <p className="text-[10px] text-amber-700 leading-relaxed">
+                    This trip ends at the next job&apos;s pickup{booking?.lastPoint?.label ? ` (${booking.lastPoint.label})` : ""},
+                    not at the yard — the truck is still on the road. The yard inspection stays
+                    pending and is collected when the driver actually returns.
+                  </p>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Tyre Condition</label>
-                  <select value={completionForm.tyreCondition} onChange={e => setCompletionForm(f => ({ ...f, tyreCondition: e.target.value }))} className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer">
-                    <option>Excellent</option><option>Good</option><option>Fair</option><option>Poor — Replace</option>
-                  </select>
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Vehicle Condition</label>
+                      <select value={completionForm.vehicleCondition} onChange={e => setCompletionForm(f => ({ ...f, vehicleCondition: e.target.value }))} className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer">
+                        <option>Excellent</option><option>Good</option><option>Fair</option><option>Poor — Needs Repair</option>
+                      </select>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Tyre Condition</label>
+                      <select value={completionForm.tyreCondition} onChange={e => setCompletionForm(f => ({ ...f, tyreCondition: e.target.value }))} className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer">
+                        <option>Excellent</option><option>Good</option><option>Fair</option><option>Poor — Replace</option>
+                      </select>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Tyre Number</label>
-                  <input type="text" value={completionForm.tyreNumber} onChange={e => setCompletionForm(f => ({ ...f, tyreNumber: e.target.value }))} placeholder="e.g. TY-2024-001" className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Challans</label>
-                  <input type="text" value={completionForm.challans} onChange={e => setCompletionForm(f => ({ ...f, challans: e.target.value }))} placeholder="Challan no. or ref." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
-                </div>
-              </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Tyre Number</label>
+                      <input type="text" value={completionForm.tyreNumber} onChange={e => setCompletionForm(f => ({ ...f, tyreNumber: e.target.value }))} placeholder="e.g. TY-2024-001" className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Challans</label>
+                      <input type="text" value={completionForm.challans} onChange={e => setCompletionForm(f => ({ ...f, challans: e.target.value }))} placeholder="Challan no. or ref." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
+                    </div>
+                  </div>
+                </>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Notes</label>

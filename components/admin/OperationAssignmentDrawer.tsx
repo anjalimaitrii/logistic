@@ -51,8 +51,10 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
   const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
   const [driverQueueInfo, setDriverQueueInfo] = useState<any[]>([]);
   const [truckDocs, setTruckDocs] = useState<any[]>([]);
-  // driverIds that currently have an active/queued assignment (i.e. on a job)
+  // driverIds that currently hold an ACTIVE assignment (i.e. mid-job)
   const [busyDriverIds, setBusyDriverIds] = useState<Set<string>>(new Set());
+  // driverIds that already have a NEXT job queued behind their current one
+  const [queuedDriverIds, setQueuedDriverIds] = useState<Set<string>>(new Set());
 
   const [formData, setFormData] = useState({
     driver: "",
@@ -76,15 +78,27 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
         driverService.getAll(),
         assignmentService.getAll().catch(() => []),
       ]);
-      // Drivers currently on a job (active or queued assignment) — used to flag "On Trip"
-      // even if their driverStatus field is stale.
+      // Drivers holding an ACTIVE assignment — used to flag "On Trip" even if
+      // their driverStatus field is stale.
       const busy = new Set<string>(
         (assignments || [])
-          .filter((a: any) => a.queueStatus === "active" || a.queueStatus === "queued")
+          .filter((a: any) => a.queueStatus === "active")
           .map((a: any) => (a.driverId?._id || a.driverId)?.toString())
           .filter(Boolean)
       );
       setBusyDriverIds(busy);
+
+      // Drivers who already have a NEXT job queued behind them. Tracked separately
+      // because an offloading/returning driver still holds an active assignment —
+      // that is exactly what makes them assignable — but a driver with a queued
+      // trip must not be stacked again (it would orphan the first empty leg).
+      const queued = new Set<string>(
+        (assignments || [])
+          .filter((a: any) => a.queueStatus === "queued")
+          .map((a: any) => (a.driverId?._id || a.driverId)?.toString())
+          .filter(Boolean)
+      );
+      setQueuedDriverIds(queued);
       // Only Active employees; exclude those under inspection
       setDrivers((data || []).filter((d: any) =>
         d.status === "Active" && d.driverStatus !== "under_inspection"
@@ -203,10 +217,20 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
   // On trip = driverStatus on_trip OR has an active/queued assignment (robust against stale status),
   // but NOT offloading/returning. Offloading = cargo being dropped, returning = coming back —
   // both are available for a new assignment (assigning auto-completes the current trip).
-  const isOnTrip = (d: any) =>
-    d.driverStatus !== "returning" &&
-    d.driverStatus !== "offloading" &&
-    (d.driverStatus === "on_trip" || busyDriverIds.has(d._id?.toString()));
+  // Offloading and returning both mean the driver is finishing up and CAN take a
+  // new job — they still hold an active assignment, so an active assignment alone
+  // must not disqualify them.
+  //
+  // What does disqualify them is a job already QUEUED behind the current one:
+  // stacking a third would retarget the running trip a second time and orphan the
+  // first empty leg. `repositioning` is the server-side name for that same state.
+  const isOnTrip = (d: any) => {
+    const id = d._id?.toString();
+    if (d.driverStatus === "repositioning") return true;
+    if (queuedDriverIds.has(id)) return true;
+    if (d.driverStatus === "returning" || d.driverStatus === "offloading") return false;
+    return d.driverStatus === "on_trip" || busyDriverIds.has(id);
+  };
   const onTripDrivers = drivers.filter(isOnTrip);
   const availableDrivers = drivers.filter(d => !isOnTrip(d));
 
@@ -397,7 +421,12 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                                 <optgroup label="── On Trip (Not Available) ──">
                                   {onTripDrivers.map((d) => (
                                     <option key={d._id} value={d._id} disabled>
-                                      {complianceDot(d.assignedTruck?.complianceDocs)} {cleanDriverName(d.name)} · {d.assignedTruck?.truckId || "No Truck"} — ON TRIP
+                                      {complianceDot(d.assignedTruck?.complianceDocs)} {cleanDriverName(d.name)} · {d.assignedTruck?.truckId || "No Truck"}
+                                      {queuedDriverIds.has(d._id?.toString())
+                                        ? " — NEXT JOB ALREADY QUEUED"
+                                        : d.driverStatus === "repositioning"
+                                          ? " — HEADING TO NEXT PICKUP"
+                                          : " — ON TRIP"}
                                     </option>
                                   ))}
                                 </optgroup>
@@ -461,23 +490,19 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                               })()}
 
                               {/* Queue info for on_trip drivers; offloading/returning drivers get a simple note */}
-                              {formData.driverStatus === "returning" && (
-                                <div className="mt-1 pt-2 border-t border-blue-100">
-                                  <div className="flex items-center gap-1.5 px-2 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
-                                    <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wide">
-                                      Driver returning — trip starts after truck inspection
+                              {(formData.driverStatus === "returning" || formData.driverStatus === "offloading") && (
+                                <div className="mt-1 pt-2 border-t border-blue-100 space-y-1.5">
+                                  <div className="flex items-start gap-1.5 px-2 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0 mt-1" />
+                                    <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wide leading-relaxed">
+                                      Driver {formData.driverStatus} — this job will be queued, and the current
+                                      trip will end at this job&apos;s pickup point instead of the warehouse
                                     </span>
                                   </div>
-                                </div>
-                              )}
-
-                              {formData.driverStatus === "offloading" && (
-                                <div className="mt-1 pt-2 border-t border-blue-100">
-                                  <div className="flex items-center gap-1.5 px-2 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0" />
-                                    <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wide">
-                                      Driver offloading — current trip completes automatically on assignment
+                                  <div className="px-2 py-1.5 bg-amber-50 rounded-lg border border-amber-100">
+                                    <span className="text-[9px] font-medium text-amber-700 leading-relaxed">
+                                      The empty distance in between must be billed to one of the two trips by
+                                      the accountant before this job can be approved.
                                     </span>
                                   </div>
                                 </div>

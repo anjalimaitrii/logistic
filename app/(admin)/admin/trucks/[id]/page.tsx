@@ -123,7 +123,7 @@ export default function TruckProfilePage() {
          events.push({ time: e.time ? new Date(e.time).getTime() : 0, title: e.title, desc: e.description || "", kind });
       });
 
-      // 2. Driver assigned / changed + New Job Assigned (from assignments)
+      // 2. Driver assigned / changed + Next Job Queued (from assignments)
       const sorted = [...assignments].sort(
          (a, b) => new Date(a.assignedAt || 0).getTime() - new Date(b.assignedAt || 0).getTime()
       );
@@ -141,13 +141,14 @@ export default function TruckProfilePage() {
          }
          if (driver) prevDriver = driver;
 
-         // Only the "New Job Assigned" event from booking timeline (skip trip lifecycle)
+         // Only the "Next Job Queued" event from booking timeline (skip trip lifecycle).
+         // Historical records carry the old "New Job Assigned" title, so match both.
          (b.timeline || [])
-            .filter((e: any) => e.title === "New Job Assigned")
+            .filter((e: any) => e.title === "Next Job Queued" || e.title === "New Job Assigned")
             .forEach((e: any) => {
                events.push({
                   time: e.time ? new Date(e.time).getTime() : at,
-                  title: "New Job Assigned",
+                  title: "Next Job Queued",
                   desc: `${trip}${e.description ? ` · ${e.description}` : ""}`,
                   kind: "newjob",
                });
