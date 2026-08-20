@@ -208,18 +208,30 @@ export default function AdminJobsPage() {
     return ts.startsWith("offloading");
   };
 
+  // Marking the return opens a leg nobody has costed yet: the run back to the
+  // yard. Ending here with a "now go to the accountant" popup leaves the operator
+  // to find the trip again by hand, so this hands them straight to the row that
+  // needs the distance, with it highlighted.
   const handleMarkReturning = async (b: any) => {
     const bookingId = b?._id || b?.id;
     if (!bookingId) return;
-    if (!confirm("Mark this truck as returning to the yard?")) return;
+    const tripId = b?.tripId || `#${String(bookingId).slice(-6).toUpperCase()}`;
+    if (
+      !confirm(
+        `Mark ${tripId} as returning to the yard?
+
+` +
+          `The empty run home still has to be costed — you will be taken to the settlement to enter its distance.`
+      )
+    )
+      return;
     try {
       setReturningId(bookingId);
       await bookingService.updateTripStatus(bookingId, "returning");
-      await loadBookings();
+      router.push(`/admin/accountant/${bookingId}?focus=return`);
     } catch (error) {
       console.error("Failed to mark returning:", error);
       alert("Could not mark the trip as returning.");
-    } finally {
       setReturningId(null);
     }
   };

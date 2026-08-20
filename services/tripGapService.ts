@@ -9,7 +9,16 @@ export const tripGapService = {
 
   claim: (
     gapId: string,
-    body: { bookingId: string; side: "append" | "prepend"; km: number; claimedBy?: string }
+    // Endpoints ride along with the claim: they are facts about the drive, and the
+    // adjacent trip reads them back rather than asking the accountant twice.
+    body: {
+      bookingId: string;
+      side: "append" | "prepend";
+      km: number;
+      fromLabel?: string;
+      toLabel?: string;
+      claimedBy?: string;
+    }
   ) => fetchApi(`/api/trip-gaps/${gapId}/claim`, { method: "POST", body: JSON.stringify(body) }),
 
   release: (gapId: string, bookingId: string) =>

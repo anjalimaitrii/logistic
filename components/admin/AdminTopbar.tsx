@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import PinModal from "./PinModal";
 import { useNotifications } from "@/context/NotificationContext";
 import { getAdminAccountType, type AdminAccountType } from "@/lib/adminRole";
+import { useSearch } from "@/context/SearchContext";
 
 interface AdminTopbarProps {
   onToggleSidebar: () => void;
@@ -12,7 +13,10 @@ interface AdminTopbarProps {
 }
 
 export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTopbarProps) {
-  const [searchQuery, setSearchQuery] = useState("");
+  // The box narrows the list the current page is already showing, rather than
+  // opening a results panel of its own. It publishes the query and each screen
+  // decides what to filter; a page with no list simply ignores it.
+  const { query: searchQuery, setQuery: setSearchQuery } = useSearch();
   const [adminClicks, setAdminClicks] = useState(0);
   const { unreadCount } = useNotifications();
   const [showPinModal, setShowPinModal] = useState(false);

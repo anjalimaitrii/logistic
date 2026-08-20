@@ -153,16 +153,21 @@ export function buildLegRows(args: {
     const saved = savedExtras.find(
       (e) => e.kind === "transit" && String(e.gapId) === String(g._id)
     );
-    // Origin is prefilled only when the truck had not moved yet. If it was
-    // already returning, the drop point is behind it — prefilling that would put
-    // a wrong place in front of the accountant and invite them to accept it.
-    const originPrefill = g.detectedDuring === "returning" ? "" : (g.fromLabel || "");
+    // Origin is prefilled when it is actually known: either the truck had not
+    // moved yet, or a human has since named where the empty run began. Only the
+    // auto-detected drop point of a truck already on its way home is withheld —
+    // that is a wrong place, and putting it in front of the accountant invites
+    // them to accept it.
+    const originPrefill =
+      g.originConfirmed || g.detectedDuring !== "returning" ? (g.fromLabel || "") : "";
     gapRows.push({
       id: nextId("extra"),
       kind: "extra",
       fromLabel: saved?.from || originPrefill,
       toLabel: saved?.to || g.toLabel || "",
-      km: saved ? String(saved.km) : g.claimedKm ? String(g.claimedKm) : "",
+      // The distance belongs to the drive, not to whoever pays: if the other trip's
+      // screen recorded it, this one shows the same number rather than asking again.
+      km: saved ? String(saved.km) : g.km ? String(g.km) : g.claimedKm ? String(g.claimedKm) : "",
       mileage: unloadedMileage,
       loadType: "unloaded",
       gapId: String(g._id),
@@ -249,8 +254,14 @@ export function buildLegRows(args: {
       km: String(e.km ?? ""),
       mileage: unloadedMileage,
       loadType: "unloaded",
-      editableFrom: true,
+      // Where this leg BEGINS is not a question: the truck sets off empty from
+      // the last drop, so that end is already answered by the cargo route above.
+      // Only where it ended is open — the yard, or wherever a diversion caught it.
+      editableFrom: false,
       editableTo: true,
+      // A return leg that absorbed a gap keeps carrying it, so the claim survives
+      // a reload rather than the gap reappearing as a second card.
+      ...(e.gapId ? { gapId: String(e.gapId) } : {}),
       manual: true,
       // A destination cleared by the diversion rewrite is NOT settled — that is
       // the one field the accountant still has to answer.
@@ -282,9 +293,44 @@ export function buildLegRows(args: {
   //    pickup is the final thing the truck does, after any return leg it drove
   //    first. Listing it before the return read as though the truck reached the
   //    next pickup and only then set off homeward.
+  //
+  //    Whether that gap is a SEPARATE card is decided later, by mergeReturnGap:
+  //    the accountant types the return leg's destination after this runs, so the
+  //    decision cannot be baked in here.
   rows.push(...gapRows.filter((r) => r.position === "append"));
 
   return rows;
+}
+
+/**
+ * A diverted trip that ran straight from its drop to the next job's pickup drove
+ * ONE empty leg, not two. When the return leg's destination is the same city the
+ * gap ends at, the two cards describe the same kilometres — and showing both
+ * invites them to be billed twice.
+ *
+ * So the return row absorbs the gap: it takes the gapId, which is what carries
+ * the claim buttons, and the duplicate row is dropped. Change the destination and
+ * they separate again, because then the truck really did drive two legs (drop
+ * → where it turned, then → the pickup).
+ *
+ * Derived, never stored: the accountant types that destination live, so this has
+ * to be recomputed on every render rather than decided when the rows were built.
+ */
+export function mergeReturnGap(rows: LegRow[]): LegRow[] {
+  const sameCity = (a?: string, b?: string) =>
+    !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+
+  const returnRow = rows.find((r) => r.kind === "return");
+  if (!returnRow) return rows;
+
+  const absorbed = rows.find(
+    (r) => r.gapId && r.kind === "extra" && r.position === "append" && sameCity(returnRow.toLabel, r.toLabel)
+  );
+  if (!absorbed) return rows;
+
+  return rows
+    .filter((r) => r.id !== absorbed.id)
+    .map((r) => (r.id === returnRow.id ? { ...r, gapId: absorbed.gapId, position: "append" as const } : r));
 }
 
 /**

@@ -29,6 +29,9 @@ export interface TruckPayload {
   currentService?: string;
   nextService?: string;
   nextServiceDate?: string;
+  // Each fitted tyre: position plus the serial stamped on it. tireSerialNumber
+  // still carries the positions alone, for records written before serials.
+  tyres?: { position: string; serial: string }[];
   tireSerialNumber?: string | string[];
 }
 

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
+import { useSearch, filterBySearch } from "@/context/SearchContext";
 import CreateTruckModal from "@/components/admin/CreateTruckModal";
 import TruckComplianceDrawer from "@/components/admin/TruckComplianceDrawer";
 import { ChevronRight, Eye, Settings, Plus, Package, X, Trash2, AlertTriangle } from "lucide-react";
@@ -201,7 +202,9 @@ export default function AdminTrucks() {
     { label: "Stopped", value: trucks.filter(t => getDisplayStatus(t) === "Stopped" || getDisplayStatus(t) === "Inactive").length.toString(), icon: "🔴", subText: "Stopped / Inactive", trend: "Review", variant: "danger" as const },
   ];
 
-  const tableData = trucks.map(t => ({
+  const { query: searchQuery } = useSearch();
+
+  const allRows = trucks.map(t => ({
     id: t.truckId,
     model: t.vehicleModel,
     status: getDisplayStatus(t),
@@ -210,6 +213,18 @@ export default function AdminTrucks() {
     driver: driverMap[t.truckId] || null,
     raw: t
   }));
+
+  // The topbar box narrows this table rather than opening a panel of its own.
+  // Tyre serials are in scope because "which truck is tyre 002 on" has no other
+  // screen that can answer it.
+  const tableData = filterBySearch(allRows, searchQuery, (r) => [
+    r.id,
+    r.model,
+    r.truckType,
+    r.status,
+    r.driver,
+    ...(Array.isArray(r.raw?.tyres) ? r.raw.tyres.map((t: any) => `${t?.position} ${t?.serial}`) : []),
+  ]);
 
   const columns = [
     { label: "Truck ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
@@ -358,9 +373,9 @@ export default function AdminTrucks() {
         </div>
 
         <CommonTable
-          title="Fleet Inventory"
           icon="🚛"
           columns={columns}
+          title={searchQuery.trim() ? `Fleet Inventory · ${tableData.length} of ${allRows.length}` : "Fleet Inventory"}
           data={tableData}
           onRowClick={(row) => router.push(`/admin/trucks/${row.raw._id}`)}
           emptyState={

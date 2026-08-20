@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import {
   ArrowLeft,
@@ -21,6 +21,7 @@ import { warehouseService, type WarehouseConfig } from "@/services/warehouseServ
 import { tripGapService } from "@/services/tripGapService";
 import {
   buildLegRows,
+  mergeReturnGap,
   toSavePayload,
   billableRows,
   newEmptyLeg,
@@ -48,6 +49,12 @@ export default function AccountantJobDetail() {
   // returning truck drives a leg worth billing — and the dismissal has to be
   // saved, or the row reappears on the next load.
   const [returnDismissed, setReturnDismissed] = useState(false);
+  // Arriving from the jobs list after marking a truck as returning: the one row
+  // that brought us here gets scrolled to and ringed, so the operator is not left
+  // scanning a long settlement for which leg is missing its distance.
+  const focusKind = useSearchParams().get("focus");
+  const focusRef = useRef<HTMLDivElement | null>(null);
+  const [focusFaded, setFocusFaded] = useState(false);
   const [gaps, setGaps] = useState<any[]>([]);
   // What was last persisted, so an already-approved trip can still show a Save
   // button when the accountant adds an empty leg after the fact.
@@ -89,16 +96,6 @@ export default function AccountantJobDetail() {
     JSON.stringify({
       legs: billableRows(rows).map((r) => [r.kind, r.fromLabel, r.toLabel, r.km, r.loadType]),
       rate, alloc, levy, toll,
-    });
-
-  // One button for every empty movement after the cargo: the return to the yard,
-  // a partial return, or any other unladen run. Appended, so the journey reads
-  // top to bottom: dispatch → cargo → empty legs.
-  const addEmptyLeg = () =>
-    setLegRows((rows) => {
-      const drops = jobData?.dropoffLocations || [];
-      const lastDrop = drops[drops.length - 1]?.address?.city || "";
-      return [...rows, newEmptyLeg(lastDrop, mileageRates.unloaded)];
     });
 
   const removeRow = (rowId: string) =>
@@ -188,7 +185,15 @@ export default function AccountantJobDetail() {
 
     try {
       setIsSaving(true);
-      await tripGapService.claim(row.gapId, { bookingId: bookingIdStr, side: ctx.side, km });
+      // Endpoints travel with the claim so the gap carries the whole fact, not
+      // just the distance — the adjacent trip then renders it without re-asking.
+      await tripGapService.claim(row.gapId, {
+        bookingId: bookingIdStr,
+        side: ctx.side,
+        km,
+        fromLabel: row.fromLabel,
+        toLabel: row.toLabel,
+      });
       // Same action, same click: put the leg on the settlement too, so nothing
       // is left half-written for someone to notice later.
       await settlementService.process(buildSettlementPayload());
@@ -202,30 +207,6 @@ export default function AccountantJobDetail() {
       }
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  // Undoing a claim happens on the trip that MADE it — the other trip only ever
-  // sees the segment locked (CR-VL-001 §3.5). Without this the first click would
-  // be final: nothing else releases a gap, so a leg billed to the wrong trip
-  // could never be corrected.
-  const handleUnclaimGap = async (row: LegRow) => {
-    if (!row.gapId) return;
-    const ctx = gapContextFor(row);
-    const tripLabel = jobData?.tripId || "this trip";
-    if (
-      !confirm(
-        `Remove this empty leg from ${tripLabel}? It becomes unattributed, and either ` +
-          `${tripLabel} or ${ctx?.otherTripLabel || "the other trip"} can then claim it.`
-      )
-    )
-      return;
-    try {
-      await tripGapService.release(row.gapId, bookingIdStr);
-      await loadJobDetails();
-    } catch (err: any) {
-      alert(err?.message || "Failed to remove the empty leg.");
-      await loadJobDetails();
     }
   };
 
@@ -249,13 +230,19 @@ export default function AccountantJobDetail() {
     if (newVal === routeDefaults.allocationMoney) notifiedRef.current.delete("alloc");
   };
 
+  // One movement, one row. The return leg and the gap collapse into a single card
+  // whenever they end at the same city — and everything downstream (totals, the
+  // rendered list, the saved payload) reads THIS, so a merged leg cannot be
+  // costed once on screen and twice in the settlement.
+  const visibleRows = useMemo(() => mergeReturnGap(legRows), [legRows]);
+
   const calculations = useMemo(() => {
     const rate = parseFloat(fuelRate) || 0;
     const cash = parseFloat(allocationMoney) || 0;
 
     // Locked rows are excluded: that empty leg is billed to the OTHER trip.
     // Counting it here would double-bill exactly what this feature prevents.
-    const rows = billableRows(legRows);
+    const rows = billableRows(visibleRows);
 
     const perRow = new Map<string, { liters: number; amount: number }>();
     let totalLiters = 0;
@@ -281,7 +268,7 @@ export default function AccountantJobDetail() {
       legCount: rows.length,
       grandTotal: fuelTotal + Math.round(cash),
     };
-  }, [legRows, fuelRate, allocationMoney]);
+  }, [visibleRows, fuelRate, allocationMoney]);
 
   /**
    * A truck only leaves the yard when its previous job is genuinely finished and
@@ -515,7 +502,7 @@ export default function AccountantJobDetail() {
 
     // Every rendered leg must be filled. A single total-above-zero check passed
     // on the cargo leg alone and let a blank dispatch or return leg through.
-    const rowsToSave = billableRows(legRows);
+    const rowsToSave = billableRows(visibleRows);
 
     // A hand-added leg with no place names would persist as "→" and be
     // unreadable in every report that renders it.
@@ -578,7 +565,7 @@ Continue anyway?`
         const driver = cleanDriverName(jobData?.assignment?.driverName) || "Driver";
         const pickup = allStops[0]?.address?.city || "—";
         const dropoff = allStops[allStops.length - 1]?.address?.city || "—";
-        const totalKm = billableRows(legRows).reduce((s, r) => s + (Number(r.km) || 0), 0);
+        const totalKm = billableRows(visibleRows).reduce((s, r) => s + (Number(r.km) || 0), 0);
         const wasAlreadyApproved = isApproved;
         addNotification(
           wasAlreadyApproved ? "📝" : "✅",
@@ -633,6 +620,15 @@ Continue anyway?`
 
   // All stops in journey order: pickups first, then dropoffs
   const allStops = [...job.pickupLocations, ...job.dropoffLocations];
+
+  useEffect(() => {
+    if (!focusKind || !focusRef.current) return;
+    focusRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    // The ring is a pointer, not a permanent state — drop it once it has done
+    // its job so the row looks like every other row again.
+    const t = setTimeout(() => setFocusFaded(true), 2600);
+    return () => clearTimeout(t);
+  }, [focusKind, legRows.length]);
 
   const hasDispatchLeg = legRows.some((r) => r.kind === "dispatch");
 
@@ -1146,10 +1142,15 @@ Continue anyway?`
                   {/* Per-leg cards. Keyed by row.id, never by index — [+] and
                       claim/unclaim mutate the middle of this list, and index keys
                       would re-map inputs onto the wrong rows at runtime. */}
-                  {legRows.map((row) => {
+                  {visibleRows.map((row) => {
                     const color = legColorOf(row.kind);
                     const calc = calculations.perRow.get(row.id);
                     const ctx = row.gapId ? gapContextFor(row) : null;
+                    // The claim strip sits on whichever card carries the gap, and a
+                    // gap absorbed by the return leg lands on a violet one — an amber
+                    // rule across it reads as a stray fragment of another card.
+                    const claimRule = color === "violet" ? "border-violet-200/60" : "border-amber-200/60";
+                    const claimText = color === "violet" ? "text-violet-700" : "text-amber-700";
                     const isCargo = row.kind === "stop";
                     // Two things freeze once the truck is out: the cargo route,
                     // and any empty leg already committed to the settlement. An
@@ -1184,8 +1185,16 @@ Continue anyway?`
                       return:   jobData?.lastPoint?.source === "reassignment" ? "Repositioning · Empty" : "Return · Empty",
                     };
 
+                    const isFocused = focusKind === row.kind && !focusFaded;
+
                     return (
-                      <div key={row.id} className={`p-4 rounded-xl border space-y-3 ${colorMap[color]}`}>
+                      <div
+                        key={row.id}
+                        ref={focusKind === row.kind ? focusRef : undefined}
+                        className={`p-4 rounded-xl border space-y-3 transition-shadow duration-500 ${colorMap[color]} ${
+                          isFocused ? "ring-4 ring-violet-300 ring-offset-2" : ""
+                        }`}
+                      >
                         {/* From */}
                         <div className="flex items-start gap-2">
                           <div className={`w-7 h-7 rounded-full ${labelBg[color]} text-white flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5`}>
@@ -1219,8 +1228,15 @@ Continue anyway?`
                           {/* Hand-added and return legs get a ×; the dismissal of a
                               return leg is saved, so it stays gone. Dispatch is owned
                               by the checkbox above, and a gap row is claimed rather
-                              than deleted. */}
-                          {row.manual && (row.kind === "extra" || row.kind === "return") && !row.gapId && (
+                              than deleted.
+
+                              A diverted trip is the exception: the truck really did
+                              drive from the drop to wherever the new job caught it,
+                              and that leg is what this settlement exists to cost.
+                              Striking it off would not undo the drive, only hide it. */}
+                          {row.manual &&
+                            (row.kind === "extra" || (row.kind === "return" && !wasRetargeted)) &&
+                            !row.gapId && (
                             <button
                               onClick={() => removeRow(row.id)}
                               title="Remove this leg"
@@ -1318,8 +1334,8 @@ Continue anyway?`
                         </div>
                         {/* Unclaimed gap → bill it to one trip or the other */}
                         {ctx && ctx.gap.status === "unattributed" && (
-                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-amber-200/60">
-                            <span className="text-[9px] font-bold text-amber-700 uppercase tracking-widest">Bill this empty leg to</span>
+                          <div className={`flex items-center justify-between gap-2 pt-2 border-t ${claimRule}`}>
+                            <span className={`text-[9px] font-bold uppercase tracking-widest ${claimText}`}>Bill this empty leg to</span>
                             <div className="flex gap-2 shrink-0">
                               <button
                                 onClick={() => handleClaimGap(row)}
@@ -1340,42 +1356,30 @@ Continue anyway?`
                           </div>
                         )}
 
-                        {/* Claimed by THIS trip → the only place it can be undone. */}
-                        {ctx && ctx.gap.status === "claimed" && !locked && (
-                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-amber-200/60">
-                            <span className="text-[9px] font-bold text-amber-700 uppercase tracking-widest">
-                              Billed to {job.id}
+                        {/* Settled. Attribution is deliberately one-way: the leg is
+                            now costed on this trip, and offering to pull it back out
+                            turns a decision into something that drifts. Billing it to
+                            the other trip is done from that trip's own screen. */}
+                        {ctx && ctx.gap.status === "claimed" && (
+                          <div className={`flex items-center gap-2 pt-2 border-t ${claimRule}`}>
+                            <span className={`text-[9px] font-bold uppercase tracking-widest ${claimText}`}>
+                              Billed to {ctx.currentOwnerId && String(ctx.currentOwnerId) !== bookingIdStr
+                                ? ctx.otherTripLabel
+                                : job.id}
                             </span>
-                            <button
-                              onClick={() => handleUnclaimGap(row)}
-                              className="px-3 py-1.5 bg-white border border-neutral-200 rounded-lg text-[10px] font-bold uppercase tracking-widest text-slate-600 hover:border-rose-300 hover:text-rose-600 transition-all shrink-0"
-                            >
-                              Remove from {job.id}
-                            </button>
                           </div>
                         )}
                       </div>
                     );
                   })}
 
-                  {/* Add empty legs by hand — the accountant knows about empty runs
-                      the system never sees. Hidden once the chain is closed: the
-                      last leg already lands where the next trip starts, so another
-                      leg could only describe a movement that did not happen. */}
-                  {journeyClosed ? (
+                  {journeyClosed && (
                     <div className="w-full py-2.5 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center gap-2">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                       <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">
                         Route complete · ends at {journeyEndCity}
                       </span>
                     </div>
-                  ) : (
-                    <button
-                      onClick={addEmptyLeg}
-                      className="w-full py-3 rounded-xl border-2 border-dashed border-neutral-200 text-[11px] font-bold text-neutral-400 uppercase tracking-widest hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-2"
-                    >
-                      <span className="text-[14px] leading-none">+</span> Add Empty Leg
-                    </button>
                   )}
 
                   {/* Fuel Rate */}

@@ -39,6 +39,8 @@ import { completionService } from "@/services/completionService";
 import JobRouteMap from "@/components/admin/JobRouteMap";
 import { uploadService } from "@/services/uploadService";
 import React from "react";
+import { TYRE_POSITIONS, TYRE_CONDITIONS } from "@/lib/tyrePositions";
+import { truckService } from "@/services/truckService";
 
 function formatCAT(dateStr: string): string {
   try {
@@ -94,11 +96,62 @@ export default function JobDetailReport() {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [completionForm, setCompletionForm] = useState({
     vehicleCondition: "Good",
-    tyreCondition: "Good",
-    tyreNumber: "",
+    // A truck has many tyres and they do not wear evenly, so each one carries its
+    // own condition. One blank row to start, because the common case is typing
+    // straight into it rather than hunting for an "add" button first.
+    // `fitted` marks a tyre that came from the truck's own record: its position is
+    // already decided and must not be re-pointed here. A tyre added at the gate has
+    // no position yet, so that one row picks one.
+    tyres: [] as { position: string; number: string; condition: string; fitted: boolean }[],
     challans: "",
     notes: "",
   });
+
+  const setTyre = (i: number, patch: Partial<{ position: string; number: string; condition: string }>) =>
+    setCompletionForm((f) => ({
+      ...f,
+      tyres: f.tyres.map((t, idx) => (idx === i ? { ...t, ...patch } : t)),
+    }));
+
+  const addTyre = () =>
+    setCompletionForm((f) => ({
+      ...f,
+      tyres: [...f.tyres, { position: "", number: "", condition: "Good", fitted: false }],
+    }));
+
+  const removeTyre = (i: number) =>
+    setCompletionForm((f) => ({ ...f, tyres: f.tyres.filter((_, idx) => idx !== i) }));
+
+  // The truck already knows which tyres are fitted and where — that was recorded on
+  // its compliance record. Making the inspector retype twenty-odd serials at the
+  // gate is how a form stops being filled in honestly, so the list is prefilled
+  // from the truck and only the condition is left to answer.
+  const loadFittedTyres = async () => {
+    const truckId = assignment?.truckId?._id || assignment?.truckId;
+    if (!truckId) return;
+    try {
+      const truck: any = await truckService.getById(String(truckId));
+      const fitted: any[] = Array.isArray(truck?.tyres) ? truck.tyres : [];
+      if (!fitted.length) return;
+      setCompletionForm((f) =>
+        // Never overwrite rows the inspector has already started filling in.
+        f.tyres.length > 0
+          ? f
+          : {
+              ...f,
+              tyres: fitted.map((t: any) => ({
+                position: String(t?.position || ""),
+                number: String(t?.serial || ""),
+                condition: "Good",
+                fitted: true,
+              })),
+            }
+      );
+    } catch (err) {
+      // Prefill is a convenience; rows can still be added by hand.
+      console.error("Could not load the truck's fitted tyres:", err);
+    }
+  };
   const [isSubmittingCompletion, setIsSubmittingCompletion] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
 
@@ -407,6 +460,9 @@ export default function JobDetailReport() {
     }
     if (newStatus === "COMPLETED") {
       setShowCompletionModal(true);
+      // Fire and forget: the modal opens straight away and the tyre rows fill in
+      // behind it, rather than making the operator wait on a truck lookup.
+      loadFittedTyres();
       return;
     }
     try {
@@ -1513,36 +1569,6 @@ export default function JobDetailReport() {
                     </div>
                   </div>
 
-                  {/* Deal Amounts — read-only, set from Requests page */}
-                  <div className="p-5 rounded-[20px] bg-emerald-50/60 border border-emerald-100">
-                    <div className="flex items-center gap-2 mb-4">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-widest">Deal Summary</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Final Amount</div>
-                        <div className="text-[18px] font-bold text-slate-900">
-                          {booking?.finalAmount ? `K${Number(booking.finalAmount).toLocaleString()}` : <span className="text-slate-300 text-[13px]">Not set</span>}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Advance Paid</div>
-                        <div className="text-[18px] font-bold text-slate-900">
-                          {booking?.advancePaid ? `K${Number(booking.advancePaid).toLocaleString()}` : <span className="text-slate-300 text-[13px]">—</span>}
-                        </div>
-                      </div>
-                    </div>
-                    {booking?.finalAmount && booking?.advancePaid && (
-                      <div className="mt-4 pt-3 border-t border-emerald-100 flex items-center justify-between">
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Balance Due</span>
-                        <span className="text-[14px] font-bold text-slate-900">
-                          K{(Number(booking.finalAmount) - Number(booking.advancePaid)).toLocaleString()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
                   {/* Live Route Map */}
                   <div className="rounded-2xl border border-slate-100 shadow-sm overflow-hidden bg-slate-50" style={{ height: 260 }}>
                     {assignment?.truckNumber && assignment.truckNumber !== "N/A" ? (
@@ -1727,22 +1753,85 @@ export default function JobDetailReport() {
                       </select>
                     </div>
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Tyre Condition</label>
-                      <select value={completionForm.tyreCondition} onChange={e => setCompletionForm(f => ({ ...f, tyreCondition: e.target.value }))} className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer">
-                        <option>Excellent</option><option>Good</option><option>Fair</option><option>Poor — Replace</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Tyre Number</label>
-                      <input type="text" value={completionForm.tyreNumber} onChange={e => setCompletionForm(f => ({ ...f, tyreNumber: e.target.value }))} placeholder="e.g. TY-2024-001" className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
-                    </div>
-                    <div className="space-y-1.5">
                       <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Challans</label>
                       <input type="text" value={completionForm.challans} onChange={e => setCompletionForm(f => ({ ...f, challans: e.target.value }))} placeholder="Challan no. or ref." className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
                     </div>
+                  </div>
+
+                  {/* One row per tyre. A single condition for the whole truck hid
+                      the one tyre that was down to the canvas, and a single number
+                      meant recording that tyre lost every other. */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Tyres</label>
+                      <span className="text-[9px] font-semibold text-neutral-300 uppercase tracking-widest">
+                        {completionForm.tyres.filter(t => t.position.trim() || t.number.trim()).length} recorded
+                      </span>
+                    </div>
+                    {completionForm.tyres.length === 0 && (
+                      <p className="text-[10px] text-neutral-300 py-2 leading-relaxed">
+                        No tyres on record for this truck. Add them below and they will be
+                        written onto the truck&apos;s record too.
+                      </p>
+                    )}
+                    <div className="space-y-2">
+                      {completionForm.tyres.map((tyre, i) => (
+                        <div key={i} className="flex items-center gap-2">
+                          {/* A tyre already on the truck keeps its position: re-pointing it
+                              here would silently move a serial onto a different wheel. One
+                              added at the gate has no position yet, and needs one to reach
+                              the truck's record at all — so that row, and only that row,
+                              picks from the list. Positions already taken are left out. */}
+                          {tyre.fitted ? (
+                            <span className="w-[10.5rem] shrink-0 px-2.5 py-2.5 bg-primary/10 text-primary rounded-xl text-[11px] font-bold leading-tight">
+                              {tyre.position || "No position"}
+                            </span>
+                          ) : (
+                            <select
+                              value={tyre.position}
+                              onChange={e => setTyre(i, { position: e.target.value })}
+                              className="w-[10.5rem] shrink-0 bg-neutral-50 border border-neutral-100 rounded-xl px-2.5 py-2.5 text-[12px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer"
+                            >
+                              <option value="">Position...</option>
+                              {TYRE_POSITIONS.filter(
+                                pos => pos === tyre.position || !completionForm.tyres.some(t => t.position === pos)
+                              ).map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                            </select>
+                          )}
+                          <input
+                            type="text"
+                            value={tyre.number}
+                            onChange={e => setTyre(i, { number: e.target.value })}
+                            placeholder="Tyre serial no."
+                            className="flex-1 min-w-0 bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all"
+                          />
+                          <select
+                            value={tyre.condition}
+                            onChange={e => setTyre(i, { condition: e.target.value })}
+                            className="w-[8.5rem] shrink-0 bg-neutral-50 border border-neutral-100 rounded-xl px-2.5 py-2.5 text-[12px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer"
+                          >
+                            {TYRE_CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => removeTyre(i)}
+                            title="Remove this tyre"
+                            className="shrink-0 w-9 h-9 rounded-xl border border-neutral-200 bg-white text-neutral-400 hover:text-rose-600 hover:border-rose-200 text-[15px] leading-none flex items-center justify-center transition-all"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    {/* A tyre fitted at the gate belongs on the truck too — saving this
+                        inspection writes it onto the truck's record. */}
+                    <button
+                      type="button"
+                      onClick={addTyre}
+                      className="w-full py-2.5 rounded-xl border-2 border-dashed border-neutral-200 text-[10px] font-bold text-neutral-400 uppercase tracking-widest hover:border-primary/40 hover:text-primary hover:bg-primary/5 transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <span className="text-[13px] leading-none">+</span> Add Tyre
+                    </button>
                   </div>
                 </>
               )}

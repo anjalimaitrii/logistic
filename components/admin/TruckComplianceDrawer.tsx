@@ -18,6 +18,7 @@ import {
    AlertTriangle,
 } from "lucide-react";
 import { truckService } from "@/services/truckService";
+import { TYRE_POSITIONS } from "@/lib/tyrePositions";
 
 interface TruckComplianceDrawerProps {
    isOpen: boolean;
@@ -39,31 +40,6 @@ const COMPLIANCE_DOC_TYPES = [
    "Identity",
 ];
 
-const TYRE_POSITIONS = [
-   "Front Left (1)",
-   "Front Right (2)",
-   "1st Axle Left Inner (3)",
-   "1st Axle Right Inner (4)",
-   "1st Axle Left Outer (5)",
-   "1st Axle Right Outer (6)",
-   "2nd Axle Left Inner (7)",
-   "2nd Axle Right Inner (8)",
-   "2nd Axle Left Outer (9)",
-   "2nd Axle Right Outer (10)",
-   "3rd Axle Left Inner (11)",
-   "3rd Axle Right Inner (12)",
-   "3rd Axle Left Outer (13)",
-   "3rd Axle Right Outer (14)",
-   "4th Axle Left Inner (15)",
-   "4th Axle Right Inner (16)",
-   "4th Axle Left Outer (17)",
-   "4th Axle Right Outer (18)",
-   "5th Axle Left Inner (19)",
-   "5th Axle Right Inner (20)",
-   "5th Axle Left Outer (21)",
-   "5th Axle Right Outer (22)",
-   "Spare Tyre (23)",
-];
 
 const defaultDocs = () =>
    COMPLIANCE_DOC_TYPES.map((type) => ({ type, dueDate: "", file: "" }));
@@ -75,7 +51,10 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
    const [currentService, setCurrentService] = useState("");
    const [nextService, setNextService] = useState("");
    const [nextServiceDate, setNextServiceDate] = useState("");
-   const [tyrePositions, setTyrePositions] = useState<string[]>([]);
+   // Position AND serial: the position says where the tyre sits, the serial says
+   // which physical tyre that is. Recording only the first cannot answer "which
+   // tyre failed", which is the question the record exists for.
+   const [tyres, setTyres] = useState<{ position: string; serial: string }[]>([]);
    const [tyreDropdownOpen, setTyreDropdownOpen] = useState(false);
    const tyreDropdownRef = useRef<HTMLDivElement>(null);
    const [isLoading, setIsLoading] = useState(false);
@@ -96,7 +75,18 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
          setCurrentService(data.currentService || "");
          setNextService(data.nextService || "");
          setNextServiceDate(data.nextServiceDate || data.estNextServiceDate || "");
-         setTyrePositions(Array.isArray(data.tireSerialNumber) ? data.tireSerialNumber : data.tireSerialNumber ? [data.tireSerialNumber] : []);
+         // Trucks saved before serials existed hold positions only; those load
+         // with a blank serial rather than being dropped.
+         const legacyPositions = Array.isArray(data.tireSerialNumber)
+            ? data.tireSerialNumber
+            : data.tireSerialNumber
+            ? [data.tireSerialNumber]
+            : [];
+         setTyres(
+            Array.isArray(data.tyres) && data.tyres.length > 0
+               ? data.tyres.map((t: any) => ({ position: String(t?.position || ""), serial: String(t?.serial || "") }))
+               : legacyPositions.map((position: string) => ({ position, serial: "" }))
+         );
 
          if (data.complianceDocs && data.complianceDocs.length > 0) {
             // Merge saved docs with the required types (add missing ones)
@@ -124,7 +114,8 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
             currentService,
             nextService,
             nextServiceDate,
-            tireSerialNumber: tyrePositions,
+            // The server derives tireSerialNumber (positions only) from this.
+            tyres,
          });
          onClose();
       } catch (error) {
@@ -146,10 +137,15 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
    }, []);
 
    const toggleTyrePosition = (pos: string) => {
-      setTyrePositions(prev =>
-         prev.includes(pos) ? prev.filter(p => p !== pos) : [...prev, pos]
+      setTyres(prev =>
+         prev.some(t => t.position === pos)
+            ? prev.filter(t => t.position !== pos)
+            : [...prev, { position: pos, serial: "" }]
       );
    };
+
+   const setTyreSerial = (pos: string, serial: string) =>
+      setTyres(prev => prev.map(t => (t.position === pos ? { ...t, serial } : t)));
 
    const updateDocDate = (type: string, date: string) => {
       setDocs((prev) => prev.map((d) => (d.type === type ? { ...d, dueDate: date } : d)));
@@ -381,7 +377,7 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                        <div className="bg-neutral-50 border border-neutral-100 rounded-2xl p-4">
                                           <div className="space-y-1.5">
                                              <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest ml-1">
-                                                Select Tyre Position{tyrePositions.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-primary text-white rounded text-[8px]">{tyrePositions.length}</span>}
+                                                Select Tyre Position{tyres.length > 0 && <span className="ml-1.5 px-1.5 py-0.5 bg-primary text-white rounded text-[8px]">{tyres.length}</span>}
                                              </label>
                                              <div className="relative" ref={tyreDropdownRef}>
                                                 {/* Trigger */}
@@ -390,12 +386,12 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                                    onClick={() => setTyreDropdownOpen(v => !v)}
                                                    className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-2.5 text-[12px] font-semibold text-slate-900 outline-none focus:border-primary/20 transition-all flex items-center justify-between gap-2 text-left"
                                                 >
-                                                   <span className={tyrePositions.length === 0 ? "text-neutral-300" : "text-slate-900"}>
-                                                      {tyrePositions.length === 0
+                                                   <span className={tyres.length === 0 ? "text-neutral-300" : "text-slate-900"}>
+                                                      {tyres.length === 0
                                                          ? "Select positions..."
-                                                         : tyrePositions.length === 1
-                                                         ? tyrePositions[0]
-                                                         : `${tyrePositions.length} positions selected`}
+                                                         : tyres.length === 1
+                                                         ? tyres[0].position
+                                                         : `${tyres.length} positions selected`}
                                                    </span>
                                                    <ChevronDown className={`w-4 h-4 text-neutral-400 shrink-0 transition-transform ${tyreDropdownOpen ? "rotate-180" : ""}`} />
                                                 </button>
@@ -404,7 +400,7 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                                 {tyreDropdownOpen && (
                                                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-neutral-100 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto">
                                                       {TYRE_POSITIONS.map((pos) => {
-                                                         const selected = tyrePositions.includes(pos);
+                                                         const selected = tyres.some(t => t.position === pos);
                                                          return (
                                                             <button
                                                                key={pos}
@@ -423,14 +419,31 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                                 )}
                                              </div>
 
-                                             {/* Selected chips */}
-                                             {tyrePositions.length > 0 && (
-                                                <div className="flex flex-wrap gap-1.5 pt-1">
-                                                   {tyrePositions.map(pos => (
-                                                      <span key={pos} className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-lg text-[10px] font-bold">
-                                                         {pos}
-                                                         <button type="button" onClick={() => toggleTyrePosition(pos)} className="hover:text-rose-500 transition-colors ml-0.5">×</button>
-                                                      </span>
+                                             {/* One row per fitted tyre. The position is picked above; the
+                                                 serial is stamped on the tyre itself, so it is typed. */}
+                                             {tyres.length > 0 && (
+                                                <div className="space-y-2 pt-1">
+                                                   {tyres.map(tyre => (
+                                                      <div key={tyre.position} className="flex items-center gap-2">
+                                                         <span className="w-[11rem] shrink-0 px-2 py-2 bg-primary/10 text-primary rounded-lg text-[10px] font-bold leading-tight">
+                                                            {tyre.position}
+                                                         </span>
+                                                         <input
+                                                            type="text"
+                                                            value={tyre.serial}
+                                                            onChange={e => setTyreSerial(tyre.position, e.target.value)}
+                                                            placeholder="Tyre serial no."
+                                                            className="flex-1 min-w-0 bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary/30 transition-all"
+                                                         />
+                                                         <button
+                                                            type="button"
+                                                            onClick={() => toggleTyrePosition(tyre.position)}
+                                                            title="Remove this tyre"
+                                                            className="shrink-0 w-8 h-8 rounded-lg border border-neutral-200 bg-white text-neutral-400 hover:text-rose-500 hover:border-rose-200 text-[14px] leading-none flex items-center justify-center transition-all"
+                                                         >
+                                                            ×
+                                                         </button>
+                                                      </div>
                                                    ))}
                                                 </div>
                                              )}

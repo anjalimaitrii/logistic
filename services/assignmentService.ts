@@ -49,7 +49,10 @@ export const assignmentService = {
   markTruckInspected: async (driverId: string, inspectionData?: {
     bookingId?: string;
     vehicleCondition: string;
-    tyreCondition: string;
+    // Every tyre inspected, each with its own condition. The flat pair below is
+    // still accepted for older callers; the server derives it from this list.
+    tyres?: { number: string; condition: string }[];
+    tyreCondition?: string;
     tyreNumber?: string;
     challans?: string;
     deliveryOrders?: string[];
