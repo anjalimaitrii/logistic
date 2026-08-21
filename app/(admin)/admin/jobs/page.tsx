@@ -145,6 +145,17 @@ export default function AdminJobsPage() {
     return ts && ts !== "pending" ? "active" : "notStarted";
   };
 
+  // A booking does not carry its own assignment, so anything that wants the driver
+  // has to look it up here. The table did; the return dialog was handed the raw
+  // booking and showed "Unknown Driver" for every trip.
+  const assignmentFor = (b: any) =>
+    assignments.find((a) => (a.bookingId?._id || a.bookingId) === (b?._id || b?.id));
+
+  const driverNameFor = (b: any) => {
+    const name = assignmentFor(b)?.driverName;
+    return name ? cleanDriverName(name) : "Unassigned";
+  };
+
   // Completed jobs leave this page entirely — table, cards and filters all
   // count from this same set.
   const pageBookings = bookings.filter(b => phaseOf(b) !== "completed");
@@ -177,7 +188,7 @@ export default function AdminJobsPage() {
     const dropoffLocs = b?.dropoffLocations?.length > 0 ? b.dropoffLocations : (b?.dropoff ? [b.dropoff] : []);
     const allLocs = [...pickupLocs, ...dropoffLocs];
     const route = allLocs.map((l: any) => l.address?.city).filter(Boolean) as string[];
-    const assignment = assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id);
+    const assignment = assignmentFor(b);
     const truckNo = String(assignment?.truckNumber || "").toUpperCase();
     const gpsStatus = truckNo ? (gpsStatusMap[truckNo] || null) : null;
     const tripStatus = (b?.tripStatus || b?.status || "").toLowerCase();
@@ -215,13 +226,29 @@ export default function AdminJobsPage() {
   const [returnFor, setReturnFor] = useState<any>(null);
   const [returnKm, setReturnKm] = useState("");
   const [returnTo, setReturnTo] = useState("");
+  // What the trip already carries, so the operator can see what they are adding to
+  // rather than guessing — and so nobody re-types a figure that is already there.
+  const [returnCurrent, setReturnCurrent] = useState({ allocation: 0, levy: 0, toll: 0 });
+  const [returnAdd, setReturnAdd] = useState({ allocation: "", levy: "", toll: "" });
 
   const openReturn = async (b: any) => {
+    const bookingId = b?._id || b?.id;
     setReturnFor(b);
     setReturnKm("");
-    // The yard is the destination unless someone says otherwise.
-    const wh = await warehouseService.get().catch(() => null);
+    setReturnAdd({ allocation: "", levy: "", toll: "" });
+    setReturnCurrent({ allocation: 0, levy: 0, toll: 0 });
+
+    const [wh, st] = await Promise.all([
+      warehouseService.get().catch(() => null),
+      settlementService.getByBookingId(String(bookingId)).catch(() => null),
+    ]);
     setReturnTo(wh?.city || "");
+    const f = (st as any)?.financials || {};
+    setReturnCurrent({
+      allocation: Number(f.cashAllocation) || 0,
+      levy: Number(f.councilLevy) || 0,
+      toll: Number(f.tollAmount) || 0,
+    });
   };
 
   const submitReturn = async () => {
@@ -234,8 +261,10 @@ export default function AdminJobsPage() {
     try {
       setReturningId(bookingId);
       await bookingService.markReturning(bookingId, {
-        toLabel: returnTo.trim(),
         km: Number(returnKm),
+        addAllocation: Number(returnAdd.allocation) || 0,
+        addCouncilLevy: Number(returnAdd.levy) || 0,
+        addToll: Number(returnAdd.toll) || 0,
       });
       setReturnFor(null);
       await loadBookings();
@@ -527,7 +556,7 @@ export default function AdminJobsPage() {
             <div className="px-6 pt-6 pb-4 border-b border-slate-100">
               <h3 className="text-[15px] font-bold text-slate-900">Return to yard</h3>
               <p className="text-[11px] text-slate-400 mt-0.5">
-                {returnFor?.tripId || "This trip"} &middot; {cleanDriverName(returnFor?.assignment?.driverName) || "Driver"}
+                {returnFor?.tripId || "This trip"} &middot; {driverNameFor(returnFor)}
               </p>
             </div>
 
@@ -542,15 +571,21 @@ export default function AdminJobsPage() {
                 </div>
               </div>
 
+              {/* Fixed: the yard is whatever Route Master holds. A truck cannot be
+                  sent "home" to somewhere that is not home, so this is shown, not asked. */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">To</label>
-                <input
-                  type="text"
-                  value={returnTo}
-                  onChange={(e) => setReturnTo(e.target.value)}
-                  placeholder="Warehouse city"
-                  className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all"
-                />
+                <div className="text-[13px] font-semibold text-slate-900">
+                  {returnTo || "—"}
+                  <span className="ml-1.5 text-[9px] font-bold uppercase tracking-widest text-violet-600">
+                    Warehouse
+                  </span>
+                </div>
+                {!returnTo && (
+                  <p className="text-[10px] text-rose-500">
+                    No warehouse set. Add it on Route Master first.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -572,6 +607,45 @@ export default function AdminJobsPage() {
                   leg, so the accountant finds it already costed.
                 </p>
               </div>
+
+              {/* Added to what the trip already carries, not replacing it — the
+                  outbound allowance is still owed whatever the run home costs. */}
+              <div className="pt-1 space-y-3 border-t border-slate-100">
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest pt-3">
+                  Add for the return
+                </p>
+
+                {([
+                  { key: "allocation", label: "Driver's allowance", now: returnCurrent.allocation },
+                  { key: "levy", label: "Council levy", now: returnCurrent.levy },
+                  { key: "toll", label: "Toll", now: returnCurrent.toll },
+                ] as const).map((f) => {
+                  const add = Number(returnAdd[f.key]) || 0;
+                  return (
+                    <div key={f.key} className="flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-semibold text-slate-700 truncate">{f.label}</div>
+                        <div className="text-[10px] text-slate-400">
+                          Now K{f.now.toLocaleString()}
+                          {add > 0 && (
+                            <span className="text-emerald-600 font-bold">
+                              {" "}&rarr; K{(f.now + add).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <input
+                        type="number"
+                        min="0"
+                        value={returnAdd[f.key]}
+                        onChange={(e) => setReturnAdd((p) => ({ ...p, [f.key]: e.target.value }))}
+                        placeholder="+ 0"
+                        className="w-28 shrink-0 bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="px-6 pb-6 flex gap-3">
@@ -583,7 +657,7 @@ export default function AdminJobsPage() {
               </button>
               <button
                 onClick={submitReturn}
-                disabled={!!returningId || !(Number(returnKm) > 0)}
+                disabled={!!returningId || !(Number(returnKm) > 0) || !returnTo}
                 className="flex-1 py-3 rounded-2xl bg-primary text-white text-[11px] font-bold uppercase tracking-widest hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
               >
                 {returningId ? "Saving..." : "Start Return"}

@@ -40,7 +40,13 @@ export const bookingService = {
    * Mark the truck as returning to the yard AND record how far it will run empty.
    * One call, because the status on its own left the run costed at nothing.
    */
-  markReturning: async (bookingId: string, body: { toLabel?: string; km: number }) =>
+  markReturning: async (
+    bookingId: string,
+    // The yard is not sent: the server takes it from Route Master, so a return can
+    // never be recorded to a place that is not the warehouse. The three amounts are
+    // what this run adds on top of what the trip already carries.
+    body: { km: number; addAllocation?: number; addCouncilLevy?: number; addToll?: number }
+  ) =>
     fetchApi(`/api/bookings/${bookingId}/returning`, {
       method: "POST",
       body: JSON.stringify(body),
