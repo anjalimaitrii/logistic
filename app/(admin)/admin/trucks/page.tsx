@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
-import { useSearch, filterBySearch } from "@/context/SearchContext";
+import { filterBySearch } from "@/lib/filterBySearch";
 import CreateTruckModal from "@/components/admin/CreateTruckModal";
 import TruckComplianceDrawer from "@/components/admin/TruckComplianceDrawer";
-import { ChevronRight, Eye, Settings, Plus, Package, X, Trash2, AlertTriangle } from "lucide-react";
+import { ChevronRight, Eye, Settings, Plus, Package, X, Trash2, AlertTriangle, Search } from "lucide-react";
 import { truckService } from "@/services/truckService";
 import { fetchLiveVehicles, cleanDriverName } from "@/services/liveTrackingService";
 import { driverService } from "@/services/driverService";
@@ -202,7 +202,7 @@ export default function AdminTrucks() {
     { label: "Stopped", value: trucks.filter(t => getDisplayStatus(t) === "Stopped" || getDisplayStatus(t) === "Inactive").length.toString(), icon: "🔴", subText: "Stopped / Inactive", trend: "Review", variant: "danger" as const },
   ];
 
-  const { query: searchQuery } = useSearch();
+  const [searchQuery, setSearchQuery] = useState("");
 
   const allRows = trucks.map(t => ({
     id: t.truckId,
@@ -214,7 +214,9 @@ export default function AdminTrucks() {
     raw: t
   }));
 
-  // The topbar box narrows this table rather than opening a panel of its own.
+  // Every other list screen carries its own search beside its filters; this one
+  // borrowed the topbar's, which meant the box stayed on screen for pages that
+  // could not use it.
   // Tyre serials are in scope because "which truck is tyre 002 on" has no other
   // screen that can answer it.
   const tableData = filterBySearch(allRows, searchQuery, (r) => [
@@ -377,6 +379,18 @@ export default function AdminTrucks() {
           columns={columns}
           title={searchQuery.trim() ? `Fleet Inventory · ${tableData.length} of ${allRows.length}` : "Fleet Inventory"}
           data={tableData}
+          action={
+            <div className="relative group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 group-focus-within:text-primary transition-colors" />
+              <input
+                type="text"
+                placeholder="Search truck, driver, tyre..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-slate-50 border border-slate-100 rounded-lg pl-9 pr-3 py-2 text-[11px] font-medium outline-none focus:bg-white focus:border-primary/20 transition-all w-48"
+              />
+            </div>
+          }
           onRowClick={(row) => router.push(`/admin/trucks/${row.raw._id}`)}
           emptyState={
             isLoading ? (

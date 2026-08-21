@@ -98,13 +98,9 @@ export default function AccountantJobDetail() {
       rate, alloc, levy, toll,
     });
 
+  // Only hand-added legs reach this; a return leg has no × to press.
   const removeRow = (rowId: string) =>
-    setLegRows((rows) => {
-      // Striking off a return leg is a decision, not just a row deletion: the
-      // trip is still "returning", so it would be offered again on reload.
-      if (rows.find((r) => r.id === rowId)?.kind === "return") setReturnDismissed(true);
-      return rows.filter((r) => r.id !== rowId);
-    });
+    setLegRows((rows) => rows.filter((r) => r.id !== rowId));
 
   const removeDispatchLeg = () =>
     setLegRows((rows) => rows.filter((r) => r.kind !== "dispatch"));
@@ -196,7 +192,7 @@ export default function AccountantJobDetail() {
       });
       // Same action, same click: put the leg on the settlement too, so nothing
       // is left half-written for someone to notice later.
-      await settlementService.process(buildSettlementPayload());
+      await settlementService.process(buildLegPayload());
       await loadJobDetails();
     } catch (err: any) {
       if (err?.status === 409) {
@@ -634,15 +630,35 @@ Continue anyway?`
 
   // One shape, two callers: the Approve/Save button and the gap-claim action.
   // Built from current state so a claim carries whatever the accountant has typed.
-  const buildSettlementPayload = () => {
+  /**
+   * The route and its costs, WITHOUT financials.
+   *
+   * Two reasons this half exists on its own. First, the legs come from
+   * visibleRows: a gap absorbed into the return leg is one movement, and sending
+   * the unmerged list wrote it as two extraLegs — billing the same kilometres
+   * twice while the screen showed them once.
+   *
+   * Second, the server treats any body carrying `financials` as an approval
+   * (isApprovalWrite). Claiming a gap has to save the leg without approving the
+   * trip, or the claim button silently approves a settlement whose fuel rate is
+   * still zero — past every guard the Approve button applies.
+   */
+  const buildLegPayload = () => {
     const rate = Number(fuelRate) || 0;
-    const { legs, extraLegs } = toSavePayload(legRows, rate);
+    const { legs, extraLegs } = toSavePayload(visibleRows, rate);
     return {
       bookingId: bookingIdStr,
       fuelDetails: { fuelRate: rate, legs },
       extraLegs,
       returnLegDismissed: returnDismissed,
       expenses: jobSettlement?.expenses || [],
+    };
+  };
+
+  /** The legs PLUS the money — this is what makes a write an approval. */
+  const buildSettlementPayload = () => {
+    return {
+      ...buildLegPayload(),
       financials: {
         cashAllocation: Number(allocationMoney) || 0,
         fuelTotal: calculations.fuelTotal,
@@ -655,6 +671,7 @@ Continue anyway?`
       },
     };
   };
+
 
   // This trip was diverted to another job's pickup, so the truck never went back
   // to the yard. Offering "returned to warehouse" here would let the accountant
@@ -975,10 +992,11 @@ Continue anyway?`
                       );
                     })}
                     {/* Empty movements after the last drop — the claimed gap and any
-                        legs the accountant added. Rendered from the actual rows, so
-                        the same movement can never appear twice (it used to: a gap
-                        row and an auto return row both described drop → next pickup). */}
-                    {legRows
+                        legs the accountant added. Read from visibleRows, the same
+                        merged list the ledger beside it uses: a return leg that
+                        absorbed a gap is ONE movement, and reading the raw rows
+                        printed it twice here while the ledger showed it once. */}
+                    {visibleRows
                       .filter((r) => r.kind === "extra" || r.kind === "return")
                       .map((r) => (
                         <div key={r.id} className="relative flex gap-4 pb-6 last:pb-0">
@@ -1051,6 +1069,39 @@ Continue anyway?`
                   />
                 </div>
 
+              </div>
+
+              {/* Toll Amount — Route Master estimate, NOT part of driver's allowance */}
+              <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="p-1 px-1.5 rounded-lg bg-violet-50 text-violet-600"><DollarSign className="w-3.5 h-3.5" /></div>
+                  <div>
+                    <h2 className="text-xs md:text-sm font-semibold text-slate-950">Toll Amount</h2>
+                    <p className="text-[8px] md:text-[9px] font-normal text-neutral-400 uppercase tracking-widest">Route Master value</p>
+                  </div>
+                </div>
+                <div className="p-4 rounded-xl bg-violet-50/30 border border-violet-100/50 mb-4">
+                  <p className="text-[10px] font-medium text-violet-700 leading-relaxed">
+                    Estimated toll cost for this route. This is <strong>not</strong> part of the driver&apos;s allowance — it is tracked separately.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between ml-1">
+                    <label className="text-[9px] font-bold text-slate-600 uppercase tracking-widest font-sans">Toll Amount (K)</label>
+                    {routeDefaults && parseFloat(tollAmount) !== routeDefaults.tollAmount && parseFloat(tollAmount) > 0 && (
+                      <span className="text-[7px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                        Route: K{routeDefaults.tollAmount.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                  <input
+                    type="number"
+                    value={tollAmount}
+                    onChange={(e) => setTollAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full bg-violet-50/40 border border-violet-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-violet-400 focus:bg-white transition-all placeholder:text-neutral-300"
+                  />
+                </div>
               </div>
             </div>
 
@@ -1225,18 +1276,17 @@ Continue anyway?`
                               </div>
                             )}
                           </div>
-                          {/* Hand-added and return legs get a ×; the dismissal of a
-                              return leg is saved, so it stays gone. Dispatch is owned
-                              by the checkbox above, and a gap row is claimed rather
-                              than deleted.
+                          {/* Only hand-added legs get a ×.
 
-                              A diverted trip is the exception: the truck really did
-                              drive from the drop to wherever the new job caught it,
-                              and that leg is what this settlement exists to cost.
-                              Striking it off would not undo the drive, only hide it. */}
-                          {row.manual &&
-                            (row.kind === "extra" || (row.kind === "return" && !wasRetargeted)) &&
-                            !row.gapId && (
+                              A return leg is not an opinion to withdraw: ops records
+                              it with its distance at the moment the truck sets off,
+                              and a diverted trip really did drive from the drop to
+                              wherever the new job caught it. Striking either off
+                              would not undo the drive, only hide what it cost.
+
+                              Dispatch is owned by the checkbox above, and a gap row
+                              is claimed rather than deleted. */}
+                          {row.manual && row.kind === "extra" && !row.gapId && (
                             <button
                               onClick={() => removeRow(row.id)}
                               title="Remove this leg"
@@ -1411,38 +1461,6 @@ Continue anyway?`
                 </div>
               </div>
 
-              {/* Toll Amount — Route Master estimate, NOT part of driver's allowance */}
-              <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="p-1 px-1.5 rounded-lg bg-violet-50 text-violet-600"><DollarSign className="w-3.5 h-3.5" /></div>
-                  <div>
-                    <h2 className="text-xs md:text-sm font-semibold text-slate-950">Toll Amount</h2>
-                    <p className="text-[8px] md:text-[9px] font-normal text-neutral-400 uppercase tracking-widest">Route Master value</p>
-                  </div>
-                </div>
-                <div className="p-4 rounded-xl bg-violet-50/30 border border-violet-100/50 mb-4">
-                  <p className="text-[10px] font-medium text-violet-700 leading-relaxed">
-                    Estimated toll cost for this route. This is <strong>not</strong> part of the driver&apos;s allowance — it is tracked separately.
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between ml-1">
-                    <label className="text-[9px] font-bold text-slate-600 uppercase tracking-widest font-sans">Toll Amount (K)</label>
-                    {routeDefaults && parseFloat(tollAmount) !== routeDefaults.tollAmount && parseFloat(tollAmount) > 0 && (
-                      <span className="text-[7px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded uppercase tracking-wide">
-                        Route: K{routeDefaults.tollAmount.toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                  <input
-                    type="number"
-                    value={tollAmount}
-                    onChange={(e) => setTollAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full bg-violet-50/40 border border-violet-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-violet-400 focus:bg-white transition-all placeholder:text-neutral-300"
-                  />
-                </div>
-              </div>
             </div>
           </div>
         </div>

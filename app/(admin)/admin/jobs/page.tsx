@@ -15,6 +15,7 @@ import {
   RotateCcw
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
+import { warehouseService } from "@/services/warehouseService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
 import { completionService } from "@/services/completionService";
@@ -208,30 +209,40 @@ export default function AdminJobsPage() {
     return ts.startsWith("offloading");
   };
 
-  // Marking the return opens a leg nobody has costed yet: the run back to the
-  // yard. Ending here with a "now go to the accountant" popup leaves the operator
-  // to find the trip again by hand, so this hands them straight to the row that
-  // needs the distance, with it highlighted.
-  const handleMarkReturning = async (b: any) => {
-    const bookingId = b?._id || b?.id;
-    if (!bookingId) return;
-    const tripId = b?.tripId || `#${String(bookingId).slice(-6).toUpperCase()}`;
-    if (
-      !confirm(
-        `Mark ${tripId} as returning to the yard?
+  // The distance is asked for HERE, not on another screen. Sending the operator to
+  // the settlement to type it left the second half of the job to willpower, and a
+  // truck could sit in "returning" for days with its empty run costed at nothing.
+  const [returnFor, setReturnFor] = useState<any>(null);
+  const [returnKm, setReturnKm] = useState("");
+  const [returnTo, setReturnTo] = useState("");
 
-` +
-          `The empty run home still has to be costed — you will be taken to the settlement to enter its distance.`
-      )
-    )
+  const openReturn = async (b: any) => {
+    setReturnFor(b);
+    setReturnKm("");
+    // The yard is the destination unless someone says otherwise.
+    const wh = await warehouseService.get().catch(() => null);
+    setReturnTo(wh?.city || "");
+  };
+
+  const submitReturn = async () => {
+    const bookingId = returnFor?._id || returnFor?.id;
+    if (!bookingId) return;
+    if (!(Number(returnKm) > 0)) {
+      alert("Enter the distance of the run back to the yard.");
       return;
+    }
     try {
       setReturningId(bookingId);
-      await bookingService.updateTripStatus(bookingId, "returning");
-      router.push(`/admin/accountant/${bookingId}?focus=return`);
-    } catch (error) {
+      await bookingService.markReturning(bookingId, {
+        toLabel: returnTo.trim(),
+        km: Number(returnKm),
+      });
+      setReturnFor(null);
+      await loadBookings();
+    } catch (error: any) {
       console.error("Failed to mark returning:", error);
-      alert("Could not mark the trip as returning.");
+      alert(error?.message || "Could not mark the trip as returning.");
+    } finally {
       setReturningId(null);
     }
   };
@@ -325,7 +336,7 @@ export default function AdminJobsPage() {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                handleMarkReturning(row.raw);
+                openReturn(row.raw);
               }}
               disabled={returningId === (row.raw._id || row.raw.id)}
               className="px-2.5 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-all flex items-center gap-1.5"
@@ -507,6 +518,80 @@ export default function AdminJobsPage() {
           onUpdate={handleUpdateJob}
         />
       </div>
+
+      {/* Return to the yard — status and distance together, because a return with
+          no distance is a status nobody can cost. */}
+      {returnFor && (
+        <div className="fixed inset-0 z-200 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden">
+            <div className="px-6 pt-6 pb-4 border-b border-slate-100">
+              <h3 className="text-[15px] font-bold text-slate-900">Return to yard</h3>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {returnFor?.tripId || "This trip"} &middot; {cleanDriverName(returnFor?.assignment?.driverName) || "Driver"}
+              </p>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">From</label>
+                <div className="text-[13px] font-semibold text-slate-900">
+                  {returnFor?.dropoffLocations?.[returnFor.dropoffLocations.length - 1]?.address?.city || "Last drop"}
+                  <span className="ml-1.5 text-[9px] font-bold uppercase tracking-widest text-slate-400">
+                    Last drop
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">To</label>
+                <input
+                  type="text"
+                  value={returnTo}
+                  onChange={(e) => setReturnTo(e.target.value)}
+                  placeholder="Warehouse city"
+                  className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                  Distance (km) <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  autoFocus
+                  value={returnKm}
+                  onChange={(e) => setReturnKm(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitReturn(); }}
+                  placeholder="e.g. 120"
+                  className="w-full bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2.5 text-[13px] text-slate-900 outline-none focus:border-primary/30 transition-all"
+                />
+                <p className="text-[10px] text-slate-400 leading-relaxed">
+                  This is the empty run home. It is saved onto the settlement as a return
+                  leg, so the accountant finds it already costed.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 pb-6 flex gap-3">
+              <button
+                onClick={() => setReturnFor(null)}
+                className="flex-1 py-3 rounded-2xl border border-neutral-200 text-[11px] font-bold uppercase tracking-widest text-slate-600 hover:border-neutral-300 transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitReturn}
+                disabled={!!returningId || !(Number(returnKm) > 0)}
+                className="flex-1 py-3 rounded-2xl bg-primary text-white text-[11px] font-bold uppercase tracking-widest hover:brightness-110 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              >
+                {returningId ? "Saving..." : "Start Return"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

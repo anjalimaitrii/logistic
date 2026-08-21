@@ -36,6 +36,16 @@ export interface BookingPayload {
 }
 
 export const bookingService = {
+  /**
+   * Mark the truck as returning to the yard AND record how far it will run empty.
+   * One call, because the status on its own left the run costed at nothing.
+   */
+  markReturning: async (bookingId: string, body: { toLabel?: string; km: number }) =>
+    fetchApi(`/api/bookings/${bookingId}/returning`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+
   create: async (payload: BookingPayload) => {
     return await fetchApi('/api/bookings', {
       method: 'POST',

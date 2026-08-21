@@ -5,7 +5,6 @@ import { useRouter, usePathname } from "next/navigation";
 import PinModal from "./PinModal";
 import { useNotifications } from "@/context/NotificationContext";
 import { getAdminAccountType, type AdminAccountType } from "@/lib/adminRole";
-import { useSearch } from "@/context/SearchContext";
 
 interface AdminTopbarProps {
   onToggleSidebar: () => void;
@@ -13,10 +12,6 @@ interface AdminTopbarProps {
 }
 
 export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTopbarProps) {
-  // The box narrows the list the current page is already showing, rather than
-  // opening a results panel of its own. It publishes the query and each screen
-  // decides what to filter; a page with no list simply ignores it.
-  const { query: searchQuery, setQuery: setSearchQuery } = useSearch();
   const [adminClicks, setAdminClicks] = useState(0);
   const { unreadCount } = useNotifications();
   const [showPinModal, setShowPinModal] = useState(false);
@@ -85,26 +80,10 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
         </svg>
       </button>
 
-      <div className="flex-1 max-w-[380px] relative flex items-center group">
-        <svg
-          className="absolute left-3.5 w-4 h-4 text-neutral-400 group-focus-within:text-primary transition-colors"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          viewBox="0 0 24 24"
-        >
-          <circle cx="11" cy="11" r="8" />
-          <path d="m21 21-4.35-4.35" />
-        </svg>
-        <input
-          type="text"
-          className="w-full bg-neutral-50 border border-neutral-100 rounded-xl py-2 pl-10 pr-4 text-sm text-neutral-900 outline-none focus:border-primary/30 focus:bg-white focus:ring-4 focus:ring-primary/5 transition-all shadow-inner"
-          placeholder="Search trucks, jobs, routes..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-      </div>
-
+      {/* No global search box here: every list screen carries its own, beside the
+          filters that narrow the same table. One floating above every page could
+          only ever work on whichever screen happened to read it, and sat there
+          looking broken on all the rest. */}
       <div className="ml-auto flex items-center gap-3">
         <div
           className="w-10 h-10 flex items-center justify-center rounded-xl bg-neutral-50 border border-neutral-100 text-neutral-500/80 hover:text-primary cursor-pointer relative group transition-all"
