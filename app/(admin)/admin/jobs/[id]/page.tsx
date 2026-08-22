@@ -41,6 +41,7 @@ import { uploadService } from "@/services/uploadService";
 import React from "react";
 import { TYRE_POSITIONS, TYRE_CONDITIONS } from "@/lib/tyrePositions";
 import { truckService } from "@/services/truckService";
+import { isLastOffloading, stopCounts } from "@/lib/tripStage";
 
 function formatCAT(dateStr: string): string {
   try {
@@ -1416,6 +1417,12 @@ export default function JobDetailReport() {
                   const rawStatus = booking.tripStatus ? booking.tripStatus.toUpperCase() : "PENDING";
                   const currentIdx = statusOrder.indexOf(rawStatus);
                   const onFinalLeg = rawStatus === "RETURNING" || rawStatus === "REPOSITIONING";
+                  // All cargo off? Only then is going home, or taking another job, a real
+                  // option — a truck at the first of three drops still has two loads aboard.
+                  const cargoIsOff = (() => {
+                    const { pickups, dropoffs } = stopCounts(booking);
+                    return onFinalLeg || isLastOffloading(booking?.tripStatus, pickups, dropoffs);
+                  })();
 
                   // NOTE: a retargeted trip (one carrying a "Next Job Queued" timeline
                   // entry) is still RUNNING, and ops must be able to mark it completed
@@ -1550,7 +1557,10 @@ export default function JobDetailReport() {
                           it is set from the jobs list. Until it is set, Completed
                           below stays out of reach, which is the point: the trip is
                           not over just because the cargo is off. */}
-                      {!onFinalLeg && (
+                      {/* Only once the LAST drop is done. Shown at the first of three,
+                          it told the operator a truck still carrying two loads was
+                          ready to go home. */}
+                      {!onFinalLeg && cargoIsOff && (
                         <div className="w-full py-2.5 rounded-2xl border border-dashed border-slate-200 flex items-center justify-center">
                           <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 text-center px-3">
                             Awaiting return — mark it from the Jobs list, or assign a new job

@@ -23,6 +23,7 @@ import { cleanDriverName } from "@/services/liveTrackingService";
 import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
 import { isTripCompleted } from "@/lib/tripCompletion";
+import { isLastOffloading, stopCounts } from "@/lib/tripStage";
 
 export default function AdminJobsPage() {
   const router = useRouter();
@@ -215,9 +216,12 @@ export default function AdminJobsPage() {
   // Offered once the cargo is off and the trip has not already been diverted to
   // another job's pickup — a diverted trip is not going back to the yard.
   const canMarkReturning = (b: any): boolean => {
-    const ts = (b?.tripStatus || "").trim().toLowerCase();
+    // A diverted trip is not going back to the yard at all.
     if (b?.lastPoint?.source === "reassignment") return false;
-    return ts.startsWith("offloading");
+    // And only the LAST drop counts: a truck emptying the first of three still
+    // has two loads aboard, so it is going on to the next drop, not home.
+    const { pickups, dropoffs } = stopCounts(b);
+    return isLastOffloading(b?.tripStatus, pickups, dropoffs);
   };
 
   // The distance is asked for HERE, not on another screen. Sending the operator to
