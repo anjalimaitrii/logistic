@@ -64,6 +64,38 @@ export default function JobDetailReport() {
   const pathname = usePathname();
   const id = params.id as string;
   const isSecretContext = pathname.startsWith("/admin/secret");
+  /**
+   * The status chip, in the same words the stepper beside it uses.
+   *
+   * It used to print the raw suffix as "(Stop 1)". Two things were wrong with
+   * that. The number counts within its own side — dropoff 1 — while the stepper
+   * counts across every stop and calls the same place "C", so one screen carried
+   * two names for one place. And a trip with two pickups and ONE dropoff still
+   * gets a suffix (the `_n` rule is "more than one pickup OR dropoff"), so the
+   * single place the cargo goes read as "Stop 1", as though more were coming.
+   *
+   * So: number it only when that side genuinely has more than one stop, and
+   * number it with the stepper's letter.
+   */
+  const statusChipLabel = (raw?: string) => {
+    if (!raw) return raw;
+    const m = raw.match(/^(.*)_(\d+)$/);
+    if (!m) return raw;
+
+    const [, base, nStr] = m;
+    const n = Number(nStr);
+    const pCount = booking?.pickupLocations?.length || 1;
+    const dCount = booking?.dropoffLocations?.length || 1;
+
+    // Dropoff-side steps are lettered after every pickup; pickup-side from A.
+    const isDropoffSide = /^(REACHED|OFFLOADING)$/i.test(base);
+    const sideCount = isDropoffSide ? dCount : pCount;
+    if (sideCount < 2) return base;
+
+    const letter = String.fromCharCode(65 + (isDropoffSide ? pCount + n - 1 : n - 1));
+    return `${base} (${letter})`;
+  };
+
   const wrap = (content: React.ReactNode) =>
     isSecretContext ? <>{content}</> : <AdminLayout>{content}</AdminLayout>;
 
@@ -841,7 +873,7 @@ export default function JobDetailReport() {
                     jobInfo?.status === "CANCELLED" ? "bg-rose-50 text-rose-500 border-rose-100" :
                       "bg-neutral-50 text-neutral-400 border-neutral-100"
                 }`}>
-                {jobInfo?.status?.replace(/_(\d+)$/, ' (Stop $1)')}
+                {statusChipLabel(jobInfo?.status)}
               </div>
               {!booking?.tripStatus && booking?.status !== "cancelled" && (
                 <button
