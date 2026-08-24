@@ -40,8 +40,9 @@ function xlSheet(name: string, rows: string[]) {
 
 function exportReport(
   from: string, to: string, stats: any,
-  filteredBookings: any[], filteredSettlements: any[], filteredInspections: any[],
+  filteredBookings: any[], filteredSettlements: any[],
   driverByBooking: Record<string, string>,
+  damageRecords: { tripId: string; driverName: string; truckLabel: string; date: any; items: any[]; total: number }[],
 ) {
   const S = (v: string | number) => xlCell(v, "String");
   const N2 = (v: number) => xlCell(v, "Number");
@@ -133,14 +134,14 @@ function exportReport(
   levyRows.push(xlBlank(4), xlRow(SH(""), SH(""), SH("TOTAL", true), N2(Math.round(stats.councilLevy))));
 
   // ── Sheet 6: Damages ─────────────────────────────────────────────────────────
-  const dmgRows = [xlRow(H("Driver"), H("Truck"), H("Date"), H("Damage Item"), H("Quantity"), H("Amount (NGN)"))];
-  filteredInspections.filter(i => Array.isArray(i.damages) && i.damages.length > 0).forEach(insp => {
-    (insp.damages as any[]).forEach((d: any) => dmgRows.push(xlRow(
-      S(cleanName(insp.driverId?.name)), S(insp.truckId?.truckId || insp.truckId || "-"),
-      S(fmtDate(insp.createdAt)), S(d.description || "-"), N2(Number(d.quantity ?? 0)), N2(Math.round(N(d.amount))),
+  const dmgRows = [xlRow(H("Trip"), H("Driver"), H("Truck"), H("Date"), H("Damage Item"), H("Quantity"), H("Amount (NGN)"))];
+  damageRecords.forEach(rec => {
+    rec.items.forEach((d: any) => dmgRows.push(xlRow(
+      S(rec.tripId), S(cleanName(rec.driverName)), S(rec.truckLabel),
+      S(fmtDate(rec.date)), S(d.description || "-"), S(d.quantity ?? "-"), N2(Math.round(N(d.amount))),
     )));
   });
-  dmgRows.push(xlBlank(6), xlRow(SH(""), SH(""), SH(""), SH(""), SH("TOTAL", true), N2(Math.round(stats.totalDamages))));
+  dmgRows.push(xlBlank(7), xlRow(SH(""), SH(""), SH(""), SH(""), SH(""), SH("TOTAL", true), N2(Math.round(stats.totalDamages))));
 
   // ── Build workbook XML ───────────────────────────────────────────────────────
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -298,6 +299,16 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
     return map;
   }, [assignments]);
 
+  // bookingId → truckNumber  (from assignments)
+  const truckByBooking = useMemo(() => {
+    const map: Record<string, string> = {};
+    assignments.forEach((a: any) => {
+      const bId = typeof a.bookingId === "string" ? a.bookingId : a.bookingId?._id;
+      if (bId && a.truckNumber) map[bId] = a.truckNumber;
+    });
+    return map;
+  }, [assignments]);
+
   // ── secret visibility ──────────────────────────────────────────────────────────
   // Normal report excludes secret jobs (and their settlements); the secret report
   // includes everything.
@@ -324,6 +335,26 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
   const filteredInspections = useMemo(() => inspections.filter(i => inPeriod(i.createdAt, from, to)), [inspections, from, to]);
   const filteredTollEntries = useMemo(() => tollEntries.filter(e => inPeriod(e.date, from, to)), [tollEntries, from, to]);
 
+  // Damages are recorded on the booking by the offloading receipt — not on the
+  // truck inspection, which has no damages field at all. One shaped list here so
+  // the cards, the table, the drawer and the export all read the same numbers.
+  const damageRecords = useMemo(() =>
+    filteredBookings
+      .filter(b => Array.isArray(b.damages) && b.damages.length > 0)
+      .map(b => {
+        const bId = String(b._id);
+        return {
+          bookingId:  bId,
+          tripId:     b.tripId || bId.slice(-8).toUpperCase(),
+          driverName: driverByBooking[bId] || "—",
+          truckLabel: truckByBooking[bId] || "—",
+          date:       b.tripEndedAt || b.cargoDetails?.loadingDate || b.createdAt,
+          items:      b.damages as any[],
+          total:      (b.damages as any[]).reduce((s: number, d: any) => s + N(d.amount), 0),
+        };
+      }),
+    [filteredBookings, driverByBooking, truckByBooking]);
+
   // ── aggregates ────────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
     const totalRevenue   = filteredBookings.reduce((s, b) => s + N(b.finalAmount), 0);
@@ -344,9 +375,8 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
     const otherExpenses  = filteredSettlements.reduce((s, st) =>
       s + (Array.isArray(st.expenses) ? st.expenses : []).reduce((ea: number, ex: any) => ea + N(ex.amount), 0), 0);
 
-    const totalDamages    = filteredInspections.reduce((s, insp) =>
-      s + (Array.isArray(insp.damages) ? insp.damages : []).reduce((da: number, d: any) => da + N(d.amount), 0), 0);
-    const damageIncidents = filteredInspections.filter(i => Array.isArray(i.damages) && i.damages.length > 0).length;
+    const totalDamages    = damageRecords.reduce((s, r) => s + r.total, 0);
+    const damageIncidents = damageRecords.length;
 
     const categoryTotals: Record<string, number> = {};
     filteredSettlements.forEach(st =>
@@ -365,7 +395,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
       totalDamages, damageIncidents, totalCosts, netPnL,
       categoryTotals, totalBookings: filteredBookings.length, totalSettlements: filteredSettlements.length,
     };
-  }, [filteredBookings, filteredSettlements, filteredInspections, filteredTollEntries]);
+  }, [filteredBookings, filteredSettlements, filteredTollEntries, damageRecords]);
 
   // ── Secret (without-tax) sub-totals — only meaningful on the secret report ──────
   const secretStats = useMemo(() => {
@@ -491,7 +521,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
               {compare ? "Comparing" : "Compare"}
             </button>
             <button
-              onClick={() => exportReport(from, to, stats, filteredBookings, filteredSettlements, filteredInspections, driverByBooking)}
+              onClick={() => exportReport(from, to, stats, filteredBookings, filteredSettlements, driverByBooking, damageRecords)}
               disabled={isLoading || (!filteredBookings.length && !filteredSettlements.length && !filteredInspections.length)}
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-40"
             >
@@ -658,33 +688,31 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
                   {stats.damageIncidents} incident{stats.damageIncidents !== 1 ? "s" : ""}
                 </span>
               </h3>
-              {filteredInspections.filter(i => Array.isArray(i.damages) && i.damages.length > 0).length === 0
+              {damageRecords.length === 0
                 ? <p className="text-[11px] text-neutral-300 font-medium text-center py-6">No damage incidents in this period</p>
                 : <div className="overflow-x-auto">
                     <table className="w-full text-left min-w-125">
                       <thead>
                         <tr className="border-b border-neutral-100">
-                          <Th>Truck</Th><Th>Driver</Th><Th>Date</Th><Th>Items</Th>
+                          <Th>Trip</Th><Th>Truck</Th><Th>Driver</Th><Th>Date</Th><Th>Items</Th>
                           <th className="pb-2.5 text-right text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Total Damage</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-50">
-                        {filteredInspections.filter(i => Array.isArray(i.damages) && i.damages.length > 0).map((insp, idx) => {
-                          const dmgTotal = (insp.damages as any[]).reduce((s: number, d: any) => s + N(d.amount), 0);
-                          return (
-                            <tr key={idx}>
-                              <Td><span className="font-semibold text-slate-900">{insp.truckId?.truckId || insp.truckId || "—"}</span></Td>
-                              <Td>{insp.driverId?.name || "—"}</Td>
-                              <Td>{fmtDate(insp.createdAt)}</Td>
-                              <Td>{(insp.damages as any[]).length} item{(insp.damages as any[]).length !== 1 ? "s" : ""}</Td>
-                              <td className="py-2.5 text-right font-bold text-rose-600 text-[11px]">{naira(dmgTotal)}</td>
-                            </tr>
-                          );
-                        })}
+                        {damageRecords.map((rec, idx) => (
+                          <tr key={idx}>
+                            <Td><span className="font-semibold text-primary">{rec.tripId}</span></Td>
+                            <Td><span className="font-semibold text-slate-900">{rec.truckLabel}</span></Td>
+                            <Td>{rec.driverName}</Td>
+                            <Td>{fmtDate(rec.date)}</Td>
+                            <Td>{rec.items.length} item{rec.items.length !== 1 ? "s" : ""}</Td>
+                            <td className="py-2.5 text-right font-bold text-rose-600 text-[11px]">{naira(rec.total)}</td>
+                          </tr>
+                        ))}
                       </tbody>
                       <tfoot>
                         <tr className="border-t border-neutral-100">
-                          <td colSpan={4} className="pt-3 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Total Damages</td>
+                          <td colSpan={5} className="pt-3 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Total Damages</td>
                           <td className="pt-3 text-right text-[14px] font-bold text-rose-600">{naira(stats.totalDamages)}</td>
                         </tr>
                       </tfoot>
@@ -1096,43 +1124,38 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
               {/* ── DAMAGES ── */}
               {detail === "damages" && (
                 <div className="space-y-4">
-                  {filteredInspections.filter(i => Array.isArray(i.damages) && i.damages.length > 0).length === 0 && (
+                  {damageRecords.length === 0 && (
                     <p className="text-[11px] text-neutral-300 text-center py-10">No damage incidents in this period</p>
                   )}
-                  {filteredInspections.filter(i => Array.isArray(i.damages) && i.damages.length > 0).map((insp, idx) => {
-                    const dmgTotal = (insp.damages as any[]).reduce((s: number, d: any) => s + N(d.amount), 0);
-                    const driverName = insp.driverId?.name ? cleanDriverName(insp.driverId.name) : "—";
-                    const truckLabel = insp.truckId?.truckId || insp.truckId || "—";
-                    return (
-                      <div key={idx} className="bg-rose-50/40 border border-rose-100 rounded-2xl p-4 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-[12px] font-bold text-slate-900">{driverName}</p>
-                            <p className="text-[10px] text-neutral-400 font-medium mt-0.5">Truck: {truckLabel} · {fmtDate(insp.createdAt)}</p>
-                          </div>
-                          <p className="text-[15px] font-bold text-rose-600">{naira(dmgTotal)}</p>
+                  {damageRecords.map((rec, idx) => (
+                    <div key={idx} className="bg-rose-50/40 border border-rose-100 rounded-2xl p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-[12px] font-bold text-slate-900">{rec.driverName}</p>
+                          <p className="text-[10px] text-neutral-400 font-medium mt-0.5">{rec.tripId} · Truck: {rec.truckLabel} · {fmtDate(rec.date)}</p>
                         </div>
-                        <table className="w-full text-left">
-                          <thead>
-                            <tr className="border-b border-rose-100">
-                              <Th>Damage Item</Th><Th>Qty</Th>
-                              <th className="pb-2 text-right text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Amount</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-rose-50">
-                            {(insp.damages as any[]).map((d: any, di: number) => (
-                              <tr key={di}>
-                                <Td><span className="text-slate-700">{d.description || `Item ${di + 1}`}</span></Td>
-                                <Td>{d.quantity || "—"}</Td>
-                                <td className="py-2 text-right font-bold text-rose-600 text-[11px]">{naira(N(d.amount))}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        <p className="text-[15px] font-bold text-rose-600">{naira(rec.total)}</p>
                       </div>
-                    );
-                  })}
-                  {filteredInspections.filter(i => Array.isArray(i.damages) && i.damages.length > 0).length > 0 && (
+                      <table className="w-full text-left">
+                        <thead>
+                          <tr className="border-b border-rose-100">
+                            <Th>Damage Item</Th><Th>Qty</Th>
+                            <th className="pb-2 text-right text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Amount</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-rose-50">
+                          {rec.items.map((d: any, di: number) => (
+                            <tr key={di}>
+                              <Td><span className="text-slate-700">{d.description || `Item ${di + 1}`}</span></Td>
+                              <Td>{d.quantity || "—"}</Td>
+                              <td className="py-2 text-right font-bold text-rose-600 text-[11px]">{naira(N(d.amount))}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ))}
+                  {damageRecords.length > 0 && (
                     <div className="flex justify-between items-center pt-2 border-t border-neutral-100">
                       <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Total Damages</span>
                       <span className="text-[15px] font-bold text-rose-600">{naira(stats.totalDamages)}</span>
