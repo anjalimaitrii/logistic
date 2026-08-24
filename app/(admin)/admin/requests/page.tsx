@@ -136,8 +136,9 @@ export default function BookingRequestsPage() {
   )) as string[];
 
   const filteredRequests = pageRequests.filter(req => {
-    // Once a deal is finalized (or paid), it leaves this page
-    if (isFinalized(req)) return false;
+    // Finalizing a deal does NOT remove the booking from this page — it only
+    // changes its status badge. A trip leaves only once it is completed
+    // (handled by isCompleted above).
     const pickupCity = req.pickupLocations?.[0]?.address?.city || req.pickup?.address?.city || "";
     const dropoffCity = req.dropoffLocations?.[0]?.address?.city || req.dropoff?.address?.city || "";
     const matchesSearch =
