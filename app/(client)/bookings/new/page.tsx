@@ -30,7 +30,11 @@ import { useRouter } from "next/navigation";
 import { bookingService } from "@/services/bookingService";
 import { goodsTypeService } from "@/services/goodsTypeService";
 import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES, CITY_TO_STATE } from "@/lib/africaLocations";
+import ComboBox, { type ComboOption } from "@/components/admin/ComboBox";
+import { useCustomLocations } from "@/hooks/use-custom-locations";
+import { type LocationKind } from "@/services/locationService";
 import { todayAppDateKey } from "@/lib/datetime";
+import { DIAL_CODES, inputMaxLenFor } from "@/lib/dialCodes";
 
 const TRUCK_TYPES = [
    { name: "Flat Bed", icon: "🚛", desc: "Open Platform", cap: "Required" },
@@ -59,18 +63,6 @@ const emptyLocation = (): LocationEntry => ({
    clientName: "", plotNo: "", street: "", country: "", state: "", city: "", gps: false,
 });
 
-const DIAL_CODES = [
-   { code: "+260", label: "ZM +260", maxLen: 9 },
-   { code: "+263", label: "ZW +263", maxLen: 9 },
-   { code: "+243", label: "CD +243", maxLen: 9 },
-   { code: "+265", label: "MW +265", maxLen: 9 },
-   { code: "+255", label: "TZ +255", maxLen: 9 },
-   { code: "+258", label: "MZ +258", maxLen: 9 },
-   { code: "+267", label: "BW +267", maxLen: 8 },
-   { code: "+264", label: "NA +264", maxLen: 9 },
-   { code: "+27",  label: "ZA +27",  maxLen: 9 },
-   { code: "+244", label: "AO +244", maxLen: 9 },
-];
 
 const getLabel = (idx: number, offset = 0) => String.fromCharCode(65 + offset + idx);
 
@@ -142,6 +134,12 @@ interface LocationSectionProps {
    onAdd: (type: "pickupLocations" | "dropoffLocations") => void;
    onRemove: (type: "pickupLocations" | "dropoffLocations", idx: number) => void;
    onFill: (type: "pickupLocations" | "dropoffLocations", idx: number, address: LocationEntry) => void;
+   countryOptions: ComboOption[];
+   stateOptionsFor: (country: string) => ComboOption[];
+   cityOptionsFor: (country: string) => ComboOption[];
+   // Clients may add a place their form is missing; only ops may take one away,
+   // which the server enforces too.
+   onCreateLocation: (kind: LocationKind, name: string, ctx: { country?: string; state?: string }) => Promise<void>;
 }
 
 function matchList(raw: string, list: string[]): string {
@@ -158,7 +156,11 @@ function matchCountry(raw: string): string {
    return matchList(raw, AFRICAN_COUNTRIES);
 }
 
-function LocationSection({ type, label, color, locations, offset, isPickup, previousAddresses, onUpdate, onAdd, onRemove, onFill }: LocationSectionProps) {
+function LocationSection({
+   type, label, color, locations, offset, isPickup, previousAddresses,
+   onUpdate, onAdd, onRemove, onFill,
+   countryOptions, stateOptionsFor, cityOptionsFor, onCreateLocation,
+}: LocationSectionProps) {
    const a = ACCENT[color];
    const [focusedIdx, setFocusedIdx] = useState<number | null>(null);
    const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -322,7 +324,7 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                            type="tel"
                            placeholder="Contact Number *"
                            value={loc.contact}
-                           maxLength={DIAL_CODES.find(d => d.code === loc.contactCode)?.maxLen ?? 10}
+                           maxLength={inputMaxLenFor(loc.contactCode)}
                            onChange={(e) => { const max = DIAL_CODES.find(d => d.code === loc.contactCode)?.maxLen ?? 10; onUpdate(type, idx, "contact", e.target.value.replace(/\D/g, "").slice(0, max)); }}
                            className="flex-1 bg-transparent py-2.5 pl-3 pr-4 text-[12px] font-medium text-slate-900 outline-none min-w-0"
                         />
@@ -365,7 +367,7 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                               type="tel"
                               placeholder="2nd Contact Number"
                               value={loc.contact2}
-                              maxLength={DIAL_CODES.find(d => d.code === loc.contact2Code)?.maxLen ?? 10}
+                              maxLength={inputMaxLenFor(loc.contact2Code)}
                               onChange={(e) => { const max = DIAL_CODES.find(d => d.code === loc.contact2Code)?.maxLen ?? 10; onUpdate(type, idx, "contact2", e.target.value.replace(/\D/g, "").slice(0, max)); }}
                               className="flex-1 bg-transparent py-2.5 pl-3 pr-4 text-[12px] font-medium text-slate-900 outline-none min-w-0"
                            />
@@ -402,43 +404,44 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
                         </div>
                         <div className="relative col-span-full">
                            <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 pointer-events-none" />
-                           <select
+                           <ComboBox
                               value={loc.country}
-                              onChange={(e) => { onUpdate(type, idx, "country", e.target.value); onUpdate(type, idx, "state", ""); onUpdate(type, idx, "city", ""); }}
-                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all appearance-none cursor-pointer ${a.focus}`}
-                           >
-                              <option value="">Country *</option>
-                              {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                           </select>
+                              options={countryOptions}
+                              placeholder="Country *"
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
+                              onChange={(name) => { onUpdate(type, idx, "country", name); onUpdate(type, idx, "state", ""); onUpdate(type, idx, "city", ""); }}
+                              onCreate={(name) => onCreateLocation("country", name, {})}
+                           />
                         </div>
                         <div className="relative">
                            <Navigation className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 pointer-events-none" />
-                           <select
+                           <ComboBox
                               value={loc.state}
-                              onChange={(e) => { onUpdate(type, idx, "state", e.target.value); onUpdate(type, idx, "city", ""); }}
+                              options={stateOptionsFor(loc.country)}
+                              placeholder="State / Province"
                               disabled={!loc.country}
-                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all appearance-none cursor-pointer disabled:opacity-50 ${a.focus}`}
-                           >
-                              <option value="">State / Province</option>
-                              {(AFRICAN_STATES[loc.country] || []).map(s => <option key={s} value={s}>{s}</option>)}
-                           </select>
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
+                              onChange={(name) => { onUpdate(type, idx, "state", name); onUpdate(type, idx, "city", ""); }}
+                              onCreate={(name) => onCreateLocation("state", name, { country: loc.country })}
+                           />
                         </div>
                         <div className="relative">
                            <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 pointer-events-none" />
-                           <select
+                           <ComboBox
                               value={loc.city}
-                              onChange={(e) => {
-                                 const selectedCity = e.target.value;
-                                 onUpdate(type, idx, "city", selectedCity);
-                                 const autoState = loc.country ? (CITY_TO_STATE[loc.country]?.[selectedCity] || "") : "";
+                              options={cityOptionsFor(loc.country)}
+                              placeholder="City *"
+                              disabled={!loc.country}
+                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all ${a.focus}`}
+                              onChange={(name) => {
+                                 onUpdate(type, idx, "city", name);
+                                 // Only shipped towns carry a province mapping; one the
+                                 // user added keeps the province chosen above.
+                                 const autoState = loc.country ? (CITY_TO_STATE[loc.country]?.[name] || "") : "";
                                  if (autoState) onUpdate(type, idx, "state", autoState);
                               }}
-                              disabled={!loc.country}
-                              className={`w-full bg-slate-50 border border-transparent rounded-lg py-2.5 pl-10 pr-4 text-[12px] font-medium text-slate-900 focus:bg-white outline-none transition-all appearance-none cursor-pointer disabled:opacity-50 ${a.focus}`}
-                           >
-                              <option value="">City *</option>
-                              {(AFRICAN_CITIES[loc.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
-                           </select>
+                              onCreate={(name) => onCreateLocation("city", name, { country: loc.country, state: loc.state })}
+                           />
                         </div>
                      </div>
 
@@ -493,6 +496,10 @@ function LocationSection({ type, label, color, locations, offset, isPickup, prev
 }
 
 export default function NewBookingPage() {
+   // Same country/province/city options every other booking form uses, so a town
+   // a client adds here is on the ops forms too. No delete handler is passed:
+   // removing an entry is admin-only, and the server enforces that as well.
+   const { countryOptions, stateOptionsFor, cityOptionsFor, createLocation } = useCustomLocations();
    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
    const [isSubmitting, setIsSubmitting] = useState(false);
    const isDesktop = useMediaQuery("(min-width: 768px)");
@@ -730,6 +737,10 @@ export default function NewBookingPage() {
             onAdd={addLocation}
             onRemove={removeLocation}
             onFill={fillLocation}
+            countryOptions={countryOptions}
+            stateOptionsFor={stateOptionsFor}
+            cityOptionsFor={cityOptionsFor}
+            onCreateLocation={createLocation}
          />
 
          {/* ── 3. DROPOFF LOCATIONS ── */}
@@ -745,6 +756,10 @@ export default function NewBookingPage() {
             onAdd={addLocation}
             onRemove={removeLocation}
             onFill={fillLocation}
+            countryOptions={countryOptions}
+            stateOptionsFor={stateOptionsFor}
+            cityOptionsFor={cityOptionsFor}
+            onCreateLocation={createLocation}
          />
 
          {/* ── 4. VEHICLE CATEGORY ── */}

@@ -10,14 +10,24 @@ import {
 import { clientService } from "@/services/clientService";
 import { bookingService } from "@/services/bookingService";
 import { goodsTypeService } from "@/services/goodsTypeService";
+import { type LocationKind } from "@/services/locationService";
+import { useCustomLocations } from "@/hooks/use-custom-locations";
+import ComboBox, { type ComboOption } from "@/components/admin/ComboBox";
 import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES, CITY_TO_STATE } from "@/lib/africaLocations";
-import { todayAppDateKey } from "@/lib/datetime";
+import { todayAppDateKey, toAppDateKey } from "@/lib/datetime";
+import { DIAL_CODES, splitDialCode, inputMaxLenFor } from "@/lib/dialCodes";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CreateBookingDrawerProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: any) => void;
+  /**
+   * Pass an existing booking to edit it instead of creating a new one. The same
+   * three steps collect the same fields either way — only the destination
+   * differs, so there is one form rather than two that drift apart.
+   */
+  job?: any;
 }
 
 interface LocationEntry {
@@ -34,18 +44,6 @@ interface LocationEntry {
   city: string;
 }
 
-const DIAL_CODES = [
-  { code: "+260", label: "ZM +260", maxLen: 9 },
-  { code: "+263", label: "ZW +263", maxLen: 9 },
-  { code: "+243", label: "CD +243", maxLen: 9 },
-  { code: "+265", label: "MW +265", maxLen: 9 },
-  { code: "+255", label: "TZ +255", maxLen: 9 },
-  { code: "+258", label: "MZ +258", maxLen: 9 },
-  { code: "+267", label: "BW +267", maxLen: 8 },
-  { code: "+264", label: "NA +264", maxLen: 9 },
-  { code: "+27",  label: "ZA +27",  maxLen: 9 },
-  { code: "+244", label: "AO +244", maxLen: 9 },
-];
 
 function matchList(raw: string, list: string[]): string {
   if (!raw) return "";
@@ -67,6 +65,25 @@ const emptyLocation = (): LocationEntry => ({
   plotNo: "", street: "", country: "", state: "", city: "",
 });
 
+/** A saved pickup/dropoff stop back into the shape the form edits. */
+function locationFromStop(stop: any): LocationEntry {
+  const c1 = splitDialCode(stop?.contactNumber);
+  const c2 = splitDialCode(stop?.contactNumber2);
+  return {
+    contactPerson:  stop?.contactPerson  || "",
+    contactCode:    c1.code,
+    contact:        c1.rest,
+    contactPerson2: stop?.contactPerson2 || "",
+    contact2Code:   c2.code,
+    contact2:       stop?.contactNumber2 ? c2.rest : "",
+    plotNo:  stop?.address?.plotNo  || "",
+    street:  stop?.address?.street  || "",
+    country: stop?.address?.country || "",
+    state:   stop?.address?.state   || "",
+    city:    stop?.address?.city    || "",
+  };
+}
+
 // ─── LocationCard — defined OUTSIDE parent so React never remounts it ─────────
 interface LocationCardProps {
   type: "pickup" | "dropoff";
@@ -78,25 +95,71 @@ interface LocationCardProps {
   canRemove: boolean;
   gpsLoading: { type: "pickup" | "dropoff"; idx: number } | null;
   suggestions: LocationEntry[];
+  // Shipped list plus whatever operators have added, already narrowed to this
+  // card's country and province.
+  countryOptions: ComboOption[];
+  stateOptions: ComboOption[];
+  cityOptions: ComboOption[];
   onUpdate: (field: keyof LocationEntry, value: string) => void;
   onToggle2: () => void;
   onRemove: () => void;
   onGps: () => void;
   onFill: (addr: LocationEntry) => void;
+  onCreateLocation: (kind: LocationKind, name: string) => Promise<void>;
+  onDeleteLocation: (id: string) => Promise<void>;
 }
 
 function LocationCard({
   type, location, idx, color, label, show2, canRemove,
-  gpsLoading, suggestions, onUpdate, onToggle2, onRemove, onGps, onFill,
+  gpsLoading, suggestions, countryOptions, stateOptions, cityOptions,
+  onUpdate, onToggle2, onRemove, onGps, onFill, onCreateLocation, onDeleteLocation,
 }: LocationCardProps) {
   const isPickup = type === "pickup";
   const inputCls = `w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none focus:border-${color}-200 transition-colors`;
 
-  // Show previous-address suggestions only while an address field is focused (floating overlay)
-  const [showSuggest, setShowSuggest] = useState(false);
+  // Previous stops float over whichever block is focused. A suggestion now
+  // carries the contacts too, so it is reachable from the contact fields as
+  // well — anchored under the block you are actually looking at rather than
+  // always under the address.
+  const [openSuggest, setOpenSuggest] = useState<null | "contact" | "address">(null);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const onAddrFocus = () => { if (hideTimer.current) clearTimeout(hideTimer.current); if (suggestions.length > 0) setShowSuggest(true); };
-  const onAddrBlur = () => { hideTimer.current = setTimeout(() => setShowSuggest(false), 150); };
+  const suggestFocus = (which: "contact" | "address") => () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    if (suggestions.length > 0) setOpenSuggest(which);
+  };
+  // Deferred so a click on a row lands before the list is torn down.
+  const suggestBlur = () => { hideTimer.current = setTimeout(() => setOpenSuggest(null), 150); };
+
+  const suggestionList = (
+    <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
+      <div className="flex items-center gap-1.5 px-3 py-2 border-b border-neutral-50">
+        <Clock className="w-3 h-3 text-neutral-300" />
+        <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Previous Stops</span>
+      </div>
+      <div className="max-h-48 overflow-y-auto">
+        {suggestions.map((s, i) => (
+          <button
+            key={i}
+            type="button"
+            onMouseDown={(e) => { e.preventDefault(); onFill(s); setOpenSuggest(null); }}
+            className="w-full text-left px-3 py-2.5 hover:bg-neutral-50 transition-colors border-b border-neutral-50 last:border-0 flex items-center gap-2.5"
+          >
+            <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-semibold text-slate-700 truncate">
+                {[s.plotNo, s.street, s.city, s.state, s.country].filter(Boolean).join(", ")}
+              </p>
+              {s.contactPerson && (
+                <p className="text-[10px] text-neutral-400 mt-0.5 truncate">
+                  {s.contactPerson}{s.contact ? ` · ${s.contactCode}${s.contact}` : ""}
+                </p>
+              )}
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
 
   return (
     <div className={`space-y-3 p-4 rounded-2xl bg-${color}-50/10 border border-${color}-100/30`}>
@@ -134,12 +197,15 @@ function LocationCard({
         </div>
       </div>
 
-      {/* Primary contact */}
+      {/* Primary contact — suggestions float over this block on focus */}
+      <div className="relative">
       <div className="grid grid-cols-1 gap-3">
         <input
           placeholder="Contact Person *"
           value={location.contactPerson}
           onChange={e => onUpdate("contactPerson", e.target.value.replace(/[0-9]/g, ""))}
+          onFocus={suggestFocus("contact")}
+          onBlur={suggestBlur}
           className={inputCls}
         />
         <div className="flex items-center bg-white border border-neutral-100 rounded-lg focus-within:border-neutral-300 transition-colors">
@@ -156,11 +222,15 @@ function LocationCard({
             type="tel"
             placeholder="Contact Number *"
             value={location.contact}
-            maxLength={DIAL_CODES.find(d => d.code === location.contactCode)?.maxLen ?? 10}
+            maxLength={inputMaxLenFor(location.contactCode)}
             onChange={e => { const max = DIAL_CODES.find(d => d.code === location.contactCode)?.maxLen ?? 10; onUpdate("contact", e.target.value.replace(/\D/g, "").slice(0, max)); }}
+            onFocus={suggestFocus("contact")}
+            onBlur={suggestBlur}
             className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0"
           />
         </div>
+      </div>
+      {openSuggest === "contact" && suggestions.length > 0 && suggestionList}
       </div>
 
       {/* 2nd contact toggle */}
@@ -195,7 +265,7 @@ function LocationCard({
               type="tel"
               placeholder="2nd Contact Number"
               value={location.contact2}
-              maxLength={DIAL_CODES.find(d => d.code === location.contact2Code)?.maxLen ?? 10}
+              maxLength={inputMaxLenFor(location.contact2Code)}
               onChange={e => { const max = DIAL_CODES.find(d => d.code === location.contact2Code)?.maxLen ?? 10; onUpdate("contact2", e.target.value.replace(/\D/g, "").slice(0, max)); }}
               className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0"
             />
@@ -210,97 +280,72 @@ function LocationCard({
           placeholder="Plot/Shop No"
           value={location.plotNo}
           onChange={e => onUpdate("plotNo", e.target.value)}
-          onFocus={onAddrFocus}
-          onBlur={onAddrBlur}
+          onFocus={suggestFocus("address")}
+          onBlur={suggestBlur}
           className={inputCls}
         />
         <input
           placeholder="Street/Area"
           value={location.street}
           onChange={e => onUpdate("street", e.target.value)}
-          onFocus={onAddrFocus}
-          onBlur={onAddrBlur}
+          onFocus={suggestFocus("address")}
+          onBlur={suggestBlur}
           className={inputCls}
         />
       </div>
 
-      {/* Country → State → City */}
+      {/* Country → State → City. Type-to-filter, and anything not on the list can
+          be added to it — the shipped lists will never cover every border post
+          and mine. */}
       <div className="grid grid-cols-1 gap-2 mt-3">
-        <select
+        <ComboBox
           value={location.country}
-          onChange={e => { onUpdate("country", e.target.value); onUpdate("state", ""); onUpdate("city", ""); }}
-          className={`${inputCls} appearance-none cursor-pointer`}
-        >
-          <option value="">Country *</option>
-          {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+          options={countryOptions}
+          placeholder="Country *"
+          className={inputCls}
+          onChange={name => { onUpdate("country", name); onUpdate("state", ""); onUpdate("city", ""); }}
+          onCreate={name => onCreateLocation("country", name)}
+          onDelete={onDeleteLocation}
+        />
         <div className="grid grid-cols-2 gap-2">
-          <select
+          <ComboBox
             value={location.state}
-            onChange={e => { onUpdate("state", e.target.value); onUpdate("city", ""); }}
-            className={`${inputCls} appearance-none cursor-pointer`}
+            options={stateOptions}
+            placeholder="State / Province"
             disabled={!location.country}
-          >
-            <option value="">State / Province</option>
-            {(AFRICAN_STATES[location.country] || []).map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <select
+            className={inputCls}
+            onChange={name => { onUpdate("state", name); onUpdate("city", ""); }}
+            onCreate={name => onCreateLocation("state", name)}
+            onDelete={onDeleteLocation}
+          />
+          <ComboBox
             value={location.city}
-            onChange={e => {
-              const selectedCity = e.target.value;
-              onUpdate("city", selectedCity);
-              const autoState = location.country ? (CITY_TO_STATE[location.country]?.[selectedCity] || "") : "";
+            options={cityOptions}
+            placeholder="City *"
+            disabled={!location.country}
+            className={inputCls}
+            onChange={name => {
+              onUpdate("city", name);
+              // Only the shipped towns carry a province mapping; one the operator
+              // added keeps whatever province they picked above.
+              const autoState = location.country ? (CITY_TO_STATE[location.country]?.[name] || "") : "";
               if (autoState) onUpdate("state", autoState);
             }}
-            className={`${inputCls} appearance-none cursor-pointer`}
-            disabled={!location.country}
-          >
-            <option value="">City *</option>
-            {(AFRICAN_CITIES[location.country] || []).map(c => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
+            onCreate={name => onCreateLocation("city", name)}
+            onDelete={onDeleteLocation}
+          />
         </div>
       </div>
 
-      {/* Previous address suggestions — floating overlay, shows on focus, does not push UI */}
-      {showSuggest && suggestions.length > 0 && (
-        <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
-          <div className="flex items-center gap-1.5 px-3 py-2 border-b border-neutral-50">
-            <Clock className="w-3 h-3 text-neutral-300" />
-            <span className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Previous Addresses</span>
-          </div>
-          <div className="max-h-48 overflow-y-auto">
-            {suggestions.map((s, i) => (
-              <button
-                key={i}
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); onFill(s); setShowSuggest(false); }}
-                className="w-full text-left px-3 py-2.5 hover:bg-neutral-50 transition-colors border-b border-neutral-50 last:border-0 flex items-center gap-2.5"
-              >
-                <MapPin className="w-3 h-3 text-neutral-300 shrink-0" />
-                <div className="min-w-0 flex-1">
-                  <p className="text-[11px] font-semibold text-slate-700 truncate">
-                    {[s.plotNo, s.street, s.city, s.state, s.country].filter(Boolean).join(", ")}
-                  </p>
-                  {s.contactPerson && (
-                    <p className="text-[10px] text-neutral-400 mt-0.5 truncate">{s.contactPerson} · {s.contact}</p>
-                  )}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {openSuggest === "address" && suggestions.length > 0 && suggestionList}
       </div>
     </div>
   );
 }
 
 // ─── Main Drawer ──────────────────────────────────────────────────────────────
-export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: CreateBookingDrawerProps) {
+export default function CreateBookingDrawer({ isOpen, onClose, onSubmit, job }: CreateBookingDrawerProps) {
+  const isEdit = Boolean(job?._id);
   const [step, setStep] = useState(1);
   const [clients, setClients] = useState<any[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
@@ -326,6 +371,35 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
     if (isOpen) { loadClients(); loadGoodsTypes(); }
   }, [isOpen]);
 
+  // Load the booking being edited into the form. Scoped to edit mode so the
+  // create flow keeps whatever the admin had half-typed when they closed it.
+  useEffect(() => {
+    if (!isOpen || !isEdit) return;
+    const pickups  = (job.pickupLocations  || []).map(locationFromStop);
+    const dropoffs = (job.dropoffLocations || []).map(locationFromStop);
+    const p = pickups.length  ? pickups  : [emptyLocation()];
+    const d = dropoffs.length ? dropoffs : [emptyLocation()];
+    setFormData({
+      // clientId arrives populated on the list endpoint and raw elsewhere.
+      clientId: job.clientId?._id || job.clientId || "",
+      goodsType: job.cargoDetails?.goodsType || [],
+      weight: job.cargoDetails?.weight != null ? String(job.cargoDetails.weight) : "",
+      scheduleDate: job.cargoDetails?.loadingDate
+        ? toAppDateKey(job.cargoDetails.loadingDate)
+        : todayAppDateKey(),
+      pickupLocations: p,
+      dropoffLocations: d,
+      truckType: job.requirement?.bodyType || "Flat Bed",
+    });
+    // A stop that already has a second contact must show that field, or the
+    // saved value would be invisible and silently dropped on the next save.
+    setShowContact2({
+      pickup:  p.map((l: LocationEntry) => Boolean(l.contactPerson2 || l.contact2)),
+      dropoff: d.map((l: LocationEntry) => Boolean(l.contactPerson2 || l.contact2)),
+    });
+    setStep(1);
+  }, [isOpen, job]);
+
   useEffect(() => {
     if (!formData.clientId) { setClientSuggestions([]); return; }
     (async () => {
@@ -339,22 +413,12 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
             const key = `${stop.address?.city}|${stop.address?.street}|${stop.address?.plotNo}`;
             if (!seen.has(key) && stop.address?.city) {
               seen.add(key);
-              locs.push({
-                // Don't carry the contact from a past booking — the stored number
-                // already includes "+260", which would double up with the "+260"
-                // dial-code prefix. Admin enters a fresh local number per booking.
-                contactPerson: "",
-                contactCode: "+260",
-                contact: "",
-                contactPerson2: "",
-                contact2Code: "+260",
-                contact2: "",
-                plotNo: stop.address?.plotNo || "",
-                street: stop.address?.street || "",
-                country: stop.address?.country || "",
-                state: stop.address?.state || "",
-                city: stop.address?.city || "",
-              });
+              // Contacts come along now. They used to be blanked because the
+              // stored number carries its "+260" and would double up with the
+              // dial-code select — splitDialCode is what makes carrying them
+              // safe. One row per address: bookings arrive newest-first, so the
+              // first stop seen for an address is its most recent contact.
+              locs.push(locationFromStop(stop));
             }
           }
         }
@@ -362,6 +426,12 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
       } catch { setClientSuggestions([]); }
     })();
   }, [formData.clientId]);
+
+  // Country/province/city options and the add/remove writes, shared with every
+  // other form that collects an address.
+  const {
+    countryOptions, stateOptionsFor, cityOptionsFor, createLocation, deleteLocation,
+  } = useCustomLocations(isOpen);
 
   const loadGoodsTypes = async () => {
     try { setGoodsTypes((await goodsTypeService.getAll()) || []); } catch { /* silent */ }
@@ -437,19 +507,21 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
 
   const fillLocation = (type: "pickup" | "dropoff", idx: number, addr: LocationEntry) => {
     const key = type === "pickup" ? "pickupLocations" : "dropoffLocations";
-    // Fill ONLY the address fields from the suggestion — keep whatever contact
-    // person/number the user already typed (don't overwrite it).
+    // The suggestion IS the whole stop — address and the people to call there —
+    // so picking one fills the card outright. It was clicked deliberately;
+    // leaving a half-typed contact next to someone else's address is the
+    // confusing outcome, not the safe one.
     setFormData(prev => ({
       ...prev,
-      [key]: prev[key].map((loc, i) => i === idx ? {
-        ...loc,
-        plotNo: addr.plotNo,
-        street: addr.street,
-        city: addr.city,
-        state: addr.state,
-        country: addr.country,
-      } : loc),
+      [key]: prev[key].map((loc, i) => i === idx ? { ...loc, ...addr } : loc),
     }));
+    // A second contact that came with the suggestion has to be revealed, or it
+    // sits filled but invisible and is dropped on save.
+    setShowContact2(prev => {
+      const arr = [...prev[type]];
+      arr[idx] = Boolean(addr.contactPerson2 || addr.contact2);
+      return { ...prev, [type]: arr };
+    });
   };
 
   const addLocation = (type: "pickup" | "dropoff") => {
@@ -481,31 +553,46 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
   const handleFormSubmit = async () => {
     try {
       const selectedClient = clients.find(c => c._id === formData.clientId);
-      const mapLoc = (loc: LocationEntry, i: number) => ({
-        sequence: i + 1,
-        contactPerson: loc.contactPerson,
-        contactNumber: loc.contactCode ? `${loc.contactCode}${loc.contact}` : loc.contact,
-        ...(loc.contactPerson2.trim() && { contactPerson2: loc.contactPerson2, contactNumber2: loc.contact2Code ? `${loc.contact2Code}${loc.contact2}` : loc.contact2 }),
-        address: { plotNo: loc.plotNo, street: loc.street, country: loc.country, state: loc.state, city: loc.city },
-        gpsEnabled: false,
-      });
+      // A stop carries two fields this form never shows — clientName, written by
+      // the client booking flow, and gpsEnabled. On an edit the whole array is
+      // replaced, so they are carried forward from the stop in the same position
+      // rather than silently reset.
+      const mapLoc = (saved?: any[]) => (loc: LocationEntry, i: number) => {
+        const prev = saved?.[i];
+        return {
+          sequence: i + 1,
+          contactPerson: loc.contactPerson,
+          contactNumber: loc.contactCode ? `${loc.contactCode}${loc.contact}` : loc.contact,
+          ...(loc.contactPerson2.trim() && { contactPerson2: loc.contactPerson2, contactNumber2: loc.contact2Code ? `${loc.contact2Code}${loc.contact2}` : loc.contact2 }),
+          address: { plotNo: loc.plotNo, street: loc.street, country: loc.country, state: loc.state, city: loc.city },
+          ...(prev?.clientName ? { clientName: prev.clientName } : {}),
+          gpsEnabled: prev?.gpsEnabled ?? false,
+        };
+      };
       const payload = {
         clientId: formData.clientId,
         cargoDetails: { goodsType: formData.goodsType, ...(formData.weight ? { weight: parseFloat(formData.weight) } : {}), loadingDate: formData.scheduleDate },
-        pickupLocations: formData.pickupLocations.map(mapLoc),
-        dropoffLocations: formData.dropoffLocations.map(mapLoc),
+        pickupLocations: formData.pickupLocations.map(mapLoc(isEdit ? job.pickupLocations : undefined)),
+        dropoffLocations: formData.dropoffLocations.map(mapLoc(isEdit ? job.dropoffLocations : undefined)),
         requirement: { bodyType: formData.truckType },
         status: "active",
         metadata: { source: "admin_manual_entry", createdAt: new Date().toISOString(), client: selectedClient?.name || "" },
       };
-      const response = await bookingService.create(payload);
+      const response = isEdit
+        // status and metadata belong to the booking's history, not to this form —
+        // resending them would stamp an edit as a fresh admin entry and could
+        // knock a finalized job back to "active".
+        ? await bookingService.update(job._id, (({ status, metadata, ...rest }) => rest)(payload))
+        : await bookingService.create(payload);
       if (response) {
-        alert("Booking created successfully!");
+        alert(isEdit ? "Booking updated successfully!" : "Booking created successfully!");
         onSubmit(formData);
         onClose();
         setStep(1);
       }
-    } catch { alert("Failed to create booking. Please try again."); }
+    } catch {
+      alert(isEdit ? "Failed to update booking. Please try again." : "Failed to create booking. Please try again.");
+    }
   };
 
   if (!isOpen) return null;
@@ -532,8 +619,12 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
         {/* Header */}
         <div className="p-6 border-b border-neutral-100 flex items-center justify-between shrink-0">
           <div>
-            <h2 className="text-[16px] font-semibold text-neutral-900 tracking-tight">Create New Booking</h2>
-            <p className="text-[11px] font-medium text-neutral-400 mt-0.5 uppercase tracking-widest">Manual entry from admin panel</p>
+            <h2 className="text-[16px] font-semibold text-neutral-900 tracking-tight">{isEdit ? "Edit Booking" : "Create New Booking"}</h2>
+            <p className="text-[11px] font-medium text-neutral-400 mt-0.5 uppercase tracking-widest">
+              {isEdit
+                ? (job.tripId || `#${String(job._id).slice(-6).toUpperCase()}`)
+                : "Manual entry from admin panel"}
+            </p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-neutral-50 rounded-xl text-neutral-400 transition-colors">
             <X className="w-5 h-5" />
@@ -708,6 +799,11 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                       onGps={() => fetchGpsAddress("pickup", idx)}
                       suggestions={pickupSuggestions}
                       onFill={(addr) => fillLocation("pickup", idx, addr)}
+                      countryOptions={countryOptions}
+                      stateOptions={stateOptionsFor(loc.country)}
+                      cityOptions={cityOptionsFor(loc.country)}
+                      onCreateLocation={(kind, name) => createLocation(kind, name, { country: loc.country, state: loc.state })}
+                      onDeleteLocation={deleteLocation}
                     />
                   ))}
                   <button onClick={() => addLocation("pickup")} className="w-full py-2.5 border border-dashed border-emerald-300 rounded-lg text-[11px] font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors">
@@ -734,6 +830,11 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
                       onGps={() => fetchGpsAddress("dropoff", idx)}
                       suggestions={dropoffSuggestions}
                       onFill={(addr) => fillLocation("dropoff", idx, addr)}
+                      countryOptions={countryOptions}
+                      stateOptions={stateOptionsFor(loc.country)}
+                      cityOptions={cityOptionsFor(loc.country)}
+                      onCreateLocation={(kind, name) => createLocation(kind, name, { country: loc.country, state: loc.state })}
+                      onDeleteLocation={deleteLocation}
                     />
                   ))}
                   <button onClick={() => addLocation("dropoff")} className="w-full py-2.5 border border-dashed border-rose-300 rounded-lg text-[11px] font-semibold text-rose-600 hover:bg-rose-50 transition-colors">
@@ -817,7 +918,7 @@ export default function CreateBookingDrawer({ isOpen, onClose, onSubmit }: Creat
             disabled={isNextDisabled}
             className={`flex-1 px-8 py-3 rounded-xl text-[11px] font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${isNextDisabled ? "bg-neutral-200 text-neutral-400 cursor-not-allowed" : "bg-primary text-white shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]"}`}
           >
-            {step === 3 ? "Create Booking" : "Next Details"}
+            {step === 3 ? (isEdit ? "Save Changes" : "Create Booking") : "Next Details"}
             {step < 3 && <ChevronRight className="w-4 h-4" />}
           </button>
         </div>

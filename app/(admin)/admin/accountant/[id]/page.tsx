@@ -30,6 +30,7 @@ import {
 } from "@/lib/legModel";
 import CityPicker from "@/components/admin/CityPicker";
 import { useNotifications } from "@/context/NotificationContext";
+import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
 
 export default function AccountantJobDetail() {
   const router = useRouter();
@@ -589,8 +590,8 @@ Continue anyway?`
     ? {
         id: jobData.tripId || `#TRIP-${jobData._id.substring(jobData._id.length - 6).toUpperCase()}`,
         status: jobData.status,
-        client: jobData.clientId?.name || "N/A",
-        company: jobData.clientId?.company?.companyName || "Direct Booking",
+        client: clientNameOf(jobData, "N/A"),
+        company: companyNameOf(jobData, "Direct Booking"),
         driver: jobData.assignment?.driverName ? cleanDriverName(jobData.assignment.driverName) : "Unassigned",
         truckNumber: jobData.assignment?.truckNumber || "N/A",
         truckHealth: jobData.assignment?.truckHealth || "Good",

@@ -5,6 +5,7 @@ import { X, Wallet, TrendingDown, CheckCircle2, Plus, Trash2, ArrowRight, Receip
 import { ledgerService } from "@/services/ledgerService";
 import { completionService } from "@/services/completionService";
 import { formatDate, todayAppDateKey } from "@/lib/datetime";
+import { clientNameOf } from "@/lib/bookingParty";
 
 interface LedgerDrawerProps {
   isOpen: boolean;
@@ -263,7 +264,7 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
                   const jobPending  = Math.max(0, billed - paid);
                   const isPaid      = !isTBD && (b.status === "paid" || jobPending === 0);
                   // Which client this trip was booked for (company ledger spans many clients)
-                  const bookedFor   = b.clientId?.name || b.metadata?.client || null;
+                  const bookedFor   = clientNameOf(b) || null;
                   return (
                     <div key={b._id} className={`p-3 border rounded-xl ${isPaid ? "bg-emerald-50/40 border-emerald-200" : "bg-white border-neutral-100"}`}>
                       <div className="flex items-center justify-between mb-2">

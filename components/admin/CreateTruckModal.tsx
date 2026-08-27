@@ -22,6 +22,7 @@ interface CreateTruckModalProps {
 export default function CreateTruckModal({ isOpen, onClose, onSubmit }: CreateTruckModalProps) {
   const [formData, setFormData] = useState({
     truckId: "",
+    trailerNumber: "",
     vehicleModel: "",
     capacity: "", // Tonnage
     year: "2024",
@@ -97,6 +98,16 @@ export default function CreateTruckModal({ isOpen, onClose, onSubmit }: CreateTr
                         value={formData.truckId}
                         onChange={(e) => setFormData({ ...formData, truckId: e.target.value })}
                         placeholder="e.g. TRK-045"
+                        className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-slate-900 focus:border-primary/20 outline-none transition-all"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest ml-1">Trailer No. <span className="text-neutral-300 normal-case font-medium">(optional)</span></label>
+                      <input
+                        type="text"
+                        value={formData.trailerNumber}
+                        onChange={(e) => setFormData({ ...formData, trailerNumber: e.target.value.toUpperCase() })}
+                        placeholder="e.g. CAD 7808 ZM"
                         className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-slate-900 focus:border-primary/20 outline-none transition-all"
                       />
                     </div>

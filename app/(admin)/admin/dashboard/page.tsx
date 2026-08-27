@@ -15,6 +15,7 @@ import BookingChatPanel from "@/components/admin/BookingChatPanel";
 import { formatDate } from "@/lib/datetime";
 import { canChatForTrip } from "@/lib/chatAvailability";
 import { isTripCompleted } from "@/lib/tripCompletion";
+import { clientNameOf } from "@/lib/bookingParty";
 
 const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniMap"), {
   ssr: false,
@@ -370,7 +371,7 @@ export default function AdminDashboard() {
             tripId={selectedRequest?.tripId || ""}
             request={selectedRequest ? {
                id: selectedRequest.tripId || `#FL-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
-               customer: (selectedRequest.clientId as any)?.name || "Direct Client",
+               customer: clientNameOf(selectedRequest, "Direct Client"),
                route: [getRoute(selectedRequest)],
                cargo: selectedRequest.cargoDetails?.goodsType,
                price: selectedRequest.finalAmount ? `K${selectedRequest.finalAmount}` : "TBD",

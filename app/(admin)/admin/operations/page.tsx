@@ -10,6 +10,7 @@ import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
 import { isTripCompleted } from "@/lib/tripCompletion";
+import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
 
 export default function AdminOperations() {
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
@@ -111,11 +112,11 @@ export default function AdminOperations() {
 
   // Derive unique companies and clients for filter dropdowns
   const uniqueCompanies = Array.from(new Set(
-    pageBookings.map(b => (b.clientId as any)?.company?.companyName).filter(Boolean)
+    pageBookings.map(b => companyNameOf(b)).filter(Boolean)
   )) as string[];
 
   const uniqueClients = Array.from(new Set(
-    pageBookings.map(b => (b.clientId as any)?.name).filter(Boolean)
+    pageBookings.map(b => clientNameOf(b)).filter(Boolean)
   )) as string[];
 
   const filteredBookings = pageBookings.filter(b => {
@@ -124,13 +125,13 @@ export default function AdminOperations() {
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.clientId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      clientNameOf(b).toLowerCase().includes(searchQuery.toLowerCase()) ||
       pickupCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
       dropoffCity.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesStatus = statusFilter === "all" || b.status === statusFilter;
-    const matchesCompany = companyFilter === "all" || (b.clientId as any)?.company?.companyName === companyFilter;
-    const matchesClient = clientFilter === "all" || (b.clientId as any)?.name === clientFilter;
+    const matchesCompany = companyFilter === "all" || companyNameOf(b) === companyFilter;
+    const matchesClient = clientFilter === "all" || clientNameOf(b) === clientFilter;
 
     return matchesSearch && matchesStatus && matchesCompany && matchesClient;
   });
@@ -140,8 +141,8 @@ export default function AdminOperations() {
     const settlement = settlements.find(s => (s.bookingId?._id || s.bookingId) === b._id);
     return {
       id: b.tripId || b._id.substring(b._id.length - 6).toUpperCase(),
-      companyName: (b.clientId as any)?.company?.companyName || (b.metadata?.client ? "Admin Booking" : "Direct Booking"),
-      clientName: (b.clientId as any)?.name || b.metadata?.client || "N/A",
+      companyName: companyNameOf(b, b.metadata?.client ? "Admin Booking" : "Direct Booking"),
+      clientName: clientNameOf(b, "N/A"),
       route: [
         ...(b.pickupLocations?.length ? b.pickupLocations : b.pickup ? [b.pickup] : []).map((l: any) => l.address?.city).filter(Boolean),
         ...(b.dropoffLocations?.length ? b.dropoffLocations : b.dropoff ? [b.dropoff] : []).map((l: any) => l.address?.city).filter(Boolean),

@@ -6,12 +6,13 @@ import CommonTable from "@/components/admin/CommonTable";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
 import { formatDate } from "@/lib/datetime";
 import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
-import { MessageSquare, CheckCircle, ChevronRight, Package, Search } from "lucide-react";
-import EditJobDrawer from "@/components/admin/EditJobDrawer";
+import { MessageSquare, CheckCircle, ChevronRight, Package, Search, Pencil, Trash2 } from "lucide-react";
 import StatCard from "@/components/admin/StatCard";
 import { bookingService } from "@/services/bookingService";
+import { assignmentService } from "@/services/assignmentService";
 import { useRouter } from "next/navigation";
 import CreateBookingDrawer from "@/components/admin/CreateBookingDrawer";
+import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
 
 type RequestStatus = "Active" | "Finalized" | "Paid";
 
@@ -22,9 +23,12 @@ export default function BookingRequestsPage() {
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isFinalizeDrawerOpen, setIsFinalizeDrawerOpen] = useState(false);
-  const [isEditJobDrawerOpen, setIsEditJobDrawerOpen] = useState(false);
+  const [isEditBookingOpen, setIsEditBookingOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [isCreateDrawerOpen, setIsCreateDrawerOpen] = useState(false);
+  // Bookings that already have a fleet unit on them. Once a truck is committed,
+  // the route and load it was chosen for stop being editable.
+  const [assignedBookingIds, setAssignedBookingIds] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
@@ -57,12 +61,22 @@ export default function BookingRequestsPage() {
   const loadRequests = async () => {
     try {
       setIsLoading(true);
-      const data = await bookingService.getAll();
+      const [data, assignments] = await Promise.all([
+        bookingService.getAll(),
+        // A failure here must not blank the page — it only costs the lock, and
+        // the server refuses a locked edit anyway.
+        assignmentService.getAll().catch(() => []),
+      ]);
       // Hide secret without-tax jobs — they only appear on the secret page
       const visible = (Array.isArray(data) ? data : []).filter(
         (b: any) => !(b.isSecret === true && b.withTax === false)
       );
       setRequests(visible);
+      setAssignedBookingIds(new Set(
+        (assignments || [])
+          .map((a: any) => String(a.bookingId?._id || a.bookingId || ""))
+          .filter(Boolean)
+      ));
     } catch (error) {
       console.error("Fetch requests error:", error);
     } finally {
@@ -78,13 +92,21 @@ export default function BookingRequestsPage() {
     }
   };
 
-  const handleUpdateJob = async (id: string, payload: any) => {
+  const isAssigned = (row: any): boolean =>
+    assignedBookingIds.has(String(row?.raw?._id || ""));
+
+  const handleDeleteBooking = async (row: any) => {
+    // Guarded here too: the list is a snapshot, and a driver may have been
+    // assigned since it was drawn.
+    if (isAssigned(row)) return;
+    const label = row.id || "this booking";
+    if (!confirm(`Delete ${label}? This permanently removes it and cannot be undone.`)) return;
     try {
-      await bookingService.update(id, payload);
-      await loadRequests(); // Refresh list
+      await bookingService.cancel(row.raw._id);
+      await loadRequests();
     } catch (error) {
-      console.error("Failed to update job:", error);
-      throw error;
+      console.error("Failed to delete booking:", error);
+      alert("Failed to delete booking. Please try again.");
     }
   };
 
@@ -128,11 +150,11 @@ export default function BookingRequestsPage() {
 
   // Derive unique companies and clients for filter dropdowns
   const uniqueCompanies = Array.from(new Set(
-    pageRequests.map(req => (req.clientId as any)?.company?.companyName).filter(Boolean)
+    pageRequests.map(req => companyNameOf(req)).filter(Boolean)
   )) as string[];
 
   const uniqueClients = Array.from(new Set(
-    pageRequests.map(req => (req.clientId as any)?.name).filter(Boolean)
+    pageRequests.map(req => clientNameOf(req)).filter(Boolean)
   )) as string[];
 
   const filteredRequests = pageRequests.filter(req => {
@@ -144,18 +166,18 @@ export default function BookingRequestsPage() {
     const matchesSearch =
       req._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       req.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (req.clientId as any)?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      clientNameOf(req).toLowerCase().includes(searchQuery.toLowerCase()) ||
       pickupCity?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       dropoffCity?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCompany = companyFilter === "all" || (req.clientId as any)?.company?.companyName === companyFilter;
-    const matchesClient = clientFilter === "all" || (req.clientId as any)?.name === clientFilter;
+    const matchesCompany = companyFilter === "all" || companyNameOf(req) === companyFilter;
+    const matchesClient = clientFilter === "all" || clientNameOf(req) === clientFilter;
     return matchesSearch && matchesCompany && matchesClient;
   });
 
   const tableData = filteredRequests.map(req => ({
     id: req.tripId || `#BR-${req._id?.substring(req._id.length - 7).toUpperCase() || "NEW"}`,
-    customer: (req.clientId as any)?.name || "Direct Client",
-    companyName: (req.clientId as any)?.company?.companyName || "Direct Booking",
+    customer: clientNameOf(req, "Direct Client"),
+    companyName: companyNameOf(req, "Direct Booking"),
     route: getRequestRoute(req),
     cargo: req.cargoDetails.goodsType,
     weight: req.cargoDetails?.weight ? `${req.cargoDetails.weight} KG` : "",
@@ -238,8 +260,40 @@ export default function BookingRequestsPage() {
       label: "Actions",
       key: "actions",
       align: "center" as const,
-      render: (_: any, row: any) => (
+      render: (_: any, row: any) => {
+        // Shown greyed rather than hidden, so it is clear the action exists and
+        // why it is unavailable.
+        const locked = isAssigned(row);
+        const lockedNote = "Driver assigned — booking locked";
+        return (
         <div className="flex gap-2 justify-center items-center">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedJob(row.raw);
+              setIsEditBookingOpen(true);
+            }}
+            disabled={locked}
+            className={`p-2 rounded-lg transition-all border border-transparent group ${locked
+              ? "bg-neutral-50 text-neutral-200 cursor-not-allowed"
+              : "bg-neutral-50 text-neutral-400 hover:text-primary hover:bg-primary/10 hover:border-primary/20"}`}
+            title={locked ? lockedNote : "Edit booking"}
+          >
+            <Pencil className={`w-4 h-4 transition-transform ${locked ? "" : "group-hover:scale-110"}`} />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDeleteBooking(row);
+            }}
+            disabled={locked}
+            className={`p-2 rounded-lg transition-all border border-transparent group ${locked
+              ? "bg-neutral-50 text-neutral-200 cursor-not-allowed"
+              : "bg-neutral-50 text-neutral-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200"}`}
+            title={locked ? lockedNote : "Delete booking"}
+          >
+            <Trash2 className={`w-4 h-4 transition-transform ${locked ? "" : "group-hover:scale-110"}`} />
+          </button>
           {row.status === "Active" && (
             <>
               <button
@@ -278,7 +332,8 @@ export default function BookingRequestsPage() {
             </div>
           )}
         </div>
-      )
+        );
+      }
     }
   ];
 
@@ -385,7 +440,7 @@ export default function BookingRequestsPage() {
           tripId={selectedRequest?.tripId || ""}
           request={selectedRequest ? {
             id: selectedRequest.tripId || `#BR-${selectedRequest._id?.substring(selectedRequest._id.length - 7).toUpperCase()}`,
-            customer: (selectedRequest.clientId as any)?.name || "Direct Client",
+            customer: clientNameOf(selectedRequest, "Direct Client"),
             route: getRequestRoute(selectedRequest),
             cargo: selectedRequest.cargoDetails.goodsType,
             price: "TBD",
@@ -404,7 +459,7 @@ export default function BookingRequestsPage() {
           request={selectedRequest ? {
             ...selectedRequest,
             id: selectedRequest.tripId,
-            customer: (selectedRequest.clientId as any)?.name || "Direct Client",
+            customer: clientNameOf(selectedRequest, "Direct Client"),
             route: getRequestRoute(selectedRequest),
             cargo: selectedRequest.cargoDetails.goodsType,
             price: "TBD",
@@ -429,14 +484,16 @@ export default function BookingRequestsPage() {
           onSubmit={handleCreateBooking}
         />
 
-        <EditJobDrawer
-          isOpen={isEditJobDrawerOpen}
+        {/* Same drawer as Create, in edit mode — one form for both so the two
+            cannot drift apart. */}
+        <CreateBookingDrawer
+          isOpen={isEditBookingOpen}
           onClose={() => {
-            setIsEditJobDrawerOpen(false);
+            setIsEditBookingOpen(false);
             setSelectedJob(null);
           }}
           job={selectedJob}
-          onUpdate={handleUpdateJob}
+          onSubmit={() => loadRequests()}
         />
       </div>
     </AdminLayout>

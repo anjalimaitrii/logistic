@@ -16,6 +16,18 @@ export const clientService = {
     return await fetchApi(url);
   },
 
+  /** What deleting this client would detach — read before confirming. */
+  usage: async (id: string): Promise<{
+    clientName: string; bookings: number; invoices: number;
+    payments: number; cash: number; total: number; summary: string;
+  }> => {
+    return await fetchApi(`/api/clients/${id}/usage`);
+  },
+
+  remove: async (id: string) => {
+    return await fetchApi(`/api/clients/${id}`, { method: 'DELETE' });
+  },
+
   create: async (payload: ClientPayload) => {
     return await fetchApi('/api/clients', {
       method: 'POST',

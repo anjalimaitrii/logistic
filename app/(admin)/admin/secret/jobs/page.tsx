@@ -11,6 +11,7 @@ import { completionService } from "@/services/completionService";
 import { Package, ChevronRight, Receipt, ShieldOff } from "lucide-react";
 import { formatDate, toAppDateKey } from "@/lib/datetime";
 import { isTripCompleted } from "@/lib/tripCompletion";
+import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
 
 export default function SecretJobsPage() {
   const [jobs, setJobs] = useState<any[]>([]);
@@ -79,10 +80,10 @@ export default function SecretJobsPage() {
 
   // Unique clients / companies for the filter dropdowns
   const uniqueClients = Array.from(new Set(
-    jobs.map((b) => (b.clientId as any)?.name || b.metadata?.client).filter(Boolean)
+    jobs.map((b) => clientNameOf(b)).filter(Boolean)
   )) as string[];
   const uniqueCompanies = Array.from(new Set(
-    jobs.map((b) => (b.clientId as any)?.company?.companyName).filter(Boolean)
+    jobs.map((b) => companyNameOf(b)).filter(Boolean)
   )) as string[];
 
   const filtered = useMemo(() => {
@@ -92,10 +93,10 @@ export default function SecretJobsPage() {
         (taxFilter === "with" && b.withTax === true) ||
         (taxFilter === "without" && b.withTax === false);
 
-      const clientName = (b.clientId as any)?.name || b.metadata?.client || "";
+      const clientName = clientNameOf(b);
       const matchesClient = clientFilter === "all" || clientName === clientFilter;
 
-      const companyName = (b.clientId as any)?.company?.companyName || "";
+      const companyName = companyNameOf(b);
       const matchesCompany = companyFilter === "all" || companyName === companyFilter;
 
       let matchesDate = true;
@@ -110,8 +111,8 @@ export default function SecretJobsPage() {
 
   const tableData = filtered.map((b) => ({
     id: newIdByBooking[b._id] || b.tripId || `#SL-${b._id?.slice(-4).toUpperCase()}`,
-    client: (b.clientId as any)?.name || b.metadata?.client || "—",
-    company: (b.clientId as any)?.company?.companyName || "Direct Booking",
+    client: clientNameOf(b, "—"),
+    company: companyNameOf(b, "Direct Booking"),
     route: `${b.pickupLocations?.[0]?.address?.city || "Origin"} → ${b.dropoffLocations?.[0]?.address?.city || "Dest."}`,
     cargo: Array.isArray(b.cargoDetails?.goodsType) ? b.cargoDetails.goodsType.join(", ") : (b.cargoDetails?.goodsType || "—"),
     weight: b.cargoDetails?.weight ? `${b.cargoDetails.weight} KG` : "—",

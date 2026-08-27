@@ -11,20 +11,11 @@ import { clientService } from "@/services/clientService";
 import { bookingService } from "@/services/bookingService";
 import { goodsTypeService } from "@/services/goodsTypeService";
 import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES, CITY_TO_STATE } from "@/lib/africaLocations";
+import ComboBox from "@/components/admin/ComboBox";
+import { useCustomLocations } from "@/hooks/use-custom-locations";
 import { todayAppDateKey } from "@/lib/datetime";
+import { DIAL_CODES, cleanLocalNumber, inputMaxLenFor } from "@/lib/dialCodes";
 
-const DIAL_CODES = [
-  { code: "+260", label: "ZM +260", maxLen: 9 },
-  { code: "+263", label: "ZW +263", maxLen: 9 },
-  { code: "+243", label: "CD +243", maxLen: 9 },
-  { code: "+265", label: "MW +265", maxLen: 9 },
-  { code: "+255", label: "TZ +255", maxLen: 9 },
-  { code: "+258", label: "MZ +258", maxLen: 9 },
-  { code: "+267", label: "BW +267", maxLen: 8 },
-  { code: "+264", label: "NA +264", maxLen: 9 },
-  { code: "+27",  label: "ZA +27",  maxLen: 9 },
-  { code: "+244", label: "AO +244", maxLen: 9 },
-];
 
 interface CreateSecretJobModalProps {
   isOpen: boolean;
@@ -35,6 +26,10 @@ interface CreateSecretJobModalProps {
 const emptyLocation = () => ({ contactPerson: "", contactCode: "+260", contact: "", contactPerson2: "", contact2Code: "+260", contact2: "", plotNo: "", street: "", country: "", state: "", city: "" });
 
 export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: CreateSecretJobModalProps) {
+  // Shared with every other booking form, so a town added anywhere shows up here.
+  const {
+    countryOptions, stateOptionsFor, cityOptionsFor, createLocation, deleteLocation,
+  } = useCustomLocations(isOpen);
   const [step, setStep] = useState(1);
   const [clients, setClients] = useState<any[]>([]);
   const [isLoadingClients, setIsLoadingClients] = useState(false);
@@ -499,7 +494,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                             <option value="">+</option>
                             {DIAL_CODES.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
                           </select>
-                          <input type="tel" placeholder="Contact Number *" value={loc.contact} maxLength={DIAL_CODES.find(d => d.code === loc.contactCode)?.maxLen ?? 10} onChange={(e) => updatePickup(idx, "contact", e.target.value)} className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0" />
+                          <input type="tel" placeholder="Contact Number *" value={loc.contact} maxLength={inputMaxLenFor(loc.contactCode)} onChange={(e) => updatePickup(idx, "contact", cleanLocalNumber(e.target.value, loc.contactCode))} className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0" />
                         </div>
                       </div>
                       <button type="button" onClick={() => toggleContact2("pickup", idx)} className={`flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest transition-colors ${showContact2.pickup[idx] ? "text-emerald-600" : "text-neutral-400 hover:text-neutral-600"}`}>
@@ -515,7 +510,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                               <option value="">+</option>
                               {DIAL_CODES.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
                             </select>
-                            <input type="tel" placeholder="2nd Contact Number" value={loc.contact2} maxLength={DIAL_CODES.find(d => d.code === loc.contact2Code)?.maxLen ?? 10} onChange={(e) => updatePickup(idx, "contact2", e.target.value)} className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0" />
+                            <input type="tel" placeholder="2nd Contact Number" value={loc.contact2} maxLength={inputMaxLenFor(loc.contact2Code)} onChange={(e) => updatePickup(idx, "contact2", cleanLocalNumber(e.target.value, loc.contact2Code))} className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0" />
                           </div>
                         </div>
                       )}
@@ -524,19 +519,38 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                         <input placeholder="Plot/Shop No" value={loc.plotNo} onChange={(e) => updatePickup(idx, "plotNo", e.target.value)} onFocus={() => onAddrFocus(`pickup-${idx}`)} onBlur={onAddrBlur} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                         <input placeholder="Street/Building" value={loc.street} onChange={(e) => updatePickup(idx, "street", e.target.value)} onFocus={() => onAddrFocus(`pickup-${idx}`)} onBlur={onAddrBlur} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
-                      <select value={loc.country} onChange={(e) => { updatePickup(idx, "country", e.target.value); updatePickup(idx, "state", ""); updatePickup(idx, "city", ""); }} className="w-full mt-3 bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
-                        <option value="">Country *</option>
-                        {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                      <div className="mt-3">
+                        <ComboBox
+                          value={loc.country}
+                          options={countryOptions}
+                          placeholder="Country *"
+                          className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none disabled:opacity-50"
+                          onChange={(name) => { updatePickup(idx, "country", name); updatePickup(idx, "state", ""); updatePickup(idx, "city", ""); }}
+                          onCreate={(name) => createLocation("country", name, {})}
+                          onDelete={deleteLocation}
+                        />
+                      </div>
                       <div className="grid grid-cols-2 gap-3 mt-3">
-                        <select value={loc.state} onChange={(e) => { updatePickup(idx, "state", e.target.value); updatePickup(idx, "city", ""); }} disabled={!loc.country} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer disabled:opacity-50">
-                          <option value="">State / Province</option>
-                          {(AFRICAN_STATES[loc.country] || []).map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                        <select value={loc.city} onChange={(e) => { const c = e.target.value; updatePickup(idx, "city", c); const st = loc.country ? (CITY_TO_STATE[loc.country]?.[c] || "") : ""; if (st) updatePickup(idx, "state", st); }} disabled={!loc.country} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer disabled:opacity-50">
-                          <option value="">City *</option>
-                          {(AFRICAN_CITIES[loc.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                        <ComboBox
+                          value={loc.state}
+                          options={stateOptionsFor(loc.country)}
+                          placeholder="State / Province"
+                          disabled={!loc.country}
+                          className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none disabled:opacity-50"
+                          onChange={(name) => { updatePickup(idx, "state", name); updatePickup(idx, "city", ""); }}
+                          onCreate={(name) => createLocation("state", name, { country: loc.country })}
+                          onDelete={deleteLocation}
+                        />
+                        <ComboBox
+                          value={loc.city}
+                          options={cityOptionsFor(loc.country)}
+                          placeholder="City *"
+                          disabled={!loc.country}
+                          className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none disabled:opacity-50"
+                          onChange={(name) => { updatePickup(idx, "city", name); const st = loc.country ? (CITY_TO_STATE[loc.country]?.[name] || "") : ""; if (st) updatePickup(idx, "state", st); }}
+                          onCreate={(name) => createLocation("city", name, { country: loc.country, state: loc.state })}
+                          onDelete={deleteLocation}
+                        />
                       </div>
                       {focusedAddr === `pickup-${idx}` && pickupSuggestions.length > 0 && (
                         <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-xl border border-neutral-200 bg-white shadow-xl overflow-hidden">
@@ -598,7 +612,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                             <option value="">+</option>
                             {DIAL_CODES.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
                           </select>
-                          <input type="tel" placeholder="Contact Number *" value={loc.contact} maxLength={DIAL_CODES.find(d => d.code === loc.contactCode)?.maxLen ?? 10} onChange={(e) => updateDropoff(idx, "contact", e.target.value)} className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0" />
+                          <input type="tel" placeholder="Contact Number *" value={loc.contact} maxLength={inputMaxLenFor(loc.contactCode)} onChange={(e) => updateDropoff(idx, "contact", cleanLocalNumber(e.target.value, loc.contactCode))} className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0" />
                         </div>
                       </div>
                       <button type="button" onClick={() => toggleContact2("dropoff", idx)} className={`flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-widest transition-colors ${showContact2.dropoff[idx] ? "text-rose-600" : "text-neutral-400 hover:text-neutral-600"}`}>
@@ -614,7 +628,7 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                               <option value="">+</option>
                               {DIAL_CODES.map(d => <option key={d.code} value={d.code}>{d.label}</option>)}
                             </select>
-                            <input type="tel" placeholder="2nd Contact Number" value={loc.contact2} maxLength={DIAL_CODES.find(d => d.code === loc.contact2Code)?.maxLen ?? 10} onChange={(e) => updateDropoff(idx, "contact2", e.target.value)} className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0" />
+                            <input type="tel" placeholder="2nd Contact Number" value={loc.contact2} maxLength={inputMaxLenFor(loc.contact2Code)} onChange={(e) => updateDropoff(idx, "contact2", cleanLocalNumber(e.target.value, loc.contact2Code))} className="flex-1 bg-transparent py-2 pl-3 pr-3 text-[12px] outline-none min-w-0" />
                           </div>
                         </div>
                       )}
@@ -623,19 +637,38 @@ export default function CreateSecretJobModal({ isOpen, onClose, onSubmit }: Crea
                         <input placeholder="Plot/Shop No" value={loc.plotNo} onChange={(e) => updateDropoff(idx, "plotNo", e.target.value)} onFocus={() => onAddrFocus(`dropoff-${idx}`)} onBlur={onAddrBlur} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                         <input placeholder="Street/Building" value={loc.street} onChange={(e) => updateDropoff(idx, "street", e.target.value)} onFocus={() => onAddrFocus(`dropoff-${idx}`)} onBlur={onAddrBlur} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none" />
                       </div>
-                      <select value={loc.country} onChange={(e) => { updateDropoff(idx, "country", e.target.value); updateDropoff(idx, "state", ""); updateDropoff(idx, "city", ""); }} className="w-full mt-3 bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer">
-                        <option value="">Country *</option>
-                        {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
+                      <div className="mt-3">
+                        <ComboBox
+                          value={loc.country}
+                          options={countryOptions}
+                          placeholder="Country *"
+                          className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none disabled:opacity-50"
+                          onChange={(name) => { updateDropoff(idx, "country", name); updateDropoff(idx, "state", ""); updateDropoff(idx, "city", ""); }}
+                          onCreate={(name) => createLocation("country", name, {})}
+                          onDelete={deleteLocation}
+                        />
+                      </div>
                       <div className="grid grid-cols-2 gap-3 mt-3">
-                        <select value={loc.state} onChange={(e) => { updateDropoff(idx, "state", e.target.value); updateDropoff(idx, "city", ""); }} disabled={!loc.country} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer disabled:opacity-50">
-                          <option value="">State / Province</option>
-                          {(AFRICAN_STATES[loc.country] || []).map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                        <select value={loc.city} onChange={(e) => { const c = e.target.value; updateDropoff(idx, "city", c); const st = loc.country ? (CITY_TO_STATE[loc.country]?.[c] || "") : ""; if (st) updateDropoff(idx, "state", st); }} disabled={!loc.country} className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none appearance-none cursor-pointer disabled:opacity-50">
-                          <option value="">City *</option>
-                          {(AFRICAN_CITIES[loc.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
-                        </select>
+                        <ComboBox
+                          value={loc.state}
+                          options={stateOptionsFor(loc.country)}
+                          placeholder="State / Province"
+                          disabled={!loc.country}
+                          className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none disabled:opacity-50"
+                          onChange={(name) => { updateDropoff(idx, "state", name); updateDropoff(idx, "city", ""); }}
+                          onCreate={(name) => createLocation("state", name, { country: loc.country })}
+                          onDelete={deleteLocation}
+                        />
+                        <ComboBox
+                          value={loc.city}
+                          options={cityOptionsFor(loc.country)}
+                          placeholder="City *"
+                          disabled={!loc.country}
+                          className="w-full bg-white border border-neutral-100 rounded-lg py-2 px-3 text-[12px] outline-none disabled:opacity-50"
+                          onChange={(name) => { updateDropoff(idx, "city", name); const st = loc.country ? (CITY_TO_STATE[loc.country]?.[name] || "") : ""; if (st) updateDropoff(idx, "state", st); }}
+                          onCreate={(name) => createLocation("city", name, { country: loc.country, state: loc.state })}
+                          onDelete={deleteLocation}
+                        />
                       </div>
                       {focusedAddr === `dropoff-${idx}` && dropoffSuggestions.length > 0 && (
                         <div className="absolute left-0 right-0 top-full mt-2 z-30 rounded-xl border border-neutral-200 bg-white shadow-xl overflow-hidden">

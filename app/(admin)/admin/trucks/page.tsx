@@ -73,6 +73,23 @@ export default function AdminTrucks() {
     return fresh;
   };
 
+  // Trailer number, saved from the same panel the collections live in. There is
+  // no truck edit form anywhere, and the 25 trucks that came in from Trakzee all
+  // need one — so it is added here rather than behind a form that does not exist.
+  const [trailerInput, setTrailerInput] = useState("");
+  const [trailerSaving, setTrailerSaving] = useState(false);
+
+  const handleSaveTrailer = async () => {
+    if (!collectionTruck) return;
+    const truckId = String(collectionTruck._id);
+    setTrailerSaving(true);
+    try {
+      await truckService.update(truckId, { trailerNumber: trailerInput.trim() });
+      await refreshTruck(truckId);
+    } catch (err: any) { alert("Failed to save trailer number: " + (err?.message || "Unknown error")); }
+    finally { setTrailerSaving(false); }
+  };
+
   const handleAddCollection = async () => {
     if (!collectionTruck || !colForm.name.trim()) return;
     setColSaving(true);
@@ -256,18 +273,26 @@ export default function AdminTrucks() {
       }
     },
     {
-      label: "Collection",
-      key: "collection",
+      // Opens the truck's own panel: its trailer number and its collections. The
+      // column used to be called "Collection", which stopped being true once the
+      // trailer moved in — and a button has to say what it opens.
+      label: "Manage",
+      key: "manage",
       align: "center" as const,
       render: (_: any, row: any) => {
         const count = row.raw.collections?.length || 0;
+        const trailer = row.raw.trailerNumber || "";
         return (
           <button
-            onClick={(e) => { e.stopPropagation(); setCollectionTruck(row.raw); setColForm({ name: "", description: "", quantity: "1" }); }}
+            onClick={(e) => { e.stopPropagation(); setCollectionTruck(row.raw); setTrailerInput(trailer); setColForm({ name: "", description: "", quantity: "1" }); }}
+            title={`Trailer number & collections${trailer ? ` · Trailer ${trailer}` : ""}`}
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-orange-50 border border-orange-100 text-orange-600 hover:bg-orange-100 transition-all text-[10px] font-bold uppercase tracking-widest"
           >
             <Package className="w-3 h-3" />
             {count > 0 ? count : "+"}
+            {/* A truck can have a trailer and no collections, so the count alone
+                cannot show whether this panel holds anything. */}
+            {trailer && <span className="w-1 h-1 rounded-full bg-orange-500" />}
           </button>
         );
       },
@@ -431,7 +456,7 @@ export default function AdminTrucks() {
             {/* Header */}
             <div className="p-6 border-b border-neutral-100 flex items-center justify-between">
               <div>
-                <h2 className="text-[15px] font-semibold text-neutral-900">Collections</h2>
+                <h2 className="text-[15px] font-semibold text-neutral-900">Truck Details</h2>
                 <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mt-0.5">{collectionTruck.truckId} · {collectionTruck.vehicleModel}</p>
               </div>
               <button onClick={() => setCollectionTruck(null)} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-neutral-50 text-neutral-400 transition-colors">
@@ -440,6 +465,30 @@ export default function AdminTrucks() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Trailer — the rig's second registration. Blank for a rigid truck. */}
+              <div className="bg-slate-50 border border-neutral-100 rounded-2xl p-4 space-y-3">
+                <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Trailer Number</h3>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="e.g. CAD 7808 ZM"
+                    value={trailerInput}
+                    onChange={e => setTrailerInput(e.target.value.toUpperCase())}
+                    className="flex-1 bg-white border border-neutral-100 rounded-xl px-3 py-2.5 text-[12px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all"
+                  />
+                  <button
+                    onClick={handleSaveTrailer}
+                    disabled={trailerSaving || trailerInput.trim() === (collectionTruck.trailerNumber || "")}
+                    className="px-4 py-2.5 rounded-xl bg-slate-900 text-white text-[10px] font-bold uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                  >
+                    {trailerSaving ? "Saving…" : "Save"}
+                  </button>
+                </div>
+                <p className="text-[9px] text-neutral-400">
+                  The trailer is registered separately from the horse ({collectionTruck.truckId}). Leave blank for a rigid truck.
+                </p>
+              </div>
+
               {/* Add form */}
               <div className="bg-primary/5 border border-primary/10 rounded-2xl p-4 space-y-3">
                 <h3 className="text-[10px] font-bold text-primary uppercase tracking-widest">Add Item</h3>

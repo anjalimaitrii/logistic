@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import PhoneInput from "@/components/admin/PhoneInput";
+import { DEFAULT_DIAL_CODE, joinDialCode } from "@/lib/dialCodes";
 import { motion, AnimatePresence } from "framer-motion";
 import { todayAppDateKey } from "@/lib/datetime";
 import { 
@@ -26,9 +28,11 @@ export default function CreateJobModal({ isOpen, onClose, onSubmit }: CreateJobM
     client: "",
     pickupStreet: "",
     pickupCity: "",
+    pickupContactCode: DEFAULT_DIAL_CODE,
     pickupContact: "",
     dropoffStreet: "",
     dropoffCity: "",
+    dropoffContactCode: DEFAULT_DIAL_CODE,
     dropoffContact: "",
     goodsType: "",
     weight: "",
@@ -39,7 +43,13 @@ export default function CreateJobModal({ isOpen, onClose, onSubmit }: CreateJobM
   });
 
   const handleFormSubmit = () => {
-    onSubmit(formData);
+    // The dial codes are controls on the form; each contact goes out as one string.
+    const { pickupContactCode, dropoffContactCode, ...fields } = formData;
+    onSubmit({
+      ...fields,
+      pickupContact: joinDialCode(pickupContactCode, formData.pickupContact),
+      dropoffContact: joinDialCode(dropoffContactCode, formData.dropoffContact),
+    });
     onClose();
   };
 
@@ -127,10 +137,12 @@ export default function CreateJobModal({ isOpen, onClose, onSubmit }: CreateJobM
                               className="bg-white border border-neutral-100 rounded-xl px-4 py-2 text-[12px] font-semibold outline-none"
                               onChange={(e) => setFormData({...formData, pickupCity: e.target.value})}
                             />
-                            <input
-                              placeholder="Contact no."
-                              className="bg-white border border-neutral-100 rounded-xl px-4 py-2 text-[12px] font-semibold outline-none"
-                              onChange={(e) => setFormData({...formData, pickupContact: e.target.value})}
+                            <PhoneInput
+                              code={formData.pickupContactCode}
+                              value={formData.pickupContact}
+                              placeholder="771 234 567"
+                              onCodeChange={(code) => setFormData({...formData, pickupContactCode: code})}
+                              onValueChange={(local) => setFormData({...formData, pickupContact: local})}
                             />
                          </div>
                          <input
@@ -152,10 +164,12 @@ export default function CreateJobModal({ isOpen, onClose, onSubmit }: CreateJobM
                               className="bg-white border border-neutral-100 rounded-xl px-4 py-2 text-[12px] font-semibold outline-none"
                               onChange={(e) => setFormData({...formData, dropoffCity: e.target.value})}
                             />
-                            <input
-                              placeholder="Contact no."
-                              className="bg-white border border-neutral-100 rounded-xl px-4 py-2 text-[12px] font-semibold outline-none"
-                              onChange={(e) => setFormData({...formData, dropoffContact: e.target.value})}
+                            <PhoneInput
+                              code={formData.dropoffContactCode}
+                              value={formData.dropoffContact}
+                              placeholder="771 234 567"
+                              onCodeChange={(code) => setFormData({...formData, dropoffContactCode: code})}
+                              onValueChange={(local) => setFormData({...formData, dropoffContact: local})}
                             />
                          </div>
                          <input

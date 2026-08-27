@@ -24,6 +24,7 @@ import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
 import { isTripCompleted } from "@/lib/tripCompletion";
 import { isLastOffloading, stopCounts } from "@/lib/tripStage";
+import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
 
 export default function AdminJobsPage() {
   const router = useRouter();
@@ -163,11 +164,11 @@ export default function AdminJobsPage() {
 
   // Derive unique companies and clients for filter dropdowns
   const uniqueCompanies = Array.from(new Set(
-    pageBookings.map(b => (b.clientId as any)?.company?.companyName).filter(Boolean)
+    pageBookings.map(b => companyNameOf(b)).filter(Boolean)
   )) as string[];
 
   const uniqueClients = Array.from(new Set(
-    pageBookings.map(b => (b.clientId as any)?.name).filter(Boolean)
+    pageBookings.map(b => clientNameOf(b)).filter(Boolean)
   )) as string[];
 
   const filteredBookings = pageBookings.filter(b => {
@@ -176,11 +177,11 @@ export default function AdminJobsPage() {
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.clientId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      clientNameOf(b).toLowerCase().includes(searchQuery.toLowerCase()) ||
       pickupCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
       dropoffCity.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCompany = companyFilter === "all" || (b.clientId as any)?.company?.companyName === companyFilter;
-    const matchesClient = clientFilter === "all" || (b.clientId as any)?.name === clientFilter;
+    const matchesCompany = companyFilter === "all" || companyNameOf(b) === companyFilter;
+    const matchesClient = clientFilter === "all" || clientNameOf(b) === clientFilter;
     return matchesSearch && matchesCompany && matchesClient;
   });
 
@@ -199,8 +200,8 @@ export default function AdminJobsPage() {
     const isComplete = isTripCompleted(b) || effectiveStatus?.toLowerCase() === "delivered";
     return {
       id: newIdByBooking[b?._id] || b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
-      client: (b?.clientId as any)?.name || "Direct Client",
-      companyName: (b?.clientId as any)?.company?.companyName || "Direct Booking",
+      client: clientNameOf(b, "Direct Client"),
+      companyName: companyNameOf(b, "Direct Booking"),
       status: getStatusType(effectiveStatus),
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Assign Driver",
       route,

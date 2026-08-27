@@ -5,7 +5,6 @@ import Link from "next/link";
 import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNavigation";
 import { ClientMobileNav } from "@/components/client/ClientMobileNav";
 import {
-   Search,
    TrendingUp,
    Package,
    DollarSign,
@@ -21,6 +20,7 @@ import { AnimatedGradientText } from "@/components/ui/animated-gradient-text";
 import { bookingService } from "@/services/bookingService";
 import ClientNotificationBell from "@/components/client/ClientNotificationBell";
 import { formatDate, formatDateTime } from "@/lib/datetime";
+import { clientNameOf } from "@/lib/bookingParty";
 
 function getStatusStyle(status: string) {
    switch (status?.toLowerCase()) {
@@ -67,6 +67,52 @@ function BookingDetailModal({ booking, onClose }: { booking: any; onClose: () =>
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 space-y-5 custom-scrollbar">
+               {/* Who is carrying it. Only appears once a fleet unit is on the
+                   job — before that there is no truck or driver to name. */}
+               {booking.fleet && (
+                  <div className="bg-slate-900 rounded-2xl p-4 space-y-3 text-white">
+                     <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Transporter</p>
+                     <p className="text-[13px] font-bold -mt-1">{booking.fleet.transporter}</p>
+
+                     <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/10">
+                        <div className="space-y-0.5">
+                           <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">
+                              {booking.fleet.trailerNumber ? "Horse / Trailer" : "Truck"}
+                           </p>
+                           <p className="text-[12px] font-semibold">
+                              {booking.fleet.truckNumber || "—"}
+                              {booking.fleet.trailerNumber && (
+                                 <span className="text-white/50"> · {booking.fleet.trailerNumber}</span>
+                              )}
+                           </p>
+                        </div>
+                        <div className="space-y-0.5">
+                           <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Driver</p>
+                           <p className="text-[12px] font-semibold">{booking.fleet.driverName || "—"}</p>
+                        </div>
+                     </div>
+
+                     {(booking.fleet.driverPhone || booking.fleet.driverNrc) && (
+                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/10">
+                           {booking.fleet.driverPhone && (
+                              <div className="space-y-0.5">
+                                 <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Driver Phone</p>
+                                 <a href={`tel:${booking.fleet.driverPhone}`} className="text-[12px] font-semibold underline underline-offset-2">
+                                    {booking.fleet.driverPhone}
+                                 </a>
+                              </div>
+                           )}
+                           {booking.fleet.driverNrc && (
+                              <div className="space-y-0.5">
+                                 <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Driver NRC</p>
+                                 <p className="text-[12px] font-semibold">{booking.fleet.driverNrc}</p>
+                              </div>
+                           )}
+                        </div>
+                     )}
+                  </div>
+               )}
+
 
                {/* Status + Vehicle */}
                <div className="grid grid-cols-2 gap-3">
@@ -253,7 +299,7 @@ export default function DashboardPage() {
          tripId: b.tripId || `#${b._id?.slice(-7).toUpperCase()}`,
          cities: allCities.length ? allCities : ["—"],
          cargo: b.cargoDetails?.goodsType || "Cargo",
-         bookedBy: b.clientId?.name || b.metadata?.client || "—",
+         bookedBy: clientNameOf(b, "—"),
          status: b.status || "pending",
          bookedAt,
       };
@@ -281,16 +327,8 @@ export default function DashboardPage() {
          >
             {/* ── TOP BAR ── */}
             <header className="h-14 bg-white/80 backdrop-blur-md border-b border-neutral-100 flex items-center justify-between sticky top-0 z-30 -mx-4 md:-mx-6 px-4 md:px-6 mb-6">
-               <div className="flex items-center gap-4 flex-1">
-                  <div className="relative max-w-sm w-full group">
-                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 md:w-3.5 md:h-3.5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                     <input
-                        type="text"
-                        placeholder="Search..."
-                        className="w-full bg-slate-50 border border-transparent rounded-lg py-1.5 pl-9 pr-4 text-[11px] md:text-[12px] font-medium placeholder:text-slate-400 focus:bg-white focus:border-slate-200 outline-none transition-all"
-                     />
-                  </div>
-               </div>
+               {/* The bar keeps its space so the profile block stays right-aligned. */}
+               <div className="flex-1" />
                <div className="flex items-center gap-2">
                   <ClientNotificationBell />
                   <div className="h-4 w-px bg-slate-200 mx-1" />

@@ -12,6 +12,7 @@ import { bookingService } from "@/services/bookingService";
 import { fetchLiveVehicles, getVehicleStatus } from "@/services/liveTrackingService";
 import { ChevronRight, Plus, Eye, MessageSquare, Receipt, ShieldOff, Package } from "lucide-react";
 import { isTripCompleted } from "@/lib/tripCompletion";
+import { clientNameOf } from "@/lib/bookingParty";
 
 const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniMap"), {
   ssr: false,
@@ -88,7 +89,7 @@ export default function SecretDashboard() {
     const city2 = b.dropoffLocations?.[0]?.address?.city || "Dest.";
     return {
       id: b.tripId || `#SL-${b._id?.slice(-4).toUpperCase()}`,
-      client: (b.clientId as any)?.name || b.metadata?.client || "—",
+      client: clientNameOf(b, "—"),
       route: `${city1} → ${city2}`,
       tax: b.withTax ? "With Tax" : "Without Tax",
       status: (b.status || "active").toLowerCase(),
@@ -337,7 +338,7 @@ export default function SecretDashboard() {
         tripId={selectedRequest?.tripId || ""}
         request={selectedRequest ? {
           id: selectedRequest.tripId || `#SL-${selectedRequest._id?.slice(-4).toUpperCase()}`,
-          customer: (selectedRequest.clientId as any)?.name || selectedRequest.metadata?.client || "Direct Client",
+          customer: clientNameOf(selectedRequest, "Direct Client"),
           route: `${selectedRequest.pickupLocations?.[0]?.address?.city || "Origin"} → ${selectedRequest.dropoffLocations?.[0]?.address?.city || "Dest."}`,
         } : null}
         onFinalize={() => {

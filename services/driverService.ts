@@ -3,8 +3,8 @@ import { fetchApi } from './api';
 export interface DriverPayload {
   name: string;
   phone: string;
-  licenseType: string;
-  licenseNo: string;
+  /** National Registration Card number, e.g. 153013/10/1. */
+  nrc?: string;
   experience: number;
   assignedTruck?: string; // MongoDB _id
   status?: string;

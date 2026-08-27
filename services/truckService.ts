@@ -2,6 +2,8 @@ import { fetchApi } from './api';
 
 export interface TruckPayload {
   truckId: string;
+  /** The trailer's own registration, separate from the horse's truckId. */
+  trailerNumber?: string;
   vehicleModel: string;
   capacity?: number;
   year?: string;

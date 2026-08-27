@@ -21,6 +21,7 @@ import { ClientMobileNav } from "@/components/client/ClientMobileNav";
 import { bookingService } from "@/services/bookingService";
 import ClientNotificationBell from "@/components/client/ClientNotificationBell";
 import { formatDate } from "@/lib/datetime";
+import { clientNameOf } from "@/lib/bookingParty";
 
 export default function ClientLedgerPage() {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -295,7 +296,7 @@ export default function ClientLedgerPage() {
                           </div>
                         </td>
                         <td className="px-5 py-5">
-                          <span className="text-[11px] font-semibold text-slate-700 capitalize">{b.clientId?.name || b.metadata?.client || "—"}</span>
+                          <span className="text-[11px] font-semibold text-slate-700 capitalize">{clientNameOf(b, "—")}</span>
                         </td>
                         <td className="px-5 py-5">
                           <div className="flex flex-col gap-1">

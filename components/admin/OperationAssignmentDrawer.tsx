@@ -398,9 +398,12 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                               <span className="flex items-center gap-1 text-[9px] font-semibold text-neutral-400">⚪ <span>No Docs</span></span>
                             </div>
                           </div>
+                          {/* Selected by id, never by name: two drivers share a
+                              name in this fleet, and matching on it resolved to
+                              whichever one the list happened to hold first. */}
                           <div className="relative">
                             <select
-                              value={drivers.find(d => d.name === formData.driver)?._id || ""}
+                              value={formData.driverId || ""}
                               onChange={(e) => handleFleetSelect(e.target.value)}
                               disabled={job?.isApproved}
                               className={`bg-white border border-neutral-100 rounded-xl px-4 py-3 text-[13px] font-semibold text-slate-900 outline-none w-full focus:border-primary/30 transition-all shadow-sm appearance-none ${job?.isApproved ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}

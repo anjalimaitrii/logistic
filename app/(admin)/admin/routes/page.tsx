@@ -6,6 +6,8 @@ import { routeService, RouteEntry } from "@/services/routeService";
 import { mileageService, MileageConfig } from "@/services/mileageService";
 import { warehouseService, WarehouseConfig } from "@/services/warehouseService";
 import { AFRICAN_COUNTRIES, AFRICAN_STATES, AFRICAN_CITIES, CITY_TO_STATE } from "@/lib/africaLocations";
+import ComboBox from "@/components/admin/ComboBox";
+import { useCustomLocations } from "@/hooks/use-custom-locations";
 import {
   Plus, MapPin, Ruler, Landmark, Wallet, Receipt,
   Pencil, Trash2, X, ChevronRight, CheckCircle2, ArrowRight, Gauge,
@@ -29,6 +31,12 @@ const inputCls = "w-full bg-neutral-50 border border-neutral-200 rounded-xl py-2
 const selectCls = `${inputCls} appearance-none cursor-pointer`;
 
 export default function RoutesMasterPage() {
+  // Route Master keys its rates on city names, so it has to offer exactly the
+  // same set the booking forms do — a route for a town nobody can book is dead,
+  // and a booking to a town with no route has no rate.
+  const {
+    countryOptions, stateOptionsFor, cityOptionsFor, createLocation, deleteLocation,
+  } = useCustomLocations();
   const [routes, setRoutes] = useState<RouteEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -357,25 +365,42 @@ export default function RoutesMasterPage() {
               <div className="space-y-2 pl-7">
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Country *</label>
-                  <select value={form.pickupCountry} onChange={e => setForm(f => ({ ...f, pickupCountry: e.target.value, pickupProvince: "", pickupCity: "" }))} className={selectCls}>
-                    <option value="">Select country</option>
-                    {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <ComboBox
+                    value={form.pickupCountry}
+                    options={countryOptions}
+                    placeholder="Select country"
+                    className={selectCls}
+                    onChange={name => setForm(f => ({ ...f, pickupCountry: name, pickupProvince: "", pickupCity: "" }))}
+                    onCreate={name => createLocation("country", name, {})}
+                    onDelete={deleteLocation}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">State / Province</label>
-                    <select value={form.pickupProvince} onChange={e => setForm(f => ({ ...f, pickupProvince: e.target.value, pickupCity: "" }))} className={selectCls} disabled={!form.pickupCountry}>
-                      <option value="">Select state</option>
-                      {(AFRICAN_STATES[form.pickupCountry] || []).map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <ComboBox
+                      value={form.pickupProvince}
+                      options={stateOptionsFor(form.pickupCountry)}
+                      placeholder="Select state"
+                      disabled={!form.pickupCountry}
+                      className={selectCls}
+                      onChange={name => setForm(f => ({ ...f, pickupProvince: name, pickupCity: "" }))}
+                      onCreate={name => createLocation("state", name, { country: form.pickupCountry })}
+                      onDelete={deleteLocation}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">City *</label>
-                    <select value={form.pickupCity} onChange={e => setForm(f => ({ ...f, pickupCity: e.target.value }))} className={selectCls} disabled={!form.pickupCountry}>
-                      <option value="">Select city</option>
-                      {(AFRICAN_CITIES[form.pickupCountry] || []).map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                    <ComboBox
+                      value={form.pickupCity}
+                      options={cityOptionsFor(form.pickupCountry)}
+                      placeholder="Select city"
+                      disabled={!form.pickupCountry}
+                      className={selectCls}
+                      onChange={name => setForm(f => ({ ...f, pickupCity: name }))}
+                      onCreate={name => createLocation("city", name, { country: form.pickupCountry, state: form.pickupProvince })}
+                      onDelete={deleteLocation}
+                    />
                   </div>
                 </div>
               </div>
@@ -399,25 +424,42 @@ export default function RoutesMasterPage() {
               <div className="space-y-2 pl-7">
                 <div className="space-y-1.5">
                   <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Country *</label>
-                  <select value={form.dropoffCountry} onChange={e => setForm(f => ({ ...f, dropoffCountry: e.target.value, dropoffProvince: "", dropoffCity: "" }))} className={selectCls}>
-                    <option value="">Select country</option>
-                    {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <ComboBox
+                    value={form.dropoffCountry}
+                    options={countryOptions}
+                    placeholder="Select country"
+                    className={selectCls}
+                    onChange={name => setForm(f => ({ ...f, dropoffCountry: name, dropoffProvince: "", dropoffCity: "" }))}
+                    onCreate={name => createLocation("country", name, {})}
+                    onDelete={deleteLocation}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">State / Province</label>
-                    <select value={form.dropoffProvince} onChange={e => setForm(f => ({ ...f, dropoffProvince: e.target.value, dropoffCity: "" }))} className={selectCls} disabled={!form.dropoffCountry}>
-                      <option value="">Select state</option>
-                      {(AFRICAN_STATES[form.dropoffCountry] || []).map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    <ComboBox
+                      value={form.dropoffProvince}
+                      options={stateOptionsFor(form.dropoffCountry)}
+                      placeholder="Select state"
+                      disabled={!form.dropoffCountry}
+                      className={selectCls}
+                      onChange={name => setForm(f => ({ ...f, dropoffProvince: name, dropoffCity: "" }))}
+                      onCreate={name => createLocation("state", name, { country: form.dropoffCountry })}
+                      onDelete={deleteLocation}
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">City *</label>
-                    <select value={form.dropoffCity} onChange={e => setForm(f => ({ ...f, dropoffCity: e.target.value }))} className={selectCls} disabled={!form.dropoffCountry}>
-                      <option value="">Select city</option>
-                      {(AFRICAN_CITIES[form.dropoffCountry] || []).map(c => <option key={c} value={c}>{c}</option>)}
-                    </select>
+                    <ComboBox
+                      value={form.dropoffCity}
+                      options={cityOptionsFor(form.dropoffCountry)}
+                      placeholder="Select city"
+                      disabled={!form.dropoffCountry}
+                      className={selectCls}
+                      onChange={name => setForm(f => ({ ...f, dropoffCity: name }))}
+                      onCreate={name => createLocation("city", name, { country: form.dropoffCountry, state: form.dropoffProvince })}
+                      onDelete={deleteLocation}
+                    />
                   </div>
                 </div>
               </div>
@@ -620,44 +662,46 @@ export default function RoutesMasterPage() {
                   line up with the "Lusaka" those pickers offer. */}
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Country</label>
-                <select
+                <ComboBox
                   value={warehouse.country}
-                  onChange={e => setWarehouse(w => ({ ...w, country: e.target.value, province: "", city: "" }))}
+                  options={countryOptions}
+                  placeholder="Select country…"
                   className={selectCls}
-                >
-                  <option value="">Select country…</option>
-                  {AFRICAN_COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                  onChange={name => setWarehouse(w => ({ ...w, country: name, province: "", city: "" }))}
+                  onCreate={name => createLocation("country", name, {})}
+                  onDelete={deleteLocation}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-violet-600 uppercase tracking-widest flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5" /> City
                 </label>
-                <select
+                <ComboBox
                   value={warehouse.city}
-                  onChange={e => {
-                    const city = e.target.value;
+                  options={cityOptionsFor(warehouse.country)}
+                  placeholder="Select city…"
+                  disabled={!warehouse.country}
+                  className={selectCls}
+                  onChange={city => {
                     const autoProvince = warehouse.country ? (CITY_TO_STATE[warehouse.country]?.[city] || "") : "";
                     setWarehouse(w => ({ ...w, city, province: autoProvince || w.province }));
                   }}
-                  disabled={!warehouse.country}
-                  className={selectCls}
-                >
-                  <option value="">Select city…</option>
-                  {(AFRICAN_CITIES[warehouse.country] || []).map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                  onCreate={name => createLocation("city", name, { country: warehouse.country, state: warehouse.province })}
+                  onDelete={deleteLocation}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Province</label>
-                <select
+                <ComboBox
                   value={warehouse.province}
-                  onChange={e => setWarehouse(w => ({ ...w, province: e.target.value }))}
+                  options={stateOptionsFor(warehouse.country)}
+                  placeholder="Select province…"
                   disabled={!warehouse.country}
                   className={selectCls}
-                >
-                  <option value="">Select province…</option>
-                  {(AFRICAN_STATES[warehouse.country] || []).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+                  onChange={name => setWarehouse(w => ({ ...w, province: name }))}
+                  onCreate={name => createLocation("state", name, { country: warehouse.country })}
+                  onDelete={deleteLocation}
+                />
               </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">Street (optional)</label>

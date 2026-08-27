@@ -20,6 +20,7 @@ import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
 import InvoiceDrawer from "@/components/admin/InvoiceDrawer";
 import ReceivePaymentDrawer from "@/components/admin/ReceivePaymentDrawer";
 import { isTripCompleted } from "@/lib/tripCompletion";
+import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
 
 export default function AdminCompletedJobsPage() {
   const router = useRouter();
@@ -111,11 +112,11 @@ export default function AdminCompletedJobsPage() {
 
   // Derive unique companies and clients for filter dropdowns
   const uniqueCompanies = Array.from(new Set(
-    bookings.map(b => (b.clientId as any)?.company?.companyName).filter(Boolean)
+    bookings.map(b => companyNameOf(b)).filter(Boolean)
   )) as string[];
 
   const uniqueClients = Array.from(new Set(
-    bookings.map(b => (b.clientId as any)?.name).filter(Boolean)
+    bookings.map(b => clientNameOf(b)).filter(Boolean)
   )) as string[];
 
   const filteredBookings = bookings.filter(b => {
@@ -124,11 +125,11 @@ export default function AdminCompletedJobsPage() {
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.clientId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      clientNameOf(b).toLowerCase().includes(searchQuery.toLowerCase()) ||
       pickupCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
       dropoffCity.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCompany = companyFilter === "all" || (b.clientId as any)?.company?.companyName === companyFilter;
-    const matchesClient = clientFilter === "all" || (b.clientId as any)?.name === clientFilter;
+    const matchesCompany = companyFilter === "all" || companyNameOf(b) === companyFilter;
+    const matchesClient = clientFilter === "all" || clientNameOf(b) === clientFilter;
     return matchesSearch && matchesCompany && matchesClient;
   });
 
@@ -145,8 +146,8 @@ export default function AdminCompletedJobsPage() {
     const isComplete = isTripCompleted(b) || effectiveStatus?.toLowerCase() === "delivered";
     return {
       id: newIdByBooking[b?._id] || b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
-      client: (b?.clientId as any)?.name || "Direct Client",
-      companyName: (b?.clientId as any)?.company?.companyName || "Direct Booking",
+      client: clientNameOf(b, "Direct Client"),
+      companyName: companyNameOf(b, "Direct Booking"),
       status: getStatusType(effectiveStatus),
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Assign Driver",
       route,
@@ -401,7 +402,7 @@ export default function AdminCompletedJobsPage() {
           request={selectedRequest ? {
             ...selectedRequest,
             id: selectedRequest.tripId,
-            customer: (selectedRequest.clientId as any)?.name || "Direct Client",
+            customer: clientNameOf(selectedRequest, "Direct Client"),
             price: selectedRequest.finalAmount ? `K${selectedRequest.finalAmount}` : "TBD",
           } : null}
           onSubmit={async (data) => {

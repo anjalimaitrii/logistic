@@ -2,11 +2,12 @@ import { fetchApi } from './api';
 
 export interface CompanyPayload {
   companyName: string;
-  cinNumber?: string;
+  tpinNumber?: string;
   address: {
     street: string;
-    city: string;
+    country: string;
     state: string;
+    city: string;
   };
   contact?: {
     person: string;
@@ -29,7 +30,7 @@ export const companyService = {
   create: async (payload: CompanyPayload) => {
     const { 
       companyName, 
-      cinNumber, 
+      tpinNumber,
       address, 
       contact, 
       accounting, 
@@ -44,7 +45,7 @@ export const companyService = {
       method: 'POST',
       body: JSON.stringify({
         companyName,
-        cinNumber,
+        tpinNumber,
         address,
         contact,
         accounting,
@@ -64,7 +65,16 @@ export const companyService = {
     });
   },
 
-  delete: async (id: string) => {
+  /** What deleting this company would take with it — read before confirming. */
+  usage: async (id: string): Promise<{
+    companyName: string; clients: number; bookings: number; invoices: number;
+    payments: number; cash: number; total: number; summary: string;
+  }> => {
+    return await fetchApi(`/api/companies/${id}/usage`);
+  },
+
+  /** Removes the company AND the client accounts under it. */
+  remove: async (id: string) => {
     return await fetchApi(`/api/companies/${id}`, {
       method: 'DELETE',
     });

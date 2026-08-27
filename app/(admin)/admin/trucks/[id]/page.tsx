@@ -82,8 +82,11 @@ export default function TruckProfilePage() {
    const totalDocs = docs.length;
    const validDocs = docs.filter((d: any) => { const x = daysUntil(d.dueDate); return x === null || x > 0; }).length;
    const health = computeHealth(docs);
+   // queueStatus, not status. `status` defaults to "Assigned" and is never
+   // written again, so matching it against "active"/"queued" never hit and this
+   // read 0 for a truck that was out on the road.
    const activeTrips = assignments.filter((a: any) =>
-      ["active", "queued", "in-progress", "transit"].includes((a.status || "").toLowerCase())
+      ["active", "queued"].includes((a.queueStatus || "").toLowerCase())
    ).length;
 
    const kpis = [
@@ -106,7 +109,10 @@ export default function TruckProfilePage() {
          date: a.assignedAt ? formatDate(a.assignedAt) : "N/A",
          route: `${fromCity} → ${toCity}`,
          driver: cleanDriverName(a.driverName),
-         status: a.status || "—",
+         // Same reason: a.status says "Assigned" on every row, finished or not.
+         // The trip's own status is the honest answer; the queue position is the
+         // fallback for a job that has not started.
+         status: b.tripStatus || a.queueStatus || "—",
          cargo,
       };
    });
@@ -282,18 +288,6 @@ export default function TruckProfilePage() {
                            <span className="flex items-center gap-1.5"><Activity className="w-3.5 h-3.5 text-amber-500" /> Next Service: {(() => { const d = truck.nextServiceDate || truck.estNextServiceDate || truck.maintenanceDate; return d ? formatDate(d) : "Not scheduled"; })()}</span>
                         </div>
                      </div>
-                  </div>
-               </div>
-
-               <div className="flex items-center gap-3 bg-white p-3 rounded-[24px] border border-neutral-100 shadow-sm pr-6">
-                  <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shadow-inner">
-                     <User className="w-6 h-6" />
-                  </div>
-                  <div className="flex flex-col">
-                     <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-[0.2em] leading-none mb-1">Active Pilot</span>
-                     <span className="text-[16px] font-bold text-slate-900 tracking-tight leading-none">
-                        {assignments[0]?.driverName ? cleanDriverName(assignments[0].driverName) : "No active driver"}
-                     </span>
                   </div>
                </div>
             </div>

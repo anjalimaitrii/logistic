@@ -204,8 +204,8 @@ export default function ClientProfilePage() {
                                  <p className="text-[16px] font-bold tracking-wide">{user?.company?.companyName || "No Company Linked"}</p>
                               </div>
                               <div className="space-y-1.5">
-                                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em]">Corporate Identification (CIN)</p>
-                                 <p className="text-[16px] font-bold tracking-wide">{user?.company?.cinNumber || "N/A"}</p>
+                                 <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em]">TPIN</p>
+                                 <p className="text-[16px] font-bold tracking-wide">{user?.company?.tpinNumber || "N/A"}</p>
                               </div>
                               <div className="space-y-1.5 md:col-span-2">
                                  <p className="text-[9px] font-bold text-slate-500 uppercase tracking-[0.2em]">Business Type</p>

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { AFRICAN_COUNTRIES, AFRICAN_CITIES } from "@/lib/africaLocations";
+import ComboBox from "@/components/admin/ComboBox";
+import { useCustomLocations } from "@/hooks/use-custom-locations";
 
 /**
  * Country → City picker for an empty-leg endpoint.
@@ -46,14 +48,24 @@ export default function CityPicker({
     return seeded || AFRICAN_COUNTRIES[0];
   });
 
-  const cities = AFRICAN_CITIES[country] || [];
+  // Same options the booking forms offer, so an empty leg can end at a town that
+  // was added there — otherwise a truck could be dispatched somewhere it could
+  // never be recorded as returning from.
+  const { countryOptions, cityOptionsFor, createLocation, deleteLocation } = useCustomLocations();
+
+  const cityOptions = cityOptionsFor(country) || [];
+  const cities = cityOptions.map(o => o.name);
   // Snap a differently-cased value onto the canonical spelling so the select
   // shows it as selected instead of falling through to "Select city…".
   const canonical = value ? cities.find((c) => eq(c, value)) : "";
   const selected = canonical || value;
   // A saved city from another country must still render as the current value
   // rather than silently snapping back to blank.
-  const options = selected && !cities.includes(selected) ? [selected, ...cities] : cities;
+  // Keep the option objects rather than bare names: the id is what marks an entry
+  // as operator-added, and without it the remove control cannot be offered.
+  const options = selected && !cities.includes(selected)
+    ? [{ name: selected }, ...cityOptions]
+    : cityOptions;
 
   const selectCls =
     tone === "amber"
@@ -65,28 +77,27 @@ export default function CityPicker({
       {label && (
         <div className="text-[8px] font-medium text-neutral-400 uppercase tracking-widest">{label}</div>
       )}
-      <select
+      <ComboBox
         value={country}
-        onChange={(e) => {
-          setCountry(e.target.value);
+        options={countryOptions}
+        placeholder="Country"
+        className={`${selectCls} text-[10px] text-neutral-500`}
+        onChange={(name) => {
+          setCountry(name);
           onChange(""); // the old city does not exist in the new country's list
         }}
-        className={`${selectCls} text-[10px] text-neutral-500`}
-      >
-        {AFRICAN_COUNTRIES.map((c) => (
-          <option key={c} value={c}>{c}</option>
-        ))}
-      </select>
-      <select
+        onCreate={(name) => createLocation("country", name, {})}
+        onDelete={deleteLocation}
+      />
+      <ComboBox
         value={selected}
-        onChange={(e) => onChange(e.target.value)}
+        options={options}
+        placeholder="Select city…"
         className={selectCls}
-      >
-        <option value="">Select city…</option>
-        {options.map((c) => (
-          <option key={c} value={c}>{c}</option>
-        ))}
-      </select>
+        onChange={onChange}
+        onCreate={(name) => createLocation("city", name, { country })}
+        onDelete={deleteLocation}
+      />
     </div>
   );
 }

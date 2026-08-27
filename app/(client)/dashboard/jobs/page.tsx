@@ -25,6 +25,7 @@ import { bookingService } from "@/services/bookingService";
 import ClientNotificationBell from "@/components/client/ClientNotificationBell";
 import { useClientNotifications } from "@/context/ClientNotificationContext";
 import { formatDate, todayAppDateKey } from "@/lib/datetime";
+import { clientNameOf } from "@/lib/bookingParty";
 
 const getStatusStyles = (type: string) => {
    switch (type?.toLowerCase()) {
@@ -86,6 +87,57 @@ function BookingDetailModal({ booking, onClose }: ModalProps) {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-3 custom-scrollbar">
+
+               {/* Who is carrying it. Only appears once a fleet unit is on the
+                   job — before that there is no truck or driver to name. */}
+               {booking.fleet && (
+                  <div className="bg-slate-900 rounded-2xl p-4 space-y-3 text-white">
+                     <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Transporter</p>
+                     <p className="text-[13px] font-bold -mt-1">{booking.fleet.transporter}</p>
+
+                     <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/10">
+                        <div className="space-y-0.5">
+                           {/* A rig is two registered vehicles; the trailer only
+                               appears when the truck actually has one. */}
+                           <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">
+                              {booking.fleet.trailerNumber ? "Horse / Trailer" : "Truck"}
+                           </p>
+                           <p className="text-[12px] font-semibold">
+                              {booking.fleet.truckNumber || "—"}
+                              {booking.fleet.trailerNumber && (
+                                 <span className="text-white/50"> · {booking.fleet.trailerNumber}</span>
+                              )}
+                           </p>
+                        </div>
+                        <div className="space-y-0.5">
+                           <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Driver</p>
+                           <p className="text-[12px] font-semibold">{booking.fleet.driverName || "—"}</p>
+                        </div>
+                     </div>
+
+                     {(booking.fleet.driverPhone || booking.fleet.driverNrc) && (
+                        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/10">
+                           {booking.fleet.driverPhone && (
+                              <div className="space-y-0.5">
+                                 <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Driver Phone</p>
+                                 <a
+                                    href={`tel:${booking.fleet.driverPhone}`}
+                                    className="text-[12px] font-semibold underline underline-offset-2"
+                                 >
+                                    {booking.fleet.driverPhone}
+                                 </a>
+                              </div>
+                           )}
+                           {booking.fleet.driverNrc && (
+                              <div className="space-y-0.5">
+                                 <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Driver NRC</p>
+                                 <p className="text-[12px] font-semibold">{booking.fleet.driverNrc}</p>
+                              </div>
+                           )}
+                        </div>
+                     )}
+                  </div>
+               )}
 
                {/* Status + Vehicle */}
                <div className="grid grid-cols-2 gap-3">
@@ -326,7 +378,7 @@ export default function JobsPage() {
             ? formatDate(b.cargoDetails.loadingDate, { year: undefined })
             : "N/A",
          finalAmount: b.financials?.finalAmount || b.finalAmount,
-         bookedBy: b.clientId?.name || b.metadata?.client || "—",
+         bookedBy: clientNameOf(b, "—"),
          isOwn,
          // Only the client who created the booking can cancel it (not company-mates)
          canCancel:

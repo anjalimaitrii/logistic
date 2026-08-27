@@ -41,20 +41,39 @@ export default function AdminDrivers() {
 
     // Step 2: fetch GPS data, ensure trucks exist in DB, then save drivers with assignment
     try {
-      const dbNames = new Set(db.map((d: any) => d.name?.toLowerCase()));
+      // One record per person PER TRUCK. The same driver appearing on two vehicles
+      // is two records on purpose — either truck may turn up for a job — but the
+      // same person on the same truck must never be created twice.
+      //
+      // Keyed on the name with its whitespace collapsed, because Trakzee sends
+      // "Kennedy  Nyimba " one run and "Kennedy Nyimba" the next; comparing them
+      // raw made those two different people and filed a fresh record every time.
+      const normName = (v: any) => String(v || "").trim().replace(/\s+/g, " ").toLowerCase();
+      const driverKey = (name: string, truckDbId: string) => `${normName(name)}|${truckDbId || ""}`;
+      const seenDrivers = new Set<string>(
+        db.map((d: any) => driverKey(d.name, String(d.assignedTruck?._id || d.assignedTruck || "")))
+      );
       const gpsData = await fetchLiveVehicles();
 
       // Ensure trucks are saved first so we can look up their _id
       let allTrucks = await truckService.getAll() || [];
-      const truckDbIds = new Set(allTrucks.map((t: any) => t.truckId));
+      // Compared with case and spacing ignored. The unique index on truckId is
+      // literal, so "BAZ 5546" and "baz 5546" would both be accepted as separate
+      // trucks — the guard has to be the looser one, not the stricter.
+      const normPlate = (v: any) => String(v || "").trim().replace(/\s+/g, " ").toUpperCase();
+      const truckDbIds = new Set(allTrucks.map((t: any) => normPlate(t.truckId)));
       const newTrucks = gpsData.filter((v) => {
-        const id = v.Vehicle_No || v.Vehicle_Name;
-        return id && !truckDbIds.has(id);
+        const id = normPlate(v.Vehicle_No || v.Vehicle_Name);
+        if (!id || truckDbIds.has(id)) return false;
+        // Added as we go: the same plate twice in one feed would otherwise be
+        // created twice, and only the database would stop the second.
+        truckDbIds.add(id);
+        return true;
       });
       if (newTrucks.length > 0) {
         await Promise.allSettled(
           newTrucks.map((v) => {
-            const truckId = v.Vehicle_No || v.Vehicle_Name;
+            const truckId = normPlate(v.Vehicle_No || v.Vehicle_Name);
             return truckService.create({
               truckId,
               vehicleModel: v.Vehicletype || v.DeviceModel || "--",
@@ -73,28 +92,31 @@ export default function AdminDrivers() {
       );
 
       // Find new drivers
-      const seen = new Set<string>();
       const newDrivers = gpsData
         .map((v) => ({
-          name: getDriverName(v),
-          imei: v.Imeino,
+          // Stored tidy, so the next run's comparison has something stable to
+          // match and the name reads properly on screen.
+          name: String(getDriverName(v) || "").trim().replace(/\s+/g, " "),
           vehicleNo: v.Vehicle_No || v.Vehicle_Name,
         }))
-        .filter(({ name, imei }) => {
-          if (name === "No Driver" || seen.has(imei)) return false;
-          seen.add(imei);
-          return !dbNames.has(name.toLowerCase());
+        .filter(({ name, vehicleNo }) => {
+          if (name === "No Driver") return false;
+          const key = driverKey(name, truckMap.get(vehicleNo) || "");
+          if (seenDrivers.has(key)) return false;
+          // Added as we go, not just seeded from the database — two vehicles in
+          // the SAME feed carrying the same driver and truck would otherwise
+          // both pass the check and create a pair.
+          seenDrivers.add(key);
+          return true;
         });
 
       if (newDrivers.length > 0) {
         await Promise.allSettled(
-          newDrivers.map(({ name, imei, vehicleNo }) => {
+          newDrivers.map(({ name, vehicleNo }) => {
             const assignedTruck = truckMap.get(vehicleNo);
             return driverService.create({
               name,
               phone: "--",
-              licenseType: "NA",
-              licenseNo: imei,
               experience: 0,
               status: "Active",
               ...(assignedTruck ? { assignedTruck } : {}),
@@ -148,15 +170,13 @@ export default function AdminDrivers() {
   const filteredDrivers = q
     ? drivers.filter(d => {
         const name    = cleanDriverName(d.name || "").toLowerCase();
-        const license = (d.licenseNo || "").toLowerCase();
-        const truck   = (d.assignedTruck?.truckId || "").toLowerCase();
+        const truck    = (d.assignedTruck?.truckId || "").toLowerCase();
         const contact = (d.phone || "").toLowerCase();
-        return name.includes(q) || license.includes(q) || truck.includes(q) || contact.includes(q);
+        return name.includes(q) || truck.includes(q) || contact.includes(q);
       })
     : drivers;
 
   const tableData = filteredDrivers.map(d => ({
-    id: (d.licenseNo || "").substring(0, 7).toUpperCase(),
     name: cleanDriverName(d.name),
     status: d.status || "Active",
     truck: d.assignedTruck ? d.assignedTruck.truckId : "Not Assigned",
@@ -166,7 +186,6 @@ export default function AdminDrivers() {
   }));
 
   const columns = [
-    { label: "License ID", key: "id", render: (val: string) => <span className="font-semibold text-primary">{val}</span> },
     {
       label: "Full Name", key: "name", render: (val: string) => (
         <div className="flex items-center gap-2.5 text-nowrap">

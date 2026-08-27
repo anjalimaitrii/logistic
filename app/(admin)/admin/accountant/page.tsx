@@ -21,6 +21,7 @@ import { cleanDriverName } from "@/services/liveTrackingService";
 import { settlementService } from "@/services/settlementService";
 import { isTripCompleted } from "@/lib/tripCompletion";
 import { tripGapService } from "@/services/tripGapService";
+import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
 
 export default function AdminAccountant() {
   const router = useRouter();
@@ -140,22 +141,22 @@ export default function AdminAccountant() {
 
   // Derive unique companies and clients for filter dropdowns
   const uniqueCompanies = Array.from(new Set(
-    pageBookings.map(b => (b.clientId as any)?.company?.companyName).filter(Boolean)
+    pageBookings.map(b => companyNameOf(b)).filter(Boolean)
   )) as string[];
 
   const uniqueClients = Array.from(new Set(
-    pageBookings.map(b => (b.clientId as any)?.name).filter(Boolean)
+    pageBookings.map(b => clientNameOf(b)).filter(Boolean)
   )) as string[];
 
   const filteredBookings = pageBookings.filter(b => {
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      b.clientId?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      clientNameOf(b).toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.pickup?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.dropoff?.address?.city?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCompany = companyFilter === "all" || (b.clientId as any)?.company?.companyName === companyFilter;
-    const matchesClient = clientFilter === "all" || (b.clientId as any)?.name === clientFilter;
+    const matchesCompany = companyFilter === "all" || companyNameOf(b) === companyFilter;
+    const matchesClient = clientFilter === "all" || clientNameOf(b) === clientFilter;
     return matchesSearch && matchesCompany && matchesClient;
   });
 
@@ -168,8 +169,8 @@ export default function AdminAccountant() {
     ] as string[];
     return {
       id: b.tripId || `#TRIP-${b._id.substring(b._id.length - 4).toUpperCase()}`,
-      companyName: (b.clientId as any)?.company?.companyName || "Direct Booking",
-      clientName: (b.clientId as any)?.name || "N/A",
+      companyName: companyNameOf(b, "Direct Booking"),
+      clientName: clientNameOf(b, "N/A"),
       route: routeStops.length ? routeStops : ["N/A"],
       status: isApproved ? "Approved" : "Assigned",
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Unassigned",

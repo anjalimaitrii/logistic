@@ -1,7 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { X, Printer } from "lucide-react";
 import { formatDate } from "@/lib/datetime";
+import { assignmentService } from "@/services/assignmentService";
+import { bookingService } from "@/services/bookingService";
+import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
 
 interface InvoiceDrawerProps {
   isOpen: boolean;
@@ -10,140 +14,143 @@ interface InvoiceDrawerProps {
   invoiceId?: string;
 }
 
-// Your company (seller) details shown at the top of every invoice — edit as needed.
+// Seller (us). Printed at the top of every invoice exactly as ZRA expects it.
 const COMPANY = {
-  name: "Speedogistic",
-  address: "Lusaka, Zambia",
-  contact: "+260 000 000 000",
-  gst: "GST / TPIN: —",
+  name: "Speedosgistic Trucking Limited",
+  tpin: "2114127373",
 };
 
-const fmt = (n: number) =>
-  `K ${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+// Zambia standard rate. Only applied to with-tax invoices.
+const VAT_RATE = 0.16;
 
-const TEAL = "#15616d";
+const money = (n: number) =>
+  Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
 export default function InvoiceDrawer({ isOpen, onClose, booking, invoiceId }: InvoiceDrawerProps) {
+  const [truckNo, setTruckNo] = useState("");
+  const [zraNo, setZraNo] = useState("");
+  const [isSavingZra, setIsSavingZra] = useState(false);
+
+  const bookingId = booking?._id;
+
+  // The truck that ran the trip lives on the assignment, not the booking.
+  useEffect(() => {
+    if (!isOpen || !bookingId) return;
+    setZraNo(booking?.zraInvoiceNo || "");
+    let cancelled = false;
+    (async () => {
+      try {
+        const a: any = await assignmentService.getByBookingId(String(bookingId));
+        if (!cancelled) setTruckNo(a?.truckNumber || "");
+      } catch {
+        if (!cancelled) setTruckNo("");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, bookingId]);
+
   if (!isOpen || !booking) return null;
 
-  const invNo = invoiceId || booking.tripId || `INV-${booking._id?.slice(-6).toUpperCase()}`;
-  const client = (booking.clientId as any)?.name || booking.metadata?.client || "Direct Client";
-  const company = (booking.clientId as any)?.company?.companyName || "";
-  const clientContact = (booking.clientId as any)?.phone || (booking.clientId as any)?.mobile || "—";
+  // Company first, then the person, then the names stamped on the booking — an
+  // invoice is addressed to whoever it was raised for, and closing the account
+  // afterwards must not blank the document.
+  const clientCompany =
+    companyNameOf(booking) || clientNameOf(booking) || "Direct Client";
+  const clientTpin = (booking.clientId as any)?.company?.tpinNumber || "";
 
-  const pickups: any[] = booking.pickupLocations?.length
-    ? booking.pickupLocations
-    : booking.pickup ? [booking.pickup] : [];
   const dropoffs: any[] = booking.dropoffLocations?.length
     ? booking.dropoffLocations
     : booking.dropoff ? [booking.dropoff] : [];
-  const from = pickups[0]?.address?.city || "—";
-  const to = dropoffs[dropoffs.length - 1]?.address?.city || "—";
-  const clientAddress = [company, pickups[0]?.address?.city].filter(Boolean).join(", ") || "—";
 
-  const billed = Number(booking.finalAmount || 0);   // deal amount agreed
-  const advance = Number(booking.advancePaid || 0);
-  const balance = Math.max(0, billed - advance);
-  const withTax = booking.withTax === true;
-  const goodsType = booking.cargoDetails?.goodsType;
-  const weight = booking.cargoDetails?.weight;
-  const dateStr = formatDate(new Date().toISOString());
+  const deliveryCity = dropoffs[dropoffs.length - 1]?.address?.city || "—";
+  // The reference invoice names the country of origin, not the loading city.
+  const origin = "ZAMBIA";
 
-  const description = `Freight Charges — ${from} → ${to}${goodsType ? ` (${goodsType}${weight ? `, ${weight} kg` : ""})` : ""}`;
+  const goods = Array.isArray(booking.cargoDetails?.goodsType)
+    ? booking.cargoDetails.goodsType.filter(Boolean)
+    : booking.cargoDetails?.goodsType ? [booking.cargoDetails.goodsType] : [];
+  // The reference invoice writes "Various" when a load is not a single commodity.
+  const commodity = goods.length === 0 ? "Various" : goods.length > 2 ? "Various" : goods.join(", ");
 
-  const handlePrint = () => {
-    const w = window.open("", "_blank", "width=820,height=1000");
+  const dnNo = (booking.deliveryOrders || []).filter(Boolean).join(", ") || "—";
+  const dateStr = formatDate(booking.tripEndedAt || booking.cargoDetails?.loadingDate || booking.createdAt);
+
+  const withTax = booking.withTax !== false;
+  const subtotal = Number(booking.finalAmount || 0);
+  const vat = withTax ? subtotal * VAT_RATE : 0;
+  const grandTotal = subtotal + vat;
+
+  const invNo = invoiceId || booking.tripId || `INV-${booking._id?.slice(-6).toUpperCase()}`;
+
+  // Typed once, kept on the booking so a reprint carries the same number.
+  const saveZra = async () => {
+    const trimmed = zraNo.trim();
+    if (trimmed === (booking.zraInvoiceNo || "")) return;
+    setIsSavingZra(true);
+    try {
+      await bookingService.update(String(bookingId), { zraInvoiceNo: trimmed });
+      booking.zraInvoiceNo = trimmed;
+    } catch (err) {
+      console.error("Could not save the ZRA invoice number:", err);
+    } finally {
+      setIsSavingZra(false);
+    }
+  };
+
+  const handlePrint = async () => {
+    await saveZra();
+    const w = window.open("", "_blank", "width=900,height=1100");
     if (!w) return;
+    const cell = (v: string) => (v && v !== "—" ? v : "");
     w.document.write(`
       <html>
         <head>
           <title>Invoice ${invNo}</title>
           <style>
             * { font-family: Arial, Helvetica, sans-serif; box-sizing: border-box; }
-            body { margin: 0; padding: 40px; color: #1f2937; }
-            .sheet { border: 1px solid #e5e7eb; padding: 36px; }
-            .top { display:flex; justify-content:space-between; align-items:flex-start; }
-            .title { font-size: 40px; font-weight: 800; color: ${TEAL}; letter-spacing: 1px; line-height: 1; }
-            .rule { border:0; border-top: 2px solid ${TEAL}; margin: 14px 0 22px; }
-            .row { display:flex; justify-content:space-between; gap: 24px; }
-            .label { color:#6b7280; font-size: 12px; }
-            .val { font-size: 13px; font-weight: 600; }
-            .teal { color: ${TEAL}; font-weight: 700; font-size: 12px; letter-spacing:.5px; }
-            .block div { margin: 3px 0; font-size: 13px; }
-            .totbox { text-align:right; }
-            .totbox .amt { background:#d7e9ec; padding:8px 14px; font-weight:800; font-size:16px; display:inline-block; min-width:140px; text-align:right; margin-top:4px; }
-            table { width:100%; border-collapse:collapse; margin-top:28px; }
-            thead th { background:${TEAL}; color:#fff; padding:11px 12px; font-size:11px; text-transform:uppercase; letter-spacing:1px; text-align:left; }
-            thead th.r, tbody td.r { text-align:right; }
-            tbody td { padding:12px; font-size:13px; border-bottom:1px solid #eef0f2; }
-            .spacer td { height: 120px; }
-            .grand { background:${TEAL}; color:#fff; }
-            .grand td { padding:12px; font-weight:800; font-size:14px; }
-            .summary { margin-top:16px; margin-left:auto; width:280px; font-size:13px; }
-            .summary div { display:flex; justify-content:space-between; padding:5px 0; }
-            .foot { margin-top:64px; display:flex; justify-content:space-between; gap:16px; }
-            .foot .cell { flex:1; text-align:center; border-top:1px solid #cbd5e1; padding-top:8px; font-size:11px; color:#6b7280; }
+            body { margin: 0; padding: 24px; color: #000; }
+            table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+            td { border: 1px solid #000; padding: 6px 8px; font-size: 13px; height: 30px; vertical-align: middle; }
+            .title { font-size: 30px; font-weight: 800; text-align: center; }
+            .sub { font-size: 17px; font-weight: 700; text-align: center; }
+            .b { font-weight: 700; }
+            .c { text-align: center; }
+            .r { text-align: right; }
+            .noborder { border: none; }
           </style>
         </head>
         <body>
-          <div class="sheet">
-            <div class="top">
-              <div class="block">
-                <div class="val" style="font-size:16px;font-weight:800;">${COMPANY.name}</div>
-                <div class="label">${COMPANY.address}</div>
-                <div class="label">Contact: ${COMPANY.contact}</div>
-                <div class="label">${COMPANY.gst}</div>
-              </div>
-              <div class="title">Invoice</div>
-            </div>
-            <hr class="rule" />
+          <table>
+            <colgroup>
+              <col style="width:16%"><col style="width:16%"><col style="width:16%">
+              <col style="width:17%"><col style="width:18%"><col style="width:17%">
+            </colgroup>
 
-            <div class="row">
-              <div class="block">
-                <div class="teal">INVOICE TO</div>
-                <div class="val" style="text-transform:capitalize;">${client}</div>
-                <div class="label">${clientAddress}</div>
-                <div class="label">Contact: ${clientContact}</div>
-              </div>
-              <div class="block" style="text-align:right;">
-                <div><span class="label">Date: </span><span class="val">${dateStr}</span></div>
-                <div><span class="label">Invoice No: </span><span class="val">${invNo}</span></div>
-                <div style="margin-top:10px;">
-                  <div class="teal">INVOICE TOTAL</div>
-                  <div class="totbox"><span class="amt">${fmt(billed)}</span></div>
-                </div>
-              </div>
-            </div>
+            <tr><td class="title" colspan="6">${COMPANY.name}</td></tr>
+            <tr>${'<td></td>'.repeat(6)}</tr>
+            <tr><td class="sub" colspan="6">Tpin ${COMPANY.tpin}</td></tr>
+            <tr><td class="sub" colspan="6">Invoice details of ZRA invoice no ${cell(zraNo.trim())}</td></tr>
 
-            <table>
-              <thead>
-                <tr><th>Description</th><th class="r">Unit Price</th><th class="r">Amount</th></tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>${description}</td>
-                  <td class="r">${fmt(billed)}</td>
-                  <td class="r">${fmt(billed)}</td>
-                </tr>
-                <tr class="spacer"><td></td><td></td><td></td></tr>
-                <tr class="grand"><td colspan="2">Total Amount</td><td class="r">${fmt(billed)}</td></tr>
-              </tbody>
-            </table>
+            <tr><td colspan="3"></td><td rowspan="2" class="c b">Delivery :-</td><td rowspan="2" class="c b">Mode of payment:-</td><td class="c b">Origin:</td></tr>
+            <tr><td class="b" colspan="3">${clientCompany}</td><td></td></tr>
+            <tr><td colspan="3"></td><td rowspan="3" class="c b">${cell(deliveryCity)}</td><td rowspan="3" class="c b">Bank Transfer</td><td rowspan="3" class="c b">${origin}</td></tr>
+            <tr><td class="b" colspan="3">${clientTpin ? `Tpin ${clientTpin}` : ""}</td></tr>
+            <tr><td colspan="3"></td></tr>
 
-            <div class="summary">
-              <div><span>Subtotal</span><span>${fmt(billed)}</span></div>
-              ${withTax ? `<div><span>GST / Tax</span><span>Included</span></div>` : `<div><span>GST / Tax</span><span>N/A</span></div>`}
-              <div><span>Advance Received</span><span>- ${fmt(advance)}</span></div>
-              <div style="border-top:2px solid ${TEAL};margin-top:4px;padding-top:8px;font-weight:800;font-size:15px;"><span>Balance Due</span><span>${fmt(balance)}</span></div>
-            </div>
+            <tr><td class="c b" colspan="3">Description</td><td></td><td></td><td class="c b">Amount</td></tr>
+            <tr>
+              <td class="c b">Commodity</td><td class="c b">Truck No</td><td class="c b">Delivery Location</td>
+              <td class="c b">DN No</td><td class="c b">Date</td><td class="c b">Zambia Kwacha</td>
+            </tr>
 
-            <div class="foot">
-              <div class="cell">Authorized Person</div>
-              <div class="cell">Title</div>
-              <div class="cell">Contact</div>
-              <div class="cell">Authorized Signature</div>
-            </div>
-          </div>
+            <tr>
+              <td>${commodity}</td><td>${cell(truckNo)}</td><td>${cell(deliveryCity)}</td>
+              <td>${cell(dnNo)}</td><td>${dateStr}</td><td class="r">${money(subtotal)}</td>
+            </tr>
+            <tr><td class="b">Total</td><td></td><td></td><td></td><td></td><td class="r b">${money(subtotal)}</td></tr>
+            ${withTax ? `<tr><td class="b">Vat</td><td></td><td></td><td></td><td></td><td class="r b">${money(vat)}</td></tr>` : ""}
+            <tr><td class="b">AMOUNT</td><td></td><td></td><td></td><td></td><td class="r b">${money(grandTotal)}</td></tr>
+          </table>
           <script>window.onload = function(){ window.print(); }</script>
         </body>
       </html>
@@ -151,92 +158,119 @@ export default function InvoiceDrawer({ isOpen, onClose, booking, invoiceId }: I
     w.document.close();
   };
 
+  // Preview mirrors the printed sheet cell-for-cell.
+  const Cell = ({ children, className = "", ...rest }: any) => (
+    <td className={`border border-black px-2 py-1.5 text-[11px] h-7 align-middle ${className}`} {...rest}>
+      {children}
+    </td>
+  );
+
   return (
     <div className="fixed inset-0 z-[700] pointer-events-none">
       <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm pointer-events-auto" onClick={onClose} />
 
-      <div className="absolute right-0 top-0 bottom-0 w-full max-w-[560px] bg-white shadow-2xl pointer-events-auto flex flex-col">
-        {/* Header */}
+      <div className="absolute right-0 top-0 bottom-0 w-full max-w-[680px] bg-white shadow-2xl pointer-events-auto flex flex-col">
         <div className="p-5 border-b border-neutral-100 flex items-center justify-between bg-slate-50/50 shrink-0">
-          <h2 className="text-[15px] font-bold text-slate-900 tracking-tight">Invoice Preview</h2>
+          <div>
+            <h2 className="text-[15px] font-bold text-slate-900 tracking-tight">Invoice Preview</h2>
+            <p className="text-[10px] text-neutral-400 font-medium mt-0.5">{invNo}</p>
+          </div>
           <button onClick={onClose} className="p-2 hover:bg-white rounded-xl text-neutral-400 border border-transparent hover:border-neutral-100 transition-all">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Invoice sheet preview */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
-          <div className="border border-neutral-200 rounded-xl p-6">
-            {/* Top */}
-            <div className="flex items-start justify-between">
-              <div className="text-[12px] leading-relaxed">
-                <div className="text-[15px] font-extrabold text-slate-900">{COMPANY.name}</div>
-                <div className="text-neutral-500">{COMPANY.address}</div>
-                <div className="text-neutral-500">Contact: {COMPANY.contact}</div>
-                <div className="text-neutral-500">{COMPANY.gst}</div>
-              </div>
-              <div className="text-[34px] font-extrabold tracking-tight" style={{ color: TEAL }}>Invoice</div>
-            </div>
-            <div className="border-t-2 my-4" style={{ borderColor: TEAL }} />
-
-            {/* Bill to + meta */}
-            <div className="flex items-start justify-between gap-6">
-              <div className="text-[12px]">
-                <div className="font-bold tracking-wide mb-1" style={{ color: TEAL }}>INVOICE TO</div>
-                <div className="text-[13px] font-semibold text-slate-900 capitalize">{client}</div>
-                <div className="text-neutral-500">{clientAddress}</div>
-                <div className="text-neutral-500">Contact: {clientContact}</div>
-              </div>
-              <div className="text-right text-[12px] space-y-1">
-                <div><span className="text-neutral-500">Date: </span><span className="font-semibold">{dateStr}</span></div>
-                <div><span className="text-neutral-500">Invoice No: </span><span className="font-semibold">{invNo}</span></div>
-                <div className="pt-2">
-                  <div className="font-bold tracking-wide" style={{ color: TEAL }}>INVOICE TOTAL</div>
-                  <div className="inline-block px-3 py-1.5 font-extrabold text-[15px] mt-1" style={{ background: "#d7e9ec" }}>{fmt(billed)}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Table */}
-            <div className="mt-5 rounded-lg overflow-hidden border border-neutral-100">
-              <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-3 py-2.5 text-white text-[10px] font-bold uppercase tracking-widest" style={{ background: TEAL }}>
-                <span>Description</span><span className="text-right w-24">Unit Price</span><span className="text-right w-24">Amount</span>
-              </div>
-              <div className="grid grid-cols-[1fr_auto_auto] gap-4 px-3 py-3 text-[12px] border-b border-neutral-100">
-                <span className="text-slate-700">{description}</span>
-                <span className="text-right w-24 font-semibold">{fmt(billed)}</span>
-                <span className="text-right w-24 font-semibold">{fmt(billed)}</span>
-              </div>
-              <div className="grid grid-cols-[1fr_auto] gap-4 px-3 py-3 text-white text-[13px] font-extrabold" style={{ background: TEAL }}>
-                <span>Total Amount</span><span className="text-right">{fmt(billed)}</span>
-              </div>
-            </div>
-
-            {/* Summary */}
-            <div className="ml-auto w-64 mt-4 text-[12px] space-y-1.5">
-              <div className="flex justify-between text-slate-500"><span>Subtotal</span><span>{fmt(billed)}</span></div>
-              <div className="flex justify-between text-slate-500"><span>GST / Tax</span><span>{withTax ? "Included" : "N/A"}</span></div>
-              <div className="flex justify-between text-blue-600"><span>Advance Received</span><span>- {fmt(advance)}</span></div>
-              <div className="flex justify-between pt-2 border-t-2 font-extrabold text-[14px] text-slate-900" style={{ borderColor: TEAL }}>
-                <span>Balance Due</span><span>{fmt(balance)}</span>
-              </div>
-            </div>
-
-            {/* Signature footer */}
-            <div className="flex gap-3 mt-12 text-[9px] text-neutral-400 uppercase tracking-widest">
-              {["Authorized Person", "Title", "Contact", "Authorized Signature"].map((c) => (
-                <div key={c} className="flex-1 text-center border-t border-neutral-200 pt-1.5">{c}</div>
-              ))}
-            </div>
+        {/* ZRA number — issued outside this system, so it is typed in here. */}
+        <div className="px-5 py-3 border-b border-neutral-100 bg-amber-50/40 shrink-0">
+          <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">ZRA Invoice No</label>
+          <div className="flex items-center gap-2 mt-1.5">
+            <input
+              type="text"
+              value={zraNo}
+              onChange={(e) => setZraNo(e.target.value)}
+              onBlur={saveZra}
+              placeholder="e.g. 000123456"
+              className="flex-1 bg-white border border-neutral-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-primary/40 transition-all"
+            />
+            {isSavingZra && <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Saving…</span>}
           </div>
         </div>
 
-        {/* Footer action */}
+        <div className="flex-1 overflow-auto custom-scrollbar p-5">
+          <table className="w-full table-fixed border-collapse border border-black">
+            <colgroup>
+              <col style={{ width: "16%" }} /><col style={{ width: "16%" }} /><col style={{ width: "16%" }} />
+              <col style={{ width: "17%" }} /><col style={{ width: "18%" }} /><col style={{ width: "17%" }} />
+            </colgroup>
+            <tbody>
+              <tr><Cell colSpan={6} className="!text-[18px] font-extrabold text-center">{COMPANY.name}</Cell></tr>
+              <tr>{Array.from({ length: 6 }).map((_, i) => <Cell key={i} />)}</tr>
+              <tr><Cell colSpan={6} className="!text-[13px] font-bold text-center">Tpin {COMPANY.tpin}</Cell></tr>
+              <tr><Cell colSpan={6} className="!text-[13px] font-bold text-center">Invoice details of ZRA invoice no {zraNo.trim()}</Cell></tr>
+
+              <tr>
+                <Cell colSpan={3} />
+                <Cell rowSpan={2} className="text-center font-bold">Delivery :-</Cell>
+                <Cell rowSpan={2} className="text-center font-bold">Mode of payment:-</Cell>
+                <Cell className="text-center font-bold">Origin:</Cell>
+              </tr>
+              <tr>
+                <Cell colSpan={3} className="font-bold">{clientCompany}</Cell>
+                <Cell />
+              </tr>
+              <tr>
+                <Cell colSpan={3} />
+                <Cell rowSpan={3} className="text-center font-bold">{deliveryCity}</Cell>
+                <Cell rowSpan={3} className="text-center font-bold">Bank Transfer</Cell>
+                <Cell rowSpan={3} className="text-center font-bold">{origin}</Cell>
+              </tr>
+              <tr><Cell colSpan={3} className="font-bold">{clientTpin ? `Tpin ${clientTpin}` : ""}</Cell></tr>
+              <tr><Cell colSpan={3} /></tr>
+
+              <tr>
+                <Cell colSpan={3} className="text-center font-bold">Description</Cell>
+                <Cell /><Cell />
+                <Cell className="text-center font-bold">Amount</Cell>
+              </tr>
+              <tr>
+                <Cell className="text-center font-bold">Commodity</Cell>
+                <Cell className="text-center font-bold">Truck No</Cell>
+                <Cell className="text-center font-bold">Delivery Location</Cell>
+                <Cell className="text-center font-bold">DN No</Cell>
+                <Cell className="text-center font-bold">Date</Cell>
+                <Cell className="text-center font-bold">Zambia Kwacha</Cell>
+              </tr>
+
+              <tr>
+                <Cell>{commodity}</Cell>
+                <Cell>{truckNo}</Cell>
+                <Cell>{deliveryCity}</Cell>
+                <Cell>{dnNo}</Cell>
+                <Cell>{dateStr}</Cell>
+                <Cell className="text-right">{money(subtotal)}</Cell>
+              </tr>
+              <tr>
+                <Cell className="font-bold">Total</Cell><Cell /><Cell /><Cell /><Cell />
+                <Cell className="text-right font-bold">{money(subtotal)}</Cell>
+              </tr>
+              {withTax && (
+                <tr>
+                  <Cell className="font-bold">Vat</Cell><Cell /><Cell /><Cell /><Cell />
+                  <Cell className="text-right font-bold">{money(vat)}</Cell>
+                </tr>
+              )}
+              <tr>
+                <Cell className="font-bold">AMOUNT</Cell><Cell /><Cell /><Cell /><Cell />
+                <Cell className="text-right font-bold">{money(grandTotal)}</Cell>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
         <div className="p-5 border-t border-neutral-100 bg-white">
           <button
             onClick={handlePrint}
-            className="w-full px-8 py-3 text-white rounded-xl text-[11px] font-bold uppercase tracking-widest shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-            style={{ background: TEAL }}
+            className="w-full px-8 py-3 bg-slate-900 text-white rounded-xl text-[11px] font-bold uppercase tracking-widest shadow-xl hover:brightness-110 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
           >
             <Printer className="w-4 h-4" />
             Print / Download Invoice

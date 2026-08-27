@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, User, ShieldCheck, Phone, MapPin } from "lucide-react";
+import { X, User, ShieldCheck, MapPin } from "lucide-react";
+import PhoneInput from "@/components/admin/PhoneInput";
+import { DEFAULT_DIAL_CODE, joinDialCode, splitDialCode } from "@/lib/dialCodes";
 import { truckService } from "@/services/truckService";
 
 interface CreateDriverModalProps {
@@ -13,9 +15,10 @@ interface CreateDriverModalProps {
 export default function CreateDriverModal({ isOpen, onClose, onSubmit, initialData }: CreateDriverModalProps) {
   const [formData, setFormData] = useState({
     name: "",
+    // The dial code is a control on the form; phone is stored as one string.
+    phoneCode: DEFAULT_DIAL_CODE,
     phone: "",
-    licenseType: "Class A",
-    licenseNo: "",
+    nrc: "",
     experience: "5",
     assignedTruck: ""
   });
@@ -27,20 +30,21 @@ export default function CreateDriverModal({ isOpen, onClose, onSubmit, initialDa
     if (isOpen) {
       loadTrucks();
       if (initialData) {
+        const saved = splitDialCode(initialData.phone);
         setFormData({
           name: initialData.name || "",
-          phone: initialData.phone || "",
-          licenseType: initialData.licenseType || "Class A",
-          licenseNo: initialData.licenseNo || "",
+          phoneCode: saved.code,
+          phone: saved.rest,
+          nrc: initialData.nrc || "",
           experience: initialData.experience?.toString() || "5",
           assignedTruck: initialData.assignedTruck?._id || initialData.assignedTruck || ""
         });
       } else {
         setFormData({
           name: "",
+          phoneCode: DEFAULT_DIAL_CODE,
           phone: "",
-          licenseType: "Class A",
-          licenseNo: "",
+          nrc: "",
           experience: "5",
           assignedTruck: ""
         });
@@ -58,13 +62,15 @@ export default function CreateDriverModal({ isOpen, onClose, onSubmit, initialDa
   };
 
   const handleFormSubmit = () => {
-    if (!formData.name || !formData.phone || !formData.licenseNo) {
+    if (!formData.name || !formData.phone) {
       alert("Please fill all required fields");
       return;
     }
     
+    const { phoneCode, ...driverFields } = formData;
     const payload = {
-      ...formData,
+      ...driverFields,
+      phone: joinDialCode(phoneCode, formData.phone),
       experience: Number(formData.experience),
       assignedTruck: formData.assignedTruck || undefined
     };
@@ -141,16 +147,27 @@ export default function CreateDriverModal({ isOpen, onClose, onSubmit, initialDa
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest ml-1">Phone Number</label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={formData.phone}
-                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          placeholder="+234 ..."
-                          className="w-full bg-white border border-neutral-100 rounded-xl pl-9 pr-4 py-2.5 text-[13px] font-semibold text-slate-900 focus:border-primary/20 outline-none transition-all shadow-sm"
-                        />
-                        <Phone className="w-3.5 h-3.5 text-neutral-300 absolute left-3.5 top-1/2 -translate-y-1/2" />
-                      </div>
+                      <PhoneInput
+                        code={formData.phoneCode}
+                        value={formData.phone}
+                        placeholder="771 234 567"
+                        className="shadow-sm"
+                        onCodeChange={(code) => setFormData({ ...formData, phoneCode: code })}
+                        onValueChange={(local) => setFormData({ ...formData, phone: local })}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest ml-1">NRC Number</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formData.nrc}
+                        // Digits and slashes only — an NRC is 153013/10/1 and
+                        // nothing else, so letters are always a mistake.
+                        onChange={(e) => setFormData({ ...formData, nrc: e.target.value.replace(/[^0-9/]/g, "").slice(0, 13) })}
+                        placeholder="153013/10/1"
+                        className="w-full bg-white border border-neutral-100 rounded-xl px-4 py-2.5 text-[13px] font-semibold text-slate-900 focus:border-primary/20 outline-none transition-all shadow-sm"
+                      />
                     </div>
                   </div>
                 </section>
@@ -161,24 +178,10 @@ export default function CreateDriverModal({ isOpen, onClose, onSubmit, initialDa
                     <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600">
                       <ShieldCheck className="w-3.5 h-3.5" />
                     </div>
-                    <h3 className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">Compliance & Skills</h3>
+                    <h3 className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">Assignment & Experience</h3>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100">
-                      <label className="text-[9px] font-bold text-neutral-400 uppercase mb-1">
-                        License Type
-                      </label>
-                      <select
-                        className="bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full cursor-pointer"
-                        value={formData.licenseType}
-                        onChange={(e) => setFormData({ ...formData, licenseType: e.target.value })}
-                      >
-                        <option>Class A</option>
-                        <option>Class B</option>
-                        <option>Heavy Vehicle</option>
-                      </select>
-                    </div>
+                  <div className="grid grid-cols-1 gap-3">
                     <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100">
                       <label className="text-[9px] font-bold text-neutral-400 uppercase mb-1">
                         Experience (Yrs)
@@ -190,21 +193,6 @@ export default function CreateDriverModal({ isOpen, onClose, onSubmit, initialDa
                         onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
                       />
                     </div>
-                  </div>
-
-                  <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100 space-y-1.5">
-                    <label className="text-[9px] font-bold text-neutral-400 uppercase mb-1 flex items-center gap-1.5">
-                      License Number
-                      {isEdit && <span className="normal-case text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">🔒 Trakzee · locked</span>}
-                    </label>
-                    <input
-                      type="text"
-                      className="bg-transparent text-[13px] font-semibold text-slate-900 outline-none w-full disabled:text-neutral-400 disabled:cursor-not-allowed"
-                      placeholder="ABC-12345-XYZ"
-                      value={formData.licenseNo}
-                      onChange={(e) => setFormData({ ...formData, licenseNo: e.target.value })}
-                      disabled={isEdit}
-                    />
                   </div>
 
                   <div className="bg-neutral-50 rounded-xl p-3 border border-neutral-100 space-y-1.5">
