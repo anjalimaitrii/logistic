@@ -11,6 +11,7 @@ import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
 import { isTripCompleted } from "@/lib/tripCompletion";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
+import { cleanDriverName } from "@/services/liveTrackingService";
 
 export default function AdminOperations() {
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
@@ -148,6 +149,9 @@ export default function AdminOperations() {
         ...(b.dropoffLocations?.length ? b.dropoffLocations : b.dropoff ? [b.dropoff] : []).map((l: any) => l.address?.city).filter(Boolean),
       ] as string[],
       status: assignment ? "Assigned" : "Unassigned",
+      // Who it went to, so the board answers that without opening each row.
+      driverName: assignment?.driverName ? cleanDriverName(assignment.driverName) : "",
+      truckNumber: assignment?.truckNumber || "",
       weight: b.cargoDetails?.weight,
       goodsType: b.cargoDetails?.goodsType,
       scheduleDate: b.cargoDetails?.loadingDate,
@@ -196,13 +200,23 @@ export default function AdminOperations() {
       label: "Status",
       key: "status",
       render: (val: string, row: any) => (
-        <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${row.type === "success" ? "bg-emerald-50 text-emerald-600" : "bg-neutral-50 text-neutral-400"
-            }`}
-        >
-          <span className={`w-1 h-1 rounded-full ${row.type === "success" ? "bg-emerald-500" : "bg-neutral-400"}`} />
-          {val}
-        </span>
+        <div className="flex flex-col items-start gap-1">
+          <span
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${row.type === "success" ? "bg-emerald-50 text-emerald-600" : "bg-neutral-50 text-neutral-400"
+              }`}
+          >
+            <span className={`w-1 h-1 rounded-full ${row.type === "success" ? "bg-emerald-500" : "bg-neutral-400"}`} />
+            {val}
+          </span>
+          {row.driverName && (
+            <span className="text-[10px] font-semibold text-slate-700 leading-tight">
+              {row.driverName}
+              {row.truckNumber && (
+                <span className="font-medium text-neutral-400"> · {row.truckNumber}</span>
+              )}
+            </span>
+          )}
+        </div>
       ),
     },
     {
