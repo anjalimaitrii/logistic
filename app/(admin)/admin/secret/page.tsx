@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { CurrencyCode } from "@/lib/currency";
 import dynamic from "next/dynamic";
 import CreateSecretJobModal from "@/components/admin/CreateSecretJobModal";
 import CommonTable from "@/components/admin/CommonTable";
@@ -65,11 +66,12 @@ export default function SecretDashboard() {
     await loadJobs();
   };
 
-  const handleFinalize = async (data: { amount: string; advancePaid: string; specialRequest: string }) => {
+  const handleFinalize = async (data: { amount: string; advancePaid: string; specialRequest: string; currency: CurrencyCode }) => {
     if (!selectedRequest) return;
     await bookingService.updateStatus(selectedRequest._id, "finalized", {
       finalAmount: parseFloat(data.amount),
       advancePaid: parseFloat(data.advancePaid) || 0,
+      currency: data.currency,
       specialRequest: data.specialRequest,
     });
     setIsFinalizeDrawerOpen(false);

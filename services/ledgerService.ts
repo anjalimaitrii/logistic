@@ -9,13 +9,13 @@ export const ledgerService = {
   getClient: (clientId: string, includeSecret = false) =>
     fetchApi(`/api/ledger/client/${clientId}${includeSecret ? '?includeSecret=1' : ''}`),
 
-  addCompanyPayment: (companyId: string, payload: { amount: number; note?: string; paidAt?: string; includeSecret?: boolean }) =>
+  addCompanyPayment: (companyId: string, payload: { amount: number; currency?: 'ZMW' | 'USD'; note?: string; paidAt?: string; includeSecret?: boolean }) =>
     fetchApi(`/api/ledger/company/${companyId}/payment`, {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
 
-  addClientPayment: (clientId: string, payload: { amount: number; note?: string; paidAt?: string; includeSecret?: boolean }) =>
+  addClientPayment: (clientId: string, payload: { amount: number; currency?: 'ZMW' | 'USD'; note?: string; paidAt?: string; includeSecret?: boolean }) =>
     fetchApi(`/api/ledger/client/${clientId}/payment`, {
       method: 'POST',
       body: JSON.stringify(payload),

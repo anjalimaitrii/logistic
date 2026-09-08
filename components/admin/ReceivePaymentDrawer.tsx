@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Wallet, ArrowRight } from "lucide-react";
 import { todayAppDateKey } from "@/lib/datetime";
+import { currencySymbol } from "@/lib/currency";
 
 interface ReceivePaymentDrawerProps {
   isOpen: boolean;
@@ -11,8 +12,8 @@ interface ReceivePaymentDrawerProps {
   onSubmit: (data: { amount: number; note: string; paidAt?: string }) => Promise<void> | void;
 }
 
-const fmt = (n: number) =>
-  `K ${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmt = (n: number, code?: string) =>
+  `${currencySymbol(code)} ${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function ReceivePaymentDrawer({ isOpen, onClose, booking, onSubmit }: ReceivePaymentDrawerProps) {
   const [amount, setAmount] = useState("");
@@ -26,6 +27,7 @@ export default function ReceivePaymentDrawer({ isOpen, onClose, booking, onSubmi
 
   if (!isOpen || !booking) return null;
 
+  const currency: string | undefined = booking.currency;
   const billed = Number(booking.finalAmount || 0);
   const paid = Number(booking.advancePaid || 0);
   const balance = Math.max(0, billed - paid);
@@ -37,7 +39,7 @@ export default function ReceivePaymentDrawer({ isOpen, onClose, booking, onSubmi
   const handleSubmit = async () => {
     const amt = Number(amount);
     if (!amt || amt <= 0) { alert("Enter a valid amount"); return; }
-    if (amt > balance) { alert(`Amount can't exceed the balance due (${fmt(balance)}).`); return; }
+    if (amt > balance) { alert(`Amount can't exceed the balance due (${fmt(balance, currency)}).`); return; }
     setIsSaving(true);
     try {
       await onSubmit({ amount: amt, note, paidAt: paidAt || undefined });
@@ -72,15 +74,15 @@ export default function ReceivePaymentDrawer({ isOpen, onClose, booking, onSubmi
           {/* Trip balance summary */}
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="bg-neutral-50 border border-neutral-100 rounded-xl p-3">
-              <div className="text-[13px] font-bold text-slate-800">{fmt(billed)}</div>
+              <div className="text-[13px] font-bold text-slate-800">{fmt(billed, currency)}</div>
               <div className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest mt-0.5">Deal Amount</div>
             </div>
             <div className="bg-neutral-50 border border-neutral-100 rounded-xl p-3">
-              <div className="text-[13px] font-bold text-blue-600">{fmt(paid)}</div>
+              <div className="text-[13px] font-bold text-blue-600">{fmt(paid, currency)}</div>
               <div className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest mt-0.5">Paid</div>
             </div>
             <div className="bg-rose-50 border border-rose-100 rounded-xl p-3">
-              <div className="text-[13px] font-bold text-rose-600">{fmt(balance)}</div>
+              <div className="text-[13px] font-bold text-rose-600">{fmt(balance, currency)}</div>
               <div className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest mt-0.5">Balance</div>
             </div>
           </div>
@@ -90,7 +92,7 @@ export default function ReceivePaymentDrawer({ isOpen, onClose, booking, onSubmi
             <div className="space-y-1.5">
               <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Amount Received *</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] font-bold text-neutral-400">K</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] font-bold text-neutral-400">{currencySymbol(currency)}</span>
                 <input
                   type="number" min="0"
                   value={amount}
@@ -104,7 +106,7 @@ export default function ReceivePaymentDrawer({ isOpen, onClose, booking, onSubmi
                 onClick={() => setAmount(String(balance))}
                 className="text-[10px] font-bold text-primary uppercase tracking-widest hover:underline ml-1"
               >
-                Pay full balance ({fmt(balance)})
+                Pay full balance ({fmt(balance, currency)})
               </button>
             </div>
 

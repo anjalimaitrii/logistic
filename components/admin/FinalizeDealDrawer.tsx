@@ -6,13 +6,13 @@ import {
   MapPin,
   Package,
   Calendar,
-  DollarSign,
   FileText,
   CheckCircle2,
   User,
   Phone,
 } from "lucide-react";
 import { formatDate } from "@/lib/datetime";
+import { CURRENCIES, CurrencyCode, currencySymbol } from "@/lib/currency";
 
 interface FinalizeDealDrawerProps {
   isOpen: boolean;
@@ -25,12 +25,16 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
   const [amount, setAmount] = useState("");
   const [advancePaid, setAdvancePaid] = useState("");
   const [specialRequest, setSpecialRequest] = useState("");
+  // Kwacha unless this is a cross-border job. Reopening a booking that was already
+  // agreed in dollars keeps that choice rather than silently reverting it.
+  const [currency, setCurrency] = useState<CurrencyCode>("ZMW");
 
   useEffect(() => {
     if (request) {
       setAmount(request.price?.replace(/[^0-9]/g, "") || "");
       setAdvancePaid("");
       setSpecialRequest("");
+      setCurrency(request.currency === "USD" ? "USD" : "ZMW");
     }
   }, [request]);
 
@@ -39,7 +43,7 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
       alert("Deal amount must be greater than 0.");
       return;
     }
-    onSubmit({ amount, advancePaid, specialRequest });
+    onSubmit({ amount, advancePaid, specialRequest, currency });
     onClose();
   };
 
@@ -162,32 +166,59 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
 
           {/* Editable Fields */}
           <div className="space-y-4">
-            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.15em]">Finalization</p>
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.15em]">Finalization</p>
+              <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-100">
+                {CURRENCIES.map((c) => (
+                  <button
+                    key={c.code}
+                    type="button"
+                    onClick={() => setCurrency(c.code)}
+                    title={c.label}
+                    aria-pressed={currency === c.code}
+                    className={`px-3 py-1 rounded-md text-[11px] font-bold transition-all ${
+                      currency === c.code
+                        ? "bg-white text-neutral-900 shadow-sm"
+                        : "text-neutral-400 hover:text-neutral-600"
+                    }`}
+                  >
+                    {c.symbol}
+                  </button>
+                ))}
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Final Amount</label>
                 <div className="relative group">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-primary transition-colors" />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-semibold text-neutral-400 group-focus-within:text-primary transition-colors">
+                    {currencySymbol(currency)}
+                  </span>
                   <input
                     type="number"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
                     placeholder="Total Price"
-                    className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm"
+                    className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-9 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Advance Paid</label>
-                <input
-                  type="number"
-                  value={advancePaid}
-                  onChange={(e) => setAdvancePaid(e.target.value)}
-                  placeholder="Amount Paid"
-                  className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 px-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm"
-                />
+                <div className="relative group">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-semibold text-neutral-400 group-focus-within:text-primary transition-colors">
+                    {currencySymbol(currency)}
+                  </span>
+                  <input
+                    type="number"
+                    value={advancePaid}
+                    onChange={(e) => setAdvancePaid(e.target.value)}
+                    placeholder="Amount Paid"
+                    className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-9 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm"
+                  />
+                </div>
               </div>
             </div>
 

@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/datetime";
 import { assignmentService } from "@/services/assignmentService";
 import { bookingService } from "@/services/bookingService";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
+import { CURRENCIES, CurrencyCode } from "@/lib/currency";
 
 interface InvoiceDrawerProps {
   isOpen: boolean;
@@ -76,6 +77,13 @@ export default function InvoiceDrawer({ isOpen, onClose, booking, invoiceId }: I
   const dateStr = formatDate(booking.tripEndedAt || booking.cargoDetails?.loadingDate || booking.createdAt);
 
   const withTax = booking.withTax !== false;
+  // A booking saved before the currency field existed was a Kwacha deal.
+  const currency: CurrencyCode = booking.currency === "USD" ? "USD" : "ZMW";
+  // The figures below carry no symbol — the amount column heading names the
+  // currency instead, so that heading is the one place it must be right. The
+  // reference invoice puts the country in front of the Kwacha, and only there.
+  const currencyLabel = CURRENCIES.find((c) => c.code === currency)?.label ?? "Kwacha";
+  const amountHeading = currency === "ZMW" ? `Zambia ${currencyLabel}` : currencyLabel;
   const subtotal = Number(booking.finalAmount || 0);
   const vat = withTax ? subtotal * VAT_RATE : 0;
   const grandTotal = subtotal + vat;
@@ -140,7 +148,7 @@ export default function InvoiceDrawer({ isOpen, onClose, booking, invoiceId }: I
             <tr><td class="c b" colspan="3">Description</td><td></td><td></td><td class="c b">Amount</td></tr>
             <tr>
               <td class="c b">Commodity</td><td class="c b">Truck No</td><td class="c b">Delivery Location</td>
-              <td class="c b">DN No</td><td class="c b">Date</td><td class="c b">Zambia Kwacha</td>
+              <td class="c b">DN No</td><td class="c b">Date</td><td class="c b">${amountHeading}</td>
             </tr>
 
             <tr>
@@ -238,7 +246,7 @@ export default function InvoiceDrawer({ isOpen, onClose, booking, invoiceId }: I
                 <Cell className="text-center font-bold">Delivery Location</Cell>
                 <Cell className="text-center font-bold">DN No</Cell>
                 <Cell className="text-center font-bold">Date</Cell>
-                <Cell className="text-center font-bold">Zambia Kwacha</Cell>
+                <Cell className="text-center font-bold">{amountHeading}</Cell>
               </tr>
 
               <tr>

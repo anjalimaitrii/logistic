@@ -6,6 +6,7 @@ import { ledgerService } from "@/services/ledgerService";
 import { completionService } from "@/services/completionService";
 import { formatDate, todayAppDateKey } from "@/lib/datetime";
 import { clientNameOf } from "@/lib/bookingParty";
+import { CurrencyCode, currencySymbol, totalsByCurrency, CURRENCIES } from "@/lib/currency";
 
 interface LedgerDrawerProps {
   isOpen: boolean;
@@ -17,12 +18,16 @@ interface LedgerDrawerProps {
   includeSecret?: boolean;
 }
 
-const fmt = (n: number) => `K ${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const fmt = (n: number, currency?: string | null) => `${currencySymbol(currency)} ${Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, name, includeSecret = false }: LedgerDrawerProps) {
   const [data, setData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [payForm, setPayForm] = useState({ amount: "", note: "", paidAt: "" });
+  // Kwacha unless this is an international client paying in dollars. The backend
+  // only allocates a payment to invoices in this same currency.
+  const [payForm, setPayForm] = useState<{ amount: string; note: string; paidAt: string; currency: CurrencyCode }>(
+    { amount: "", note: "", paidAt: "", currency: "ZMW" }
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   // Password-gated delete confirmation
@@ -34,7 +39,7 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
 
   useEffect(() => {
     if (isOpen) loadLedger();
-    else { setData(null); setPayForm({ amount: "", note: "", paidAt: "" }); }
+    else { setData(null); setPayForm({ amount: "", note: "", paidAt: "", currency: "ZMW" }); }
   }, [isOpen]);
 
   const loadLedger = async () => {
@@ -68,11 +73,11 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
     if (!payForm.amount || Number(payForm.amount) <= 0) { alert("Enter a valid amount"); return; }
     setIsSaving(true);
     try {
-      const payload = { amount: Number(payForm.amount), note: payForm.note, paidAt: payForm.paidAt || undefined, includeSecret };
+      const payload = { amount: Number(payForm.amount), currency: payForm.currency, note: payForm.note, paidAt: payForm.paidAt || undefined, includeSecret };
       companyId
         ? await ledgerService.addCompanyPayment(companyId, payload)
         : await ledgerService.addClientPayment(clientId!, payload);
-      setPayForm({ amount: "", note: "", paidAt: "" });
+      setPayForm(f => ({ amount: "", note: "", paidAt: "", currency: f.currency }));
       await loadLedger();
     } catch { alert("Failed to record payment."); }
     finally { setIsSaving(false); }
@@ -116,10 +121,33 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
 
   if (!isOpen) return null;
 
-  const outstanding = data?.outstanding ?? 0;
-
   // Backend decides secret visibility (via includeSecret) — show what it returns.
   const visibleBookings = (data?.bookings || []) as any[];
+
+  // Trip money is totalled per currency: a client can run Kwacha jobs and
+  // cross-border dollar ones, and with no rate stored anywhere those cannot be
+  // added into a single figure.
+  const billedTotals   = totalsByCurrency(visibleBookings, (b: any) => b.finalAmount || 0, (b: any) => b.currency);
+  const receivedTotals = totalsByCurrency(visibleBookings, (b: any) => b.advancePaid || 0, (b: any) => b.currency);
+  // A payment carries its own currency and is only ever allocated to trips billed
+  // in that same currency, so the later-payment money splits the same way the
+  // trip money does. Payments recorded before the field existed read as Kwacha.
+  const paymentTotals  = totalsByCurrency((data?.payments || []) as any[], (p: any) => p.amount || 0, (p: any) => p.currency);
+  const paidLaterIn    = (code: CurrencyCode) => paymentTotals.find(t => t.code === code)?.total ?? 0;
+  // A client with no jobs yet still reads as a Kwacha zero, as this banner always did.
+  const zeroRow = { code: "ZMW" as CurrencyCode, symbol: "K", total: 0 };
+  const summary = (billedTotals.length ? billedTotals : [zeroRow]).map(t => {
+    const received = receivedTotals.find(r => r.code === t.code)?.total ?? 0;
+    return {
+      code: t.code,
+      billed: t.total,
+      // A trip's advancePaid already folds in every later payment, so the original
+      // advance is what is left once this currency's later payments come back off.
+      advance: Math.max(0, received - paidLaterIn(t.code)),
+      outstanding: Math.max(0, t.total - received),
+    };
+  });
+  const hasOutstanding = summary.some(s => s.outstanding > 0);
 
   return (
     <div className="fixed inset-0 z-[700] pointer-events-none">
@@ -144,42 +172,66 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
         ) : (
           <div className="flex-1 overflow-y-auto custom-scrollbar">
             {/* Summary Banner */}
-            <div className={`mx-6 mt-5 rounded-2xl p-5 ${outstanding > 0 ? "bg-rose-50 border border-rose-200" : "bg-emerald-50 border border-emerald-200"}`}>
+            <div className={`mx-6 mt-5 rounded-2xl p-5 ${hasOutstanding ? "bg-rose-50 border border-rose-200" : "bg-emerald-50 border border-emerald-200"}`}>
               <div className="flex items-center gap-2 mb-3">
-                {outstanding > 0
+                {hasOutstanding
                   ? <AlertCircle className="w-4 h-4 text-rose-500" />
                   : <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-                <span className={`text-[10px] font-bold uppercase tracking-widest ${outstanding > 0 ? "text-rose-600" : "text-emerald-600"}`}>
-                  {outstanding > 0 ? "Outstanding Balance" : "Fully Settled"}
+                <span className={`text-[10px] font-bold uppercase tracking-widest ${hasOutstanding ? "text-rose-600" : "text-emerald-600"}`}>
+                  {hasOutstanding ? "Outstanding Balance" : "Fully Settled"}
                 </span>
               </div>
-              <div className={`text-[28px] font-black tracking-tight mb-4 ${outstanding > 0 ? "text-rose-700" : "text-emerald-700"}`}>
-                {fmt(outstanding > 0 ? outstanding : 0)}
+              <div className={`text-[28px] font-black tracking-tight mb-4 ${hasOutstanding ? "text-rose-700" : "text-emerald-700"}`}>
+                {summary.map(s => <div key={s.code}>{fmt(s.outstanding, s.code)}</div>)}
               </div>
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { label: "Total Billed", value: data?.totalBilled ?? 0, color: "text-slate-700" },
-                  { label: "Advance Paid", value: data?.totalAdvance ?? 0, color: "text-blue-600" },
-                  { label: "Later Payments", value: data?.totalPayments ?? 0, color: "text-emerald-600" },
+                  { label: "Total Billed", lines: summary.map(s => fmt(s.billed, s.code)), color: "text-slate-700" },
+                  { label: "Advance Paid", lines: summary.map(s => fmt(s.advance, s.code)), color: "text-blue-600" },
+                  { label: "Later Payments", lines: (paymentTotals.length ? paymentTotals : [zeroRow]).map(t => fmt(t.total, t.code)), color: "text-emerald-600" },
                 ].map((s, i) => (
                   <div key={i} className="bg-white/70 rounded-xl p-2.5 text-center">
-                    <div className={`text-[13px] font-bold ${s.color}`}>{fmt(s.value)}</div>
+                    <div className={`text-[13px] font-bold ${s.color}`}>
+                      {s.lines.map(line => <div key={line}>{line}</div>)}
+                    </div>
                     <div className="text-[8px] font-bold text-neutral-400 uppercase tracking-widest mt-0.5">{s.label}</div>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Add Payment */}
+            {/* Add Payment: allocated FIFO across the client's trips, so it is tied to no
+                single booking — but only to trips billed in the SAME currency, since
+                nothing here converts between them. */}
             <div className="mx-6 mt-5 bg-neutral-50 border border-neutral-100 rounded-2xl p-4 space-y-3">
-              <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest flex items-center gap-1.5">
-                <Plus className="w-3 h-3" /> Record Payment Received
-              </p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest flex items-center gap-1.5">
+                  <Plus className="w-3 h-3" /> Record Payment Received
+                </p>
+                <div className="flex items-center gap-1 p-0.5 rounded-lg bg-neutral-200/60">
+                  {CURRENCIES.map(c => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      onClick={() => setPayForm(f => ({ ...f, currency: c.code }))}
+                      title={`Paid in ${c.label}`}
+                      aria-pressed={payForm.currency === c.code}
+                      className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold transition-all ${
+                        payForm.currency === c.code
+                          ? "bg-white text-neutral-900 shadow-sm"
+                          : "text-neutral-400 hover:text-neutral-600"
+                      }`}
+                    >
+                      {c.symbol}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-2">
                 <div className="space-y-1">
-                  <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Amount (ZMW) *</label>
+                  <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Amount ({payForm.currency}) *</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-neutral-400">K</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-neutral-400">{currencySymbol(payForm.currency)}</span>
                     <input
                       type="number" min="0" placeholder="0.00"
                       value={payForm.amount}
@@ -227,7 +279,7 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
                 {data.payments.map((p: any) => (
                   <div key={p._id} className="flex items-center justify-between p-3 bg-white border border-neutral-100 rounded-xl">
                     <div>
-                      <div className="text-[13px] font-bold text-emerald-700">{fmt(p.amount)}</div>
+                      <div className="text-[13px] font-bold text-emerald-700">{fmt(p.amount, p.currency)}</div>
                       <div className="text-[10px] text-neutral-400 font-medium mt-0.5">
                         {formatDate(p.paidAt)}
                         {p.note && ` · ${p.note}`}
@@ -292,17 +344,17 @@ export default function LedgerDrawer({ isOpen, onClose, companyId, clientId, nam
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div>
                           <div className={`text-[11px] font-bold ${isTBD ? "text-neutral-400 italic" : "text-slate-800"}`}>
-                            {isTBD ? "TBD" : fmt(billed)}
+                            {isTBD ? "TBD" : fmt(billed, b.currency)}
                           </div>
                           <div className="text-[8px] text-neutral-400 font-bold uppercase">Billed</div>
                         </div>
                         <div>
-                          <div className="text-[11px] font-bold text-blue-600">{paid > 0 ? fmt(paid) : "—"}</div>
+                          <div className="text-[11px] font-bold text-blue-600">{paid > 0 ? fmt(paid, b.currency) : "—"}</div>
                           <div className="text-[8px] text-neutral-400 font-bold uppercase">Paid</div>
                         </div>
                         <div>
                           <div className={`text-[11px] font-bold ${isPaid ? "text-emerald-600" : isTBD ? "text-neutral-400 italic" : "text-rose-500"}`}>
-                            {isPaid ? "Settled" : isTBD ? "TBD" : fmt(jobPending)}
+                            {isPaid ? "Settled" : isTBD ? "TBD" : fmt(jobPending, b.currency)}
                           </div>
                           <div className="text-[8px] text-neutral-400 font-bold uppercase">Pending</div>
                         </div>

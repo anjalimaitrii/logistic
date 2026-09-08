@@ -21,6 +21,7 @@ import InvoiceDrawer from "@/components/admin/InvoiceDrawer";
 import ReceivePaymentDrawer from "@/components/admin/ReceivePaymentDrawer";
 import { isTripCompleted } from "@/lib/tripCompletion";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
+import { currencySymbol } from "@/lib/currency";
 
 export default function AdminCompletedJobsPage() {
   const router = useRouter();
@@ -403,13 +404,14 @@ export default function AdminCompletedJobsPage() {
             ...selectedRequest,
             id: selectedRequest.tripId,
             customer: clientNameOf(selectedRequest, "Direct Client"),
-            price: selectedRequest.finalAmount ? `K${selectedRequest.finalAmount}` : "TBD",
+            price: selectedRequest.finalAmount ? `${currencySymbol(selectedRequest.currency)}${selectedRequest.finalAmount}` : "TBD",
           } : null}
           onSubmit={async (data) => {
             if (selectedRequest) {
               await bookingService.updateStatus(selectedRequest._id, "finalized", {
                 finalAmount: Number(data.amount),
                 advancePaid: Number(data.advancePaid),
+                currency: data.currency,
                 specialRequest: data.specialRequest,
               });
               await loadBookings();

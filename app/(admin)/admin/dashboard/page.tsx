@@ -16,6 +16,7 @@ import { formatDate } from "@/lib/datetime";
 import { canChatForTrip } from "@/lib/chatAvailability";
 import { isTripCompleted } from "@/lib/tripCompletion";
 import { clientNameOf } from "@/lib/bookingParty";
+import { currencySymbol, formatMoney } from "@/lib/currency";
 
 const DashboardMiniMap = dynamic(() => import("@/components/admin/DashboardMiniMap"), {
   ssr: false,
@@ -159,7 +160,7 @@ export default function AdminDashboard() {
          status: st.label,
          driver: driverByBooking[b?._id] || "—",
          route: getRoute(b),
-         proposed: b?.finalAmount ? `K${Number(b.finalAmount).toLocaleString()}` : "TBD",
+         proposed: b?.finalAmount ? formatMoney(b.finalAmount, b?.currency) : "TBD",
          type: st.type,
          rawId: b?._id,
          raw: b,
@@ -374,7 +375,7 @@ export default function AdminDashboard() {
                customer: clientNameOf(selectedRequest, "Direct Client"),
                route: [getRoute(selectedRequest)],
                cargo: selectedRequest.cargoDetails?.goodsType,
-               price: selectedRequest.finalAmount ? `K${selectedRequest.finalAmount}` : "TBD",
+               price: selectedRequest.finalAmount ? `${currencySymbol(selectedRequest.currency)}${selectedRequest.finalAmount}` : "TBD",
                date: formatDate(selectedRequest.createdAt || Date.now()),
                status: "Active" as any,
             } : null}

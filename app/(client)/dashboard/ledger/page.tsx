@@ -22,6 +22,7 @@ import { bookingService } from "@/services/bookingService";
 import ClientNotificationBell from "@/components/client/ClientNotificationBell";
 import { formatDate } from "@/lib/datetime";
 import { clientNameOf } from "@/lib/bookingParty";
+import { formatMoney, formatTotals, totalsByCurrency } from "@/lib/currency";
 
 export default function ClientLedgerPage() {
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
@@ -67,12 +68,15 @@ export default function ClientLedgerPage() {
   // Bookings within the selected period (Daily / Monthly) — drives both stats and table
   const periodBookings = bookings.filter(b => catKey(b.createdAt, periodFilter) === nowKey);
 
-  // Financial Stats — for the selected period
+  // Financial Stats — for the selected period.
+  // Kwacha and dollar trips can sit in the same period and cannot be added: there
+  // is no exchange rate in this system, so each money figure is totalled per
+  // currency and the tile prints one line per currency.
   const stats = {
-    totalSpent:         periodBookings.reduce((sum, b) => sum + (b.finalAmount  || 0), 0),
-    advancePaid:        periodBookings.reduce((sum, b) => sum + (b.advancePaid  || 0), 0),
+    totalSpent:         totalsByCurrency(periodBookings, b => b.finalAmount  || 0, b => b.currency),
+    advancePaid:        totalsByCurrency(periodBookings, b => b.advancePaid  || 0, b => b.currency),
     completedJobs:      periodBookings.filter(b => ["completed", "delivered", "finalized"].includes(b.status?.toLowerCase())).length,
-    outstandingBalance: periodBookings.reduce((sum, b) => sum + Math.max(0, (b.finalAmount || 0) - (b.advancePaid || 0)), 0),
+    outstandingBalance: totalsByCurrency(periodBookings, b => Math.max(0, (b.finalAmount || 0) - (b.advancePaid || 0)), b => b.currency),
   };
 
   const filteredBookings = bookings.filter(b => {
@@ -169,10 +173,10 @@ export default function ClientLedgerPage() {
           {/* KPI Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             {[
-              { label: "Total Cost", value: `K${stats.totalSpent.toLocaleString()}`, icon: Wallet, trend: "All Trips", color: "text-blue-600", bg: "bg-blue-50" },
-              { label: "Paid Amount", value: `K${stats.advancePaid.toLocaleString()}`, icon: CheckCircle2, trend: "Settled", color: "text-emerald-600", bg: "bg-emerald-50" },
+              { label: "Total Cost", value: formatTotals(stats.totalSpent), icon: Wallet, trend: "All Trips", color: "text-blue-600", bg: "bg-blue-50" },
+              { label: "Paid Amount", value: formatTotals(stats.advancePaid), icon: CheckCircle2, trend: "Settled", color: "text-emerald-600", bg: "bg-emerald-50" },
               { label: "Completed Trips", value: stats.completedJobs, icon: Package, trend: "History", color: "text-amber-600", bg: "bg-amber-50" },
-              { label: "Balance Due", value: `K${stats.outstandingBalance.toLocaleString()}`, icon: FileText, trend: "Pending", color: "text-rose-600", bg: "bg-rose-50" }
+              { label: "Balance Due", value: formatTotals(stats.outstandingBalance), icon: FileText, trend: "Pending", color: "text-rose-600", bg: "bg-rose-50" }
             ].map((s, i) => (
               <div key={i} className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all group">
                 <div className="flex items-center justify-between mb-3">
@@ -183,7 +187,16 @@ export default function ClientLedgerPage() {
                     {s.trend}
                   </span>
                 </div>
-                <div className="text-lg font-bold text-slate-900 leading-none mb-1">{isLoading ? "..." : s.value}</div>
+                <div className="text-lg font-bold text-slate-900 leading-none mb-1">
+                  {isLoading ? "..."
+                    : !Array.isArray(s.value) ? s.value
+                    : s.value.length === 1 ? s.value[0]
+                    : (
+                      <div className="flex flex-col gap-1">
+                        {s.value.map(line => <span key={line}>{line}</span>)}
+                      </div>
+                    )}
+                </div>
                 <div className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">{s.label}</div>
               </div>
             ))}
@@ -312,7 +325,7 @@ export default function ClientLedgerPage() {
                         <td className="px-5 py-5 text-right">
                           <div className="flex flex-col">
                             <span className={`text-[13px] font-bold tracking-tight ${isNotInvoiced ? "text-slate-400 italic" : "text-slate-900"}`}>
-                              {isNotInvoiced ? "TBD" : `K${(b.finalAmount || 0).toLocaleString()}`}
+                              {isNotInvoiced ? "TBD" : formatMoney(b.finalAmount || 0, b.currency)}
                             </span>
                             <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">
                               {isNotInvoiced ? "Not set yet" : "Total Invoice"}
@@ -321,7 +334,7 @@ export default function ClientLedgerPage() {
                         </td>
                         <td className="px-5 py-5 text-right">
                           <div className="flex flex-col">
-                            <span className="text-[13px] font-bold text-emerald-600 tracking-tight">K{(b.advancePaid || 0).toLocaleString()}</span>
+                            <span className="text-[13px] font-bold text-emerald-600 tracking-tight">{formatMoney(b.advancePaid || 0, b.currency)}</span>
                             <span className="text-[9px] font-bold text-emerald-500/60 uppercase tracking-widest">Paid (Advance)</span>
                           </div>
                         </td>
@@ -329,7 +342,7 @@ export default function ClientLedgerPage() {
                           <div className="flex flex-col items-end">
                             <div className="flex items-center gap-1.5">
                               <span className={`text-[13px] font-bold tracking-tight ${balance > 0 ? 'text-rose-500' : 'text-slate-400'}`}>
-                                K{balance.toLocaleString()}
+                                {formatMoney(balance, b.currency)}
                               </span>
                               {isFullyPaid && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
                             </div>

@@ -26,6 +26,7 @@ import ClientNotificationBell from "@/components/client/ClientNotificationBell";
 import { useClientNotifications } from "@/context/ClientNotificationContext";
 import { formatDate, todayAppDateKey } from "@/lib/datetime";
 import { clientNameOf } from "@/lib/bookingParty";
+import { currencySymbol } from "@/lib/currency";
 
 const getStatusStyles = (type: string) => {
    switch (type?.toLowerCase()) {
@@ -378,6 +379,8 @@ export default function JobsPage() {
             ? formatDate(b.cargoDetails.loadingDate, { year: undefined })
             : "N/A",
          finalAmount: b.financials?.finalAmount || b.finalAmount,
+         // Deals predating the currency field carry no value and are Kwacha ones.
+         currency: b.currency,
          bookedBy: clientNameOf(b, "—"),
          isOwn,
          // Only the client who created the booking can cancel it (not company-mates)
@@ -599,7 +602,7 @@ export default function JobsPage() {
                                     </td>
                                     <td className="px-6 py-4">
                                        {job.finalAmount ? (
-                                          <span className="text-[12px] font-bold text-slate-900">K{job.finalAmount}</span>
+                                          <span className="text-[12px] font-bold text-slate-900">{currencySymbol(job.currency)}{job.finalAmount}</span>
                                        ) : (
                                           <span className="text-[10px] font-bold text-slate-300 uppercase">---</span>
                                        )}

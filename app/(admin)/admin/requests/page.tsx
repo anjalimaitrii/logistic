@@ -12,6 +12,7 @@ import { bookingService } from "@/services/bookingService";
 import { useRouter } from "next/navigation";
 import CreateBookingDrawer from "@/components/admin/CreateBookingDrawer";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
+import { currencySymbol } from "@/lib/currency";
 
 type RequestStatus = "Active" | "Finalized" | "Paid";
 
@@ -161,7 +162,7 @@ export default function BookingRequestsPage() {
     route: getRequestRoute(req),
     cargo: req.cargoDetails.goodsType,
     weight: req.cargoDetails?.weight ? `${req.cargoDetails.weight} KG` : "",
-    price: req.finalAmount ? `K${req.finalAmount}` : "TBD",
+    price: req.finalAmount ? `${currencySymbol(req.currency)}${req.finalAmount}` : "TBD",
     date: formatDate(req.createdAt || req.metadata?.createdAt || Date.now()),
     status: getStatusLabel(req),
     raw: req
@@ -441,6 +442,7 @@ export default function BookingRequestsPage() {
               await bookingService.updateStatus(selectedRequest._id, "finalized", {
                 finalAmount: Number(data.amount),
                 advancePaid: Number(data.advancePaid),
+                currency: data.currency,
                 specialRequest: data.specialRequest
               });
               loadRequests();

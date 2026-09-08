@@ -12,6 +12,7 @@ import { Package, ChevronRight, Receipt, ShieldOff } from "lucide-react";
 import { formatDate, toAppDateKey } from "@/lib/datetime";
 import { isTripCompleted } from "@/lib/tripCompletion";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
+import { formatMoney, CurrencyCode } from "@/lib/currency";
 
 export default function SecretJobsPage() {
   const [jobs, setJobs] = useState<any[]>([]);
@@ -66,11 +67,12 @@ export default function SecretJobsPage() {
     }
   };
 
-  const handleFinalize = async (data: { amount: string; advancePaid: string; specialRequest: string }) => {
+  const handleFinalize = async (data: { amount: string; advancePaid: string; specialRequest: string; currency: CurrencyCode }) => {
     if (!selectedRequest) return;
     await bookingService.updateStatus(selectedRequest._id, "finalized", {
       finalAmount: parseFloat(data.amount),
       advancePaid: parseFloat(data.advancePaid) || 0,
+      currency: data.currency,
       specialRequest: data.specialRequest,
     });
     setIsFinalizeDrawerOpen(false);
@@ -116,8 +118,8 @@ export default function SecretJobsPage() {
     route: `${b.pickupLocations?.[0]?.address?.city || "Origin"} → ${b.dropoffLocations?.[0]?.address?.city || "Dest."}`,
     cargo: Array.isArray(b.cargoDetails?.goodsType) ? b.cargoDetails.goodsType.join(", ") : (b.cargoDetails?.goodsType || "—"),
     weight: b.cargoDetails?.weight ? `${b.cargoDetails.weight} KG` : "—",
-    finalAmount: b.finalAmount ? `K${b.finalAmount.toLocaleString()}` : "TBD",
-    advancePaid: b.advancePaid ? `K${b.advancePaid.toLocaleString()}` : "TBD",
+    finalAmount: b.finalAmount ? formatMoney(b.finalAmount, b.currency) : "TBD",
+    advancePaid: b.advancePaid ? formatMoney(b.advancePaid, b.currency) : "TBD",
     date: b.createdAt ? formatDate(b.createdAt) : "—",
     withTax: b.withTax === true,
     // Payment flags (same as normal completed-jobs page)
