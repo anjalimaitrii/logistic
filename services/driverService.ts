@@ -15,6 +15,16 @@ export interface DriverCredentialsPayload {
 }
 
 export const driverService = {
+  // Hands Trakzee's plate -> driver pairs to the backend, which creates the ones
+  // we lack and retires the ones a truck no longer carries. One authority, and it
+  // reports what it did so a failure is visible instead of silently swallowed.
+  syncFromTrakzee: async (vehicles: { plate: string; driverName: string }[]) => {
+    return await fetchApi('/api/drivers/sync', {
+      method: 'POST',
+      body: JSON.stringify({ vehicles }),
+    }) as { created: string[]; retired: string[]; reactivated: string[]; errors: string[] };
+  },
+
   create: async (payload: DriverPayload) => {
     return await fetchApi('/api/drivers', {
       method: 'POST',

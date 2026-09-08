@@ -19,6 +19,8 @@ export default function AdminDrivers() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  // Empty unless the last Trakzee sync failed — see loadDrivers.
+  const [syncError, setSyncError] = useState("");
   const router = useRouter();
 
   useEffect(() => {
@@ -41,18 +43,6 @@ export default function AdminDrivers() {
 
     // Step 2: fetch GPS data, ensure trucks exist in DB, then save drivers with assignment
     try {
-      // One record per person PER TRUCK. The same driver appearing on two vehicles
-      // is two records on purpose — either truck may turn up for a job — but the
-      // same person on the same truck must never be created twice.
-      //
-      // Keyed on the name with its whitespace collapsed, because Trakzee sends
-      // "Kennedy  Nyimba " one run and "Kennedy Nyimba" the next; comparing them
-      // raw made those two different people and filed a fresh record every time.
-      const normName = (v: any) => String(v || "").trim().replace(/\s+/g, " ").toLowerCase();
-      const driverKey = (name: string, truckDbId: string) => `${normName(name)}|${truckDbId || ""}`;
-      const seenDrivers = new Set<string>(
-        db.map((d: any) => driverKey(d.name, String(d.assignedTruck?._id || d.assignedTruck || "")))
-      );
       const gpsData = await fetchLiveVehicles();
 
       // Ensure trucks are saved first so we can look up their _id
@@ -86,48 +76,26 @@ export default function AdminDrivers() {
         allTrucks = await truckService.getAll() || [];
       }
 
-      // Build truckId → MongoDB _id map
-      const truckMap = new Map<string, string>(
-        allTrucks.map((t: any) => [t.truckId, t._id])
+      // The roster is reconciled server-side: the backend creates the drivers we
+      // lack and retires the ones a truck no longer carries. Doing it here could
+      // only ever insert, so a truck whose driver changed kept both people.
+      const report = await driverService.syncFromTrakzee(
+        gpsData.map((v) => ({
+          plate: String(v.Vehicle_No || v.Vehicle_Name || ""),
+          driverName: String(getDriverName(v) || ""),
+        }))
       );
 
-      // Find new drivers
-      const newDrivers = gpsData
-        .map((v) => ({
-          // Stored tidy, so the next run's comparison has something stable to
-          // match and the name reads properly on screen.
-          name: String(getDriverName(v) || "").trim().replace(/\s+/g, " "),
-          vehicleNo: v.Vehicle_No || v.Vehicle_Name,
-        }))
-        .filter(({ name, vehicleNo }) => {
-          if (name === "No Driver") return false;
-          const key = driverKey(name, truckMap.get(vehicleNo) || "");
-          if (seenDrivers.has(key)) return false;
-          // Added as we go, not just seeded from the database — two vehicles in
-          // the SAME feed carrying the same driver and truck would otherwise
-          // both pass the check and create a pair.
-          seenDrivers.add(key);
-          return true;
-        });
-
-      if (newDrivers.length > 0) {
-        await Promise.allSettled(
-          newDrivers.map(({ name, vehicleNo }) => {
-            const assignedTruck = truckMap.get(vehicleNo);
-            return driverService.create({
-              name,
-              phone: "--",
-              experience: 0,
-              status: "Active",
-              ...(assignedTruck ? { assignedTruck } : {}),
-            });
-          })
-        );
+      if (report.created.length || report.retired.length || report.reactivated.length) {
         const fresh = await driverService.getAll();
         setDrivers(fresh || []);
       }
-    } catch {
-      // GPS unavailable — DB drivers already shown, silently skip
+      // Shown rather than swallowed. An unread Promise.allSettled is how a total
+      // sync failure ran unnoticed for eleven days.
+      setSyncError(report.errors.length ? `${report.errors.length} driver(s) could not be synced: ${report.errors[0]}` : "");
+    } catch (err: any) {
+      // GPS unavailable — DB drivers are already on screen, but say so.
+      setSyncError(`Trakzee sync failed: ${err?.message || "unknown error"}`);
     }
   };
 
@@ -301,6 +269,17 @@ export default function AdminDrivers() {
             Register Driver
           </button>
         </div>
+
+        {syncError && (
+          <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
+            <span className="text-sm leading-none mt-0.5">⚠</span>
+            <div>
+              <p className="text-[11px] font-semibold">Trakzee sync problem</p>
+              <p className="text-[11px] text-amber-700/80 mt-0.5">{syncError}</p>
+              <p className="text-[10px] text-amber-700/60 mt-1">The list below may be out of date.</p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {kpis.map((kpi, i) => (
