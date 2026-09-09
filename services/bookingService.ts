@@ -102,10 +102,10 @@ export const bookingService = {
     });
   },
 
-  changeAddress: async (id: string, newPickup: any, newDropoff: any, reason: string, financials?: { newPickupKm: number; newDropoffKm: number; newFinalAmount: number }) => {
+  changeAddress: async (id: string, newPickup: any, newDropoff: any, reason: string, financials?: { newPickupKm: number; newDropoffKm: number; newFinalAmount: number }, indexes?: { pickupIndex?: number; dropoffIndex?: number }) => {
     return await fetchApi(`/api/bookings/${id}/address`, {
       method: 'PATCH',
-      body: JSON.stringify({ newPickup, newDropoff, reason, financials }),
+      body: JSON.stringify({ newPickup, newDropoff, reason, financials, ...indexes }),
     });
   }
 };

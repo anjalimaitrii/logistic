@@ -219,6 +219,8 @@ export default function JobDetailReport() {
     dPlotNo: "",
     dStreet: "",
     dCity: "",
+    pickupIndex: 0,
+    dropoffIndex: 0,
     reason: "",
     newPickupKm: "",
     newDropoffKm: "",
@@ -578,8 +580,10 @@ export default function JobDetailReport() {
 
 
   const openAddressModal = () => {
-    const firstPickup = booking.pickupLocations?.[0] || booking.pickup;
-    const lastDropoff = booking.dropoffLocations?.[booking.dropoffLocations?.length - 1] || booking.dropoff;
+    const pickupIndex = 0;
+    const dropoffIndex = Math.max(0, (booking.dropoffLocations?.length || 1) - 1);
+    const firstPickup = booking.pickupLocations?.[pickupIndex] || booking.pickup;
+    const lastDropoff = booking.dropoffLocations?.[dropoffIndex] || booking.dropoff;
     setAddressChangeData({
       pContactPerson: firstPickup?.contactPerson || "",
       pContactNumber: firstPickup?.contactNumber || "",
@@ -591,6 +595,8 @@ export default function JobDetailReport() {
       dPlotNo: lastDropoff?.address?.plotNo || "",
       dStreet: lastDropoff?.address?.street || "",
       dCity: lastDropoff?.address?.city || "",
+      pickupIndex,
+      dropoffIndex,
       reason: "",
       newPickupKm: settlement?.fuelDetails?.pickupKm || "",
       newDropoffKm: settlement?.fuelDetails?.dropoffKm || "",
@@ -629,13 +635,15 @@ export default function JobDetailReport() {
           newPickupKm: Number(addressChangeData.newPickupKm) || 0,
           newDropoffKm: Number(addressChangeData.newDropoffKm) || 0,
           newFinalAmount: Number(addressChangeData.newFinalAmount) || 0
-        }
+        },
+        { pickupIndex: addressChangeData.pickupIndex, dropoffIndex: addressChangeData.dropoffIndex }
       );
 
       setShowAddressModal(false);
       setAddressChangeData({
         pContactPerson: "", pContactNumber: "", pPlotNo: "", pStreet: "", pCity: "",
         dContactPerson: "", dContactNumber: "", dPlotNo: "", dStreet: "", dCity: "",
+        pickupIndex: 0, dropoffIndex: 0,
         reason: "", newPickupKm: "", newDropoffKm: "", newFinalAmount: ""
       });
       await loadData();
