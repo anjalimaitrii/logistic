@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
-import { ChevronRight, Eye, Plus, X, Building2, Mail, Phone, User, MapPin, CreditCard, ArrowRight, MoreVertical, Users, UserPlus, Check, BookOpen, Trash2 } from "lucide-react";
+import { ChevronRight, Eye, Plus, X, Building2, Mail, Phone, User, MapPin, CreditCard, ArrowRight, MoreVertical, Users, UserPlus, Check, BookOpen, Trash2, Copy, MessageCircle } from "lucide-react";
 import { companyService } from "@/services/companyService";
 import { clientService } from "@/services/clientService";
 import LedgerDrawer from "@/components/admin/LedgerDrawer";
@@ -55,6 +55,12 @@ export default function AdminClients() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formStep, setFormStep] = useState(1);
+
+  // Post-creation credential panel — plaintext password lives here only, never persisted.
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    name: string; loginId: string; password: string; link: string;
+  } | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Ledger State — ledger is admin-only, employees never see it
   const [ledgerTarget, setLedgerTarget] = useState<{ id: string; name: string; type: "company" | "client" } | null>(null);
@@ -113,11 +119,14 @@ export default function AdminClients() {
         company: targetCompanyForForm?._id // Pass company ID if creating for a company
       });
 
-      const successMsg = targetCompanyForForm
-        ? `${formData.name} added to ${targetCompanyForForm.companyName}!`
-        : `${formData.name} registered as an individual client!`;
-
-      alert(`Success: ${successMsg}`);
+      // Snapshot the plaintext password now — it's the same one the backend just
+      // hashed and emailed, only reachable here because the form held it in state.
+      setCreatedCredentials({
+        name: formData.name,
+        loginId: formData.email,
+        password: formData.password,
+        link: typeof window !== "undefined" ? window.location.origin + "/" : "",
+      });
 
       fetchData(); // Refresh current view
       setFormData({ name: "", email: "", contactCode: DEFAULT_DIAL_CODE, contact: "", designation: "", password: "" });
@@ -140,6 +149,19 @@ export default function AdminClients() {
     setFormData(prev => ({ ...prev, password }));
     setShowPassword(true);
   };
+
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 1500);
+    } catch {
+      alert("Could not copy automatically. Please copy manually.");
+    }
+  };
+
+  const buildWhatsAppMessage = (c: NonNullable<typeof createdCredentials>) =>
+    `Dear ${c.name},\n\nYour FleetTrack account has been created.\n\nLogin ID: ${c.loginId}\nPassword: ${c.password}\nLogin Link: ${c.link}\n\nPlease use the above credentials to log in. You may be required to change your password on first login.\n\nRegards,\nFleetTrack`;
 
   const handleCompanySubmit = async () => {
     setIsSubmitting(true);
@@ -662,6 +684,80 @@ export default function AdminClients() {
                   </button>
                 </>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Client Created — Credentials Drawer ═══ */}
+      {createdCredentials && (
+        <div className="fixed inset-0 z-[999] flex justify-end bg-slate-900/30 backdrop-blur-[2px]">
+          <div className="absolute inset-0" onClick={() => setCreatedCredentials(null)} />
+          <div
+            className="relative bg-white w-full max-w-md h-screen shadow-2xl flex flex-col"
+            style={{ animation: "slideInRight 0.3s ease-out" }}
+          >
+            {/* Header */}
+            <div className="px-7 pt-8 pb-5 border-b border-neutral-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                  <Check className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h2 className="text-[17px] font-semibold text-slate-900 tracking-tight">Client Created Successfully</h2>
+                  <p className="text-[11px] text-neutral-400 mt-0.5">Share these credentials with {createdCredentials.name}.</p>
+                </div>
+              </div>
+              <button onClick={() => setCreatedCredentials(null)} className="w-9 h-9 rounded-xl bg-neutral-50 flex items-center justify-center text-neutral-400 hover:text-slate-900 hover:bg-neutral-100 transition-all cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-7 py-6 flex-1 overflow-y-auto custom-scrollbar space-y-4">
+              {[
+                { label: "Login ID", value: createdCredentials.loginId, field: "loginId" },
+                { label: "Password", value: createdCredentials.password, field: "password" },
+                { label: "Application Link", value: createdCredentials.link, field: "link" },
+              ].map((row) => (
+                <div key={row.field} className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{row.label}</label>
+                  <div className="flex items-center gap-2">
+                    <div className={`${inputClass} flex-1 truncate`}>{row.value}</div>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(row.value, row.field)}
+                      title={`Copy ${row.label}`}
+                      className="w-10 h-10 shrink-0 rounded-xl bg-neutral-100 flex items-center justify-center text-neutral-500 hover:bg-neutral-200 hover:text-slate-900 transition-all cursor-pointer"
+                    >
+                      {copiedField === row.field ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              <div className="p-3 rounded-xl bg-amber-50 border border-amber-200">
+                <p className="text-[11px] text-amber-800 leading-relaxed">
+                  This password is shown once, right now. It has already been emailed to the client — copy it if you need it for WhatsApp.
+                </p>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-7 py-5 border-t border-neutral-100 flex flex-col gap-2.5 shrink-0">
+              <button
+                onClick={() => copyToClipboard(buildWhatsAppMessage(createdCredentials), "whatsapp")}
+                className="w-full py-3 rounded-xl bg-emerald-600 text-white text-[11px] font-bold uppercase tracking-widest hover:brightness-110 transition-all shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {copiedField === "whatsapp" ? <Check className="w-3.5 h-3.5" /> : <MessageCircle className="w-3.5 h-3.5" />}
+                {copiedField === "whatsapp" ? "Copied!" : "Copy WhatsApp Message"}
+              </button>
+              <button
+                onClick={() => setCreatedCredentials(null)}
+                className="w-full py-3 rounded-xl bg-neutral-100 text-slate-500 text-[11px] font-bold uppercase tracking-widest hover:bg-neutral-200 transition-all cursor-pointer"
+              >
+                Done
+              </button>
             </div>
           </div>
         </div>
