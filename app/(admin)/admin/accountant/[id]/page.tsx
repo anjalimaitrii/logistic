@@ -31,6 +31,7 @@ import {
 import CityPicker from "@/components/admin/CityPicker";
 import { useNotifications } from "@/context/NotificationContext";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
+import { getAdminAccountType, type AdminAccountType } from "@/lib/adminRole";
 
 export default function AccountantJobDetail() {
   const router = useRouter();
@@ -40,6 +41,8 @@ export default function AccountantJobDetail() {
   const [jobData, setJobData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isApproved, setIsApproved] = useState(false);
+  const [accountType, setAccountType] = useState<AdminAccountType>("admin");
+  useEffect(() => { setAccountType(getAdminAccountType()); }, []);
   const [jobSettlement, setJobSettlement] = useState<any>(null);
 
   // Explicit leg rows: dispatch → cargo legs → empty transit → return. Identity
@@ -701,6 +704,10 @@ Continue anyway?`
     !!jobData?.tripStartedAt ||
     !!(jobData?.tripStatus && jobData.tripStatus.toLowerCase() !== "pending");
 
+  // Only admin may correct an already-approved settlement's figures. Employee
+  // accounts carry role "admin" too (same panel), so accountType is the gate.
+  const settlementLockedForEmployee = isApproved && accountType === "employee";
+
   // Seeds the city pickers' country select: whatever country this trip is
   // already operating in, falling back to the warehouse's.
   const tripCountry =
@@ -1045,7 +1052,12 @@ Continue anyway?`
                     onChange={(e) => handleAllocationChange(e.target.value)}
                     onBlur={(e) => handleAllocationBlur(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-neutral-50 border border-neutral-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-blue-400 focus:bg-white transition-all placeholder:text-neutral-300"
+                    disabled={settlementLockedForEmployee}
+                    className={`w-full border rounded-xl py-3 px-4 text-sm font-bold outline-none transition-all placeholder:text-neutral-300 ${
+                      settlementLockedForEmployee
+                        ? "bg-neutral-100 border-neutral-200 text-neutral-500 cursor-not-allowed"
+                        : "bg-neutral-50 border-neutral-200 text-slate-900 focus:border-blue-400 focus:bg-white"
+                    }`}
                   />
                 </div>
 
@@ -1064,7 +1076,12 @@ Continue anyway?`
                     value={councilLevy}
                     onChange={(e) => setCouncilLevy(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-emerald-50/40 border border-emerald-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-emerald-400 focus:bg-white transition-all placeholder:text-neutral-300"
+                    disabled={settlementLockedForEmployee}
+                    className={`w-full border rounded-xl py-3 px-4 text-sm font-bold outline-none transition-all placeholder:text-neutral-300 ${
+                      settlementLockedForEmployee
+                        ? "bg-neutral-100 border-neutral-200 text-neutral-500 cursor-not-allowed"
+                        : "bg-emerald-50/40 border-emerald-200 text-slate-900 focus:border-emerald-400 focus:bg-white"
+                    }`}
                   />
                 </div>
 
@@ -1098,7 +1115,12 @@ Continue anyway?`
                     value={tollAmount}
                     onChange={(e) => setTollAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full bg-violet-50/40 border border-violet-200 rounded-xl py-3 px-4 text-sm font-bold text-slate-900 outline-none focus:border-violet-400 focus:bg-white transition-all placeholder:text-neutral-300"
+                    disabled={settlementLockedForEmployee}
+                    className={`w-full border rounded-xl py-3 px-4 text-sm font-bold outline-none transition-all placeholder:text-neutral-300 ${
+                      settlementLockedForEmployee
+                        ? "bg-neutral-100 border-neutral-200 text-neutral-500 cursor-not-allowed"
+                        : "bg-violet-50/40 border-violet-200 text-slate-900 focus:border-violet-400 focus:bg-white"
+                    }`}
                   />
                 </div>
               </div>
@@ -1191,8 +1213,7 @@ Continue anyway?`
                     const claimRule = color === "violet" ? "border-violet-200/60" : "border-amber-200/60";
                     const claimText = color === "violet" ? "text-violet-700" : "text-amber-700";
                     const isCargo = row.kind === "stop";
-                    // Admin corrections remain editable after start and approval.
-                    const locked = false;
+                    const locked = settlementLockedForEmployee;
 
                     const colorMap: Record<string, string> = {
                       emerald: "bg-emerald-50 border-emerald-100",
@@ -1425,7 +1446,12 @@ Continue anyway?`
                       type="number"
                       value={fuelRate}
                       onChange={(e) => setFuelRate(e.target.value)}
-                      className="w-16 bg-neutral-50 border-b-2 border-emerald-500/30 text-[11px] font-bold text-emerald-700 text-right outline-none pr-1 focus:border-emerald-500 transition-all"
+                      disabled={settlementLockedForEmployee}
+                      className={`w-16 border-b-2 text-[11px] font-bold text-right outline-none pr-1 transition-all ${
+                        settlementLockedForEmployee
+                          ? "bg-neutral-100 border-neutral-300 text-neutral-500 cursor-not-allowed"
+                          : "bg-neutral-50 border-emerald-500/30 text-emerald-700 focus:border-emerald-500"
+                      }`}
                     />
                   </div>
 
