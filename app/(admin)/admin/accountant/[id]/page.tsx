@@ -696,9 +696,7 @@ Continue anyway?`
   const isDirty =
     fingerprintOf(legRows, fuelRate, allocationMoney, councilLevy, tollAmount) !== savedFingerprint;
 
-  // Once the truck is on the road the planned route is history — it is no longer
-  // something to edit. Empty legs stay open, because gaps only become known
-  // during and after the trip (a reassignment mid-return is the whole point).
+  // Admin may correct the settlement after the trip starts or is approved.
   const tripStarted =
     !!jobData?.tripStartedAt ||
     !!(jobData?.tripStatus && jobData.tripStatus.toLowerCase() !== "pending");
@@ -1131,17 +1129,6 @@ Continue anyway?`
                     </div>
                   )}
 
-                  {tripStarted && (
-                    <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200">
-                      <p className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Route locked</p>
-                      <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">
-                        The trip has started, so the cargo route and its distances can no longer
-                        be changed. Empty legs stay open — dispatch, transit and the return are
-                        only known once the truck is on the road.
-                      </p>
-                    </div>
-                  )}
-
                   {/* Add a leg BEFORE the first pickup. Optional and hand-added,
                       because a trip does not always start at the warehouse.
                       Hidden once one exists — there is only ever one run into
@@ -1204,12 +1191,8 @@ Continue anyway?`
                     const claimRule = color === "violet" ? "border-violet-200/60" : "border-amber-200/60";
                     const claimText = color === "violet" ? "text-violet-700" : "text-amber-700";
                     const isCargo = row.kind === "stop";
-                    // Two things freeze once the truck is out: the cargo route,
-                    // and any empty leg already committed to the settlement. An
-                    // empty leg stays open only until it is saved — after that it
-                    // has been costed, and a figure that keeps moving under the
-                    // accountant is worse than one they have to remove on purpose.
-                    const locked = tripStarted && (row.kind === "stop" || !!row.saved);
+                    // Admin corrections remain editable after start and approval.
+                    const locked = false;
 
                     const colorMap: Record<string, string> = {
                       emerald: "bg-emerald-50 border-emerald-100",
