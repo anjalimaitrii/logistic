@@ -9,8 +9,7 @@ import CreateDriverModal from "@/components/admin/CreateDriverModal";
 import RegisterDriverModal from "@/components/admin/RegisterDriverModal";
 import { ChevronRight, Eye, Phone, Plus, Edit2 } from "lucide-react";
 import { driverService } from "@/services/driverService";
-import { truckService } from "@/services/truckService";
-import { fetchLiveVehicles, getDriverName, cleanDriverName } from "@/services/liveTrackingService";
+import { cleanDriverName } from "@/services/liveTrackingService";
 
 export default function AdminDrivers() {
   const [isModalOpen, setModalOpen] = useState(false);
@@ -41,60 +40,23 @@ export default function AdminDrivers() {
       setIsLoading(false);
     }
 
-    // Step 2: fetch GPS data, ensure trucks exist in DB, then save drivers with assignment
+    // Step 2: ask the backend to mirror Trakzee now, rather than waiting for its
+    // five-minute cron. Trucks and drivers are both reconciled there — the page
+    // used to create trucks itself, from a fleet the browser had fetched, which
+    // meant a plate typed slightly differently became a second truck.
     try {
-      const gpsData = await fetchLiveVehicles();
+      const report = await driverService.syncFromTrakzee();
 
-      // Ensure trucks are saved first so we can look up their _id
-      let allTrucks = await truckService.getAll() || [];
-      // Compared with case and spacing ignored. The unique index on truckId is
-      // literal, so "BAZ 5546" and "baz 5546" would both be accepted as separate
-      // trucks — the guard has to be the looser one, not the stricter.
-      const normPlate = (v: any) => String(v || "").trim().replace(/\s+/g, " ").toUpperCase();
-      const truckDbIds = new Set(allTrucks.map((t: any) => normPlate(t.truckId)));
-      const newTrucks = gpsData.filter((v) => {
-        const id = normPlate(v.Vehicle_No || v.Vehicle_Name);
-        if (!id || truckDbIds.has(id)) return false;
-        // Added as we go: the same plate twice in one feed would otherwise be
-        // created twice, and only the database would stop the second.
-        truckDbIds.add(id);
-        return true;
-      });
-      if (newTrucks.length > 0) {
-        await Promise.allSettled(
-          newTrucks.map((v) => {
-            const truckId = normPlate(v.Vehicle_No || v.Vehicle_Name);
-            return truckService.create({
-              truckId,
-              vehicleModel: v.Vehicletype || v.DeviceModel || "--",
-              truckType: v.Vehicletype || "--",
-              status: v.Status === "RUNNING" ? "Active" : v.Status === "IDLE" ? "Idle" : "Maint.",
-              odometer: v.Odometer || "0",
-            });
-          })
-        );
-        allTrucks = await truckService.getAll() || [];
-      }
-
-      // The roster is reconciled server-side: the backend creates the drivers we
-      // lack and retires the ones a truck no longer carries. Doing it here could
-      // only ever insert, so a truck whose driver changed kept both people.
-      const report = await driverService.syncFromTrakzee(
-        gpsData.map((v) => ({
-          plate: String(v.Vehicle_No || v.Vehicle_Name || ""),
-          driverName: String(getDriverName(v) || ""),
-        }))
-      );
-
-      if (report.created.length || report.retired.length || report.reactivated.length) {
+      if (report.created.length || report.retired.length || report.reactivated.length
+          || report.trucksCreated?.length || report.trucksRenamed?.length) {
         const fresh = await driverService.getAll();
         setDrivers(fresh || []);
       }
       // Shown rather than swallowed. An unread Promise.allSettled is how a total
       // sync failure ran unnoticed for eleven days.
-      setSyncError(report.errors.length ? `${report.errors.length} driver(s) could not be synced: ${report.errors[0]}` : "");
+      setSyncError(report.errors.length ? `${report.errors.length} problem(s) syncing with Trakzee: ${report.errors[0]}` : "");
     } catch (err: any) {
-      // GPS unavailable — DB drivers are already on screen, but say so.
+      // Backend or Trakzee unreachable — DB drivers are already on screen, but say so.
       setSyncError(`Trakzee sync failed: ${err?.message || "unknown error"}`);
     }
   };
@@ -117,32 +79,26 @@ export default function AdminDrivers() {
     }
   };
 
-    const handleStatusToggle = async (id: string, currentStatus: string) => {
-    const newStatus = currentStatus === "Active" ? "Inactive" : "Active";
-    try {
-      await driverService.update(id, { status: newStatus });
-      loadDrivers();
-    } catch (error) {
-      console.error("Failed to toggle status:", error);
-    }
-  };
+  // A retired row is kept only so the trips it drove keep their driver's phone
+  // and NRC. It is not staff, so it stays out of the roster and its counts.
+  const onRoster = drivers.filter(d => d.status !== "Inactive");
 
   const kpis = [
-    { label: "Total Drivers", value: drivers.length.toString(), icon: "👤", subText: "Active on roster", trend: "Live", variant: "primary" as const },
-    { label: "Active", value: drivers.filter(d => d.status === "Active").length.toString(), icon: "🛣️", subText: "Ready for duty", trend: "Updated", variant: "success" as const },
-    { label: "Assigned", value: drivers.filter(d => d.assignedTruck).length.toString(), icon: "🚛", subText: "With vehicles", trend: "Synced", variant: "primary" as const },
-    { label: "Off Duty", value: drivers.filter(d => d.status !== "Active").length.toString(), icon: "🏠", subText: "Resting / Other", trend: "-", variant: "warning" as const },
+    { label: "Total Drivers", value: onRoster.length.toString(), icon: "👤", subText: "On the roster", trend: "Live", variant: "primary" as const },
+    { label: "Active", value: onRoster.filter(d => d.status === "Active").length.toString(), icon: "🛣️", subText: "Ready for duty", trend: "Updated", variant: "success" as const },
+    { label: "Assigned", value: onRoster.filter(d => d.assignedTruck).length.toString(), icon: "🚛", subText: "With vehicles", trend: "Synced", variant: "primary" as const },
+    { label: "Off Duty", value: onRoster.filter(d => d.status !== "Active").length.toString(), icon: "🏠", subText: "Resting / Other", trend: "-", variant: "warning" as const },
   ];
 
   const q = searchQuery.trim().toLowerCase();
   const filteredDrivers = q
-    ? drivers.filter(d => {
+    ? onRoster.filter(d => {
         const name    = cleanDriverName(d.name || "").toLowerCase();
         const truck    = (d.assignedTruck?.truckId || "").toLowerCase();
         const contact = (d.phone || "").toLowerCase();
         return name.includes(q) || truck.includes(q) || contact.includes(q);
       })
-    : drivers;
+    : onRoster;
 
   const tableData = filteredDrivers.map(d => ({
     name: cleanDriverName(d.name),
@@ -168,12 +124,11 @@ export default function AdminDrivers() {
       label: "Status",
       key: "status",
       render: (val: string, row: any) => (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            handleStatusToggle(row.raw._id, val);
-          }}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest transition-all hover:brightness-95 ${
+        <span
+          title={val === "Active"
+            ? "Trakzee has this driver on this truck"
+            : "Trakzee no longer has this driver on this truck"}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[9px] font-medium uppercase tracking-widest ${
             val === "Active"
             ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
             : "bg-rose-50 text-rose-500 border border-rose-100"
@@ -183,7 +138,7 @@ export default function AdminDrivers() {
             className={`w-1 h-1 rounded-full ${val === "Active" ? "bg-emerald-500" : "bg-rose-500"}`}
           />
           {val}
-        </button>
+        </span>
       ),
     },
     { label: "Assigned Truck", key: "truck", render: (val: string) => <span className="font-semibold text-slate-700">{val}</span> },
