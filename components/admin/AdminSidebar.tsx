@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { useState, useEffect } from "react";
-import { getAdminAccountType, type AdminAccountType } from "@/lib/adminRole";
+import { getAdminAccountType, type AdminAccountType, adminRoleLabel } from "@/lib/adminRole";
 
 interface NavItem {
   label: string;
@@ -148,10 +148,9 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
   ];
 
   // Tabs an employee account never sees (applies to both Main and Operations groups).
-  // Route Master stays visible: it is where the global Warehouse and Mileage config
-  // live, and the accountant is the only role that consumes either — every dispatch
-  // and return leg they cost is labelled from the warehouse address.
-  const employeeHiddenLabels = ["Booking Requests", "Completed Jobs", "Reports"];
+  // Route Master is among them: it sets the money a route is costed at, which is a
+  // decision for the fleet owner rather than the people working the trips.
+  const employeeHiddenLabels = ["Booking Requests", "Completed Jobs", "Reports", "Route Master"];
   const hideForEmployee = (item: NavItem) =>
     accountType === "employee" && employeeHiddenLabels.includes(item.label);
   const visibleNavItems = navItems.filter((item) => !hideForEmployee(item));
@@ -350,7 +349,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
                 className="min-w-0 flex-1"
               >
                 <div className="text-[13px] font-semibold text-white truncate">{adminName}</div>
-                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">Fleet Admin</div>
+                <div className="text-[9px] font-bold text-slate-500 uppercase tracking-tighter">{adminRoleLabel(accountType)}</div>
               </motion.div>
             )}
           </AnimatePresence>

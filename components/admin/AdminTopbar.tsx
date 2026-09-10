@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import PinModal from "./PinModal";
 import { useNotifications } from "@/context/NotificationContext";
-import { getAdminAccountType, type AdminAccountType } from "@/lib/adminRole";
+import { getAdminAccountType, adminRoleLabel, type AdminAccountType } from "@/lib/adminRole";
 
 interface AdminTopbarProps {
   onToggleSidebar: () => void;
@@ -140,7 +140,7 @@ export default function AdminTopbar({ onToggleSidebar, onToggleNotif }: AdminTop
                     </div>
                     <div className="min-w-0">
                       <div className="text-sm font-semibold text-neutral-900 truncate">{adminName}</div>
-                      <div className="text-[11px] text-neutral-400 font-medium">Fleet Admin</div>
+                      <div className="text-[11px] text-neutral-400 font-medium">{adminRoleLabel(accountType)}</div>
                     </div>
                   </div>
                 </div>
