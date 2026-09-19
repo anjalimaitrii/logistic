@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import {
   X,
-  DollarSign,
   FileText,
   CheckCircle2,
   AlertCircle

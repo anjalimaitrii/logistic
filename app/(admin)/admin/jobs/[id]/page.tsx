@@ -27,7 +27,7 @@ import {
   Timer,
   Gauge,
   Route,
-  DollarSign
+  Wallet
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { todayAppDateKey } from "@/lib/datetime";
@@ -823,8 +823,8 @@ export default function JobDetailReport() {
     { label: "Total Cost", value: `K ${financialSummary.totalCost.toLocaleString()}`, icon: <TrendingUp className="w-4 h-4 text-emerald-500" />, color: "border-emerald-500" },
     { label: "Fuel Total", value: `K ${financialSummary.fuelTotal.toLocaleString()}`, icon: <Fuel className="w-4 h-4 text-orange-500" />, color: "border-orange-500" },
     { label: "Other Logs", value: `K ${financialSummary.otherLogs.toLocaleString()}`, icon: <Receipt className="w-4 h-4 text-blue-500" />, color: "border-blue-500" },
-    { label: "Allocation", value: `K ${financialSummary.allocationMoney.toLocaleString()}`, icon: <DollarSign className="w-4 h-4 text-violet-500" />, color: "border-violet-500" },
-    { label: "Council Levy", value: `K ${financialSummary.councilLevy.toLocaleString()}`, icon: <DollarSign className="w-4 h-4 text-slate-500" />, color: "border-slate-400" },
+    { label: "Allocation", value: `K ${financialSummary.allocationMoney.toLocaleString()}`, icon: <Wallet className="w-4 h-4 text-violet-500" />, color: "border-violet-500" },
+    { label: "Council Levy", value: `K ${financialSummary.councilLevy.toLocaleString()}`, icon: <Receipt className="w-4 h-4 text-slate-500" />, color: "border-slate-400" },
     { label: "Toll", value: `K ${financialSummary.tollAmount.toLocaleString()}`, icon: <Route className="w-4 h-4 text-teal-500" />, color: "border-teal-500" },
   ];
 

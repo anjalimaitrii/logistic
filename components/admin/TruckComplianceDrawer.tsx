@@ -12,7 +12,7 @@ import {
    Upload,
    Hash,
    Wrench,
-   DollarSign,
+   Banknote,
    ChevronDown,
    Check,
    AlertTriangle,
@@ -314,7 +314,7 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                           {/* Maintenance Fare Cost */}
                                           <div className="space-y-1.5">
                                              <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest ml-1 flex items-center gap-1.5">
-                                                <DollarSign className="w-3 h-3" /> Maintenance Fare Cost (K)
+                                                <Banknote className="w-3 h-3" /> Maintenance Fare Cost (K)
                                              </label>
                                              <input
                                                 type="number"

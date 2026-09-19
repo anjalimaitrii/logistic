@@ -11,8 +11,7 @@ import {
   CheckCircle2,
   TrendingUp,
   Package,
-  Plus,
-  DollarSign
+  Plus
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";

@@ -9,7 +9,9 @@ import {
   MapPin,
   CheckCircle2,
   ChevronRight,
-  DollarSign
+  Wallet,
+  Receipt,
+  Landmark
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
@@ -742,19 +744,19 @@ Continue anyway?`
     {
       label: "Cash Allocation",
       value: allocationMoney ? `K${parseFloat(allocationMoney).toLocaleString()}` : "---",
-      icon: <DollarSign className="w-4 h-4 text-blue-500" />,
+      icon: <Wallet className="w-4 h-4 text-blue-500" />,
       color: "border-blue-500",
     },
     {
       label: "Council Levy",
       value: councilLevy && parseFloat(councilLevy) > 0 ? `K${parseFloat(councilLevy).toLocaleString()}` : "---",
-      icon: <DollarSign className="w-4 h-4 text-emerald-500" />,
+      icon: <Receipt className="w-4 h-4 text-emerald-500" />,
       color: "border-emerald-500",
     },
     {
       label: "Toll Amount",
       value: tollAmount && parseFloat(tollAmount) > 0 ? `K${parseFloat(tollAmount).toLocaleString()}` : "---",
-      icon: <DollarSign className="w-4 h-4 text-violet-500" />,
+      icon: <Landmark className="w-4 h-4 text-violet-500" />,
       color: "border-violet-500",
     },
   ];
@@ -1026,7 +1028,7 @@ Continue anyway?`
               {/* Cash Allocation — flex-1 so the left column's bottom lines up with the right column */}
               <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100 flex-1">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="p-1 px-1.5 rounded-lg bg-blue-50 text-blue-600"><DollarSign className="w-3.5 h-3.5" /></div>
+                  <div className="p-1 px-1.5 rounded-lg bg-blue-50 text-blue-600"><Wallet className="w-3.5 h-3.5" /></div>
                   <div>
                     <h2 className="text-xs md:text-sm font-semibold text-slate-950">Driver's Allowance</h2>
                     <p className="text-[8px] md:text-[9px] font-normal text-neutral-400 uppercase tracking-widest">Food & Other Expenses</p>
@@ -1064,7 +1066,7 @@ Continue anyway?`
                 {/* Council Levy */}
                 <div className="space-y-2 mt-4 pt-4 border-t border-neutral-100">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="p-1 px-1.5 rounded-lg bg-emerald-50 text-emerald-600"><DollarSign className="w-3.5 h-3.5" /></div>
+                    <div className="p-1 px-1.5 rounded-lg bg-emerald-50 text-emerald-600"><Receipt className="w-3.5 h-3.5" /></div>
                     <div>
                       <h3 className="text-xs font-semibold text-slate-950">Council Levy</h3>
                       <p className="text-[8px] font-normal text-neutral-400 uppercase tracking-widest">Route Master value</p>
@@ -1090,7 +1092,7 @@ Continue anyway?`
               {/* Toll Amount — Route Master estimate, NOT part of driver's allowance */}
               <div className="bg-white rounded-2xl md:rounded-[24px] p-5 md:p-6 shadow-sm border border-neutral-100">
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="p-1 px-1.5 rounded-lg bg-violet-50 text-violet-600"><DollarSign className="w-3.5 h-3.5" /></div>
+                  <div className="p-1 px-1.5 rounded-lg bg-violet-50 text-violet-600"><Landmark className="w-3.5 h-3.5" /></div>
                   <div>
                     <h2 className="text-xs md:text-sm font-semibold text-slate-950">Toll Amount</h2>
                     <p className="text-[8px] md:text-[9px] font-normal text-neutral-400 uppercase tracking-widest">Route Master value</p>

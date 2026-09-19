@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { TrendingUp, Package, Plus, DollarSign, User } from "lucide-react";
+import { TrendingUp, Package, Plus, Receipt, User } from "lucide-react";
 
 // Bottom tab bar for client pages on mobile. Every tab is a real link.
 export function ClientMobileNav() {
@@ -30,7 +30,7 @@ export function ClientMobileNav() {
             <span className="text-[8px] font-semibold uppercase tracking-tighter">New</span>
          </Link>
          <Link href="/dashboard/ledger" className={cls("/dashboard/ledger")}>
-            <DollarSign className="w-5 h-5" />
+            <Receipt className="w-5 h-5" />
             <span className="text-[8px] font-semibold uppercase tracking-tighter">Ledger</span>
          </Link>
          <Link href="/dashboard/profile" className={cls("/dashboard/profile")}>

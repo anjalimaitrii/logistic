@@ -3,7 +3,7 @@
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
-import { ChevronRight, CreditCard, ArrowUpRight, ArrowDownRight, DollarSign } from "lucide-react";
+import { ChevronRight, CreditCard, ArrowUpRight, ArrowDownRight } from "lucide-react";
 
 export default function FinancePage() {
   const financeKpis = [

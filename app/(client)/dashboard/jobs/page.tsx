@@ -16,8 +16,7 @@ import {
    ChevronRight,
    X,
    MapPin,
-   Plus,
-   DollarSign
+   Plus
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";

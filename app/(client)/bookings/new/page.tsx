@@ -11,7 +11,6 @@ import {
    Calendar,
    ChevronRight,
    TrendingUp,
-   DollarSign,
    Plus,
    Navigation,
    User,
