@@ -6,7 +6,6 @@ import {
   MapPin,
   Package,
   Calendar,
-  DollarSign,
   FileText,
   CheckCircle2,
   User,
@@ -166,9 +165,9 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Final Amount</label>
+                <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Final Amount (ZMW)</label>
                 <div className="relative group">
-                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-neutral-400 group-focus-within:text-primary transition-colors" />
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-semibold text-neutral-400 group-focus-within:text-primary transition-colors">K</span>
                   <input
                     type="number"
                     value={amount}
@@ -180,14 +179,17 @@ export default function FinalizeDealDrawer({ isOpen, onClose, request, onSubmit 
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Advance Paid</label>
-                <input
-                  type="number"
-                  value={advancePaid}
-                  onChange={(e) => setAdvancePaid(e.target.value)}
-                  placeholder="Amount Paid"
-                  className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 px-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm"
-                />
+                <label className="text-[11px] font-medium text-neutral-500 uppercase tracking-widest ml-1">Advance Paid (ZMW)</label>
+                <div className="relative group">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[13px] font-semibold text-neutral-400 group-focus-within:text-primary transition-colors">K</span>
+                  <input
+                    type="number"
+                    value={advancePaid}
+                    onChange={(e) => setAdvancePaid(e.target.value)}
+                    placeholder="Amount Paid"
+                    className="w-full bg-neutral-50 border border-transparent rounded-xl py-2.5 pl-10 pr-4 text-[13px] font-medium text-neutral-900 focus:bg-white focus:border-primary/20 outline-none transition-all shadow-sm"
+                  />
+                </div>
               </div>
             </div>
 
