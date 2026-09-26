@@ -127,7 +127,8 @@ export default function AdminCompletedJobsPage() {
       b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       clientNameOf(b).toLowerCase().includes(searchQuery.toLowerCase()) ||
       pickupCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      dropoffCity.toLowerCase().includes(searchQuery.toLowerCase());
+      dropoffCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id)?.truckNumber || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCompany = companyFilter === "all" || companyNameOf(b) === companyFilter;
     const matchesClient = clientFilter === "all" || clientNameOf(b) === clientFilter;
     return matchesSearch && matchesCompany && matchesClient;
@@ -150,6 +151,7 @@ export default function AdminCompletedJobsPage() {
       companyName: companyNameOf(b, "Direct Booking"),
       status: getStatusType(effectiveStatus),
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Assign Driver",
+      truck: String(assignment?.truckNumber || "").toUpperCase() || "Unassigned",
       route,
       isComplete,
       // Payment is "finalized" once a final amount has been set on the booking
@@ -201,9 +203,17 @@ export default function AdminCompletedJobsPage() {
       )
     },
     {
-      label: "DRIVER",
-      key: "driver",
-      render: (val: string) => <span className="text-[12px] font-medium text-slate-600">{val}</span>
+      label: "TRUCK",
+      key: "truck",
+      render: (val: string, row: any) => (
+        <div className="relative group inline-flex">
+          <span className="text-[12px] font-medium text-slate-600 cursor-default">{val}</span>
+          <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-50 bg-slate-900 text-white text-[10px] font-medium px-2.5 py-1.5 rounded-lg whitespace-nowrap shadow-xl pointer-events-none">
+            Driver: {row.driver}
+            <div className="absolute top-full left-3 border-4 border-transparent border-t-slate-900" />
+          </div>
+        </div>
+      )
     },
     {
       label: "ROUTE",
