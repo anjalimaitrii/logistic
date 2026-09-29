@@ -375,7 +375,7 @@ export default function JobDetailReport() {
     const allocationMoney = settlement.financials?.cashAllocation || 0;
     const councilLevy = settlement.financials?.councilLevy || 0;
     const tollAmount = settlement.financials?.tollAmount || 0;
-    const totalCost = fuelTotal + otherLogs + allocationMoney + councilLevy;
+    const totalCost = fuelTotal + otherLogs + allocationMoney + councilLevy + tollAmount;
 
     return {
       fuelTotal,

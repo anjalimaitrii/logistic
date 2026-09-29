@@ -436,11 +436,12 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
       // Prefer the Route Master values frozen on the settlement at approval time
       // (financials.assume*); fall back to a live route lookup for older settlements.
       const f = st.financials || {};
-      const hasSaved = N(f.assumeCashAllocation) > 0 || N(f.assumeCouncilLevy) > 0 || N(f.assumeTollAmount) > 0;
+      const hasSaved = N(f.assumeCashAllocation) > 0 || N(f.assumeCouncilLevy) > 0 || N(f.assumeTollAmount) > 0 || N(f.tollAmount) > 0;
       if (!route && !hasSaved) { unmatched++; return; }
       matched++;
       allocation += N(f.assumeCashAllocation) > 0 ? N(f.assumeCashAllocation) : N(route?.allocationMoney);
-      toll       += N(f.assumeTollAmount)     > 0 ? N(f.assumeTollAmount)     : N(route?.tollAmount);
+      // Toll the accountant entered on the job wins over the Route Master estimate
+      toll       += N(f.tollAmount) > 0 ? N(f.tollAmount) : N(f.assumeTollAmount) > 0 ? N(f.assumeTollAmount) : N(route?.tollAmount);
       levy       += N(f.assumeCouncilLevy)    > 0 ? N(f.assumeCouncilLevy)    : N(route?.councilLevy);
     });
     return { allocation, toll, levy, matched, unmatched, total: filteredSettlements.length };
@@ -469,7 +470,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
   const drawerMeta: Record<NonNullable<DetailType>, { title: string; sub: string; accent: string }> = {
     allocation: { title: "Driver Allocation Details", sub: "Cash allocated per trip settlement",      accent: "text-blue-600" },
     fuel:       { title: "Fuel Cost Details",         sub: "Fuel legs & consumption per trip",        accent: "text-amber-600" },
-    toll:       { title: "Toll — Assumed vs Actual",  sub: "Route Master estimate vs eToll sheet per trip", accent: "text-orange-600" },
+    toll:       { title: "Toll — Assumed vs Actual",  sub: "Job toll vs eToll sheet per trip", accent: "text-orange-600" },
     levy:       { title: "Council Levy Details",      sub: "Council levy charged per trip",            accent: "text-violet-600" },
     damages:    { title: "Damage Details by Driver",  sub: "Per-driver damage items & amounts",        accent: "text-rose-600" },
     revenue:    { title: "Revenue Breakdown",         sub: "Final amount per booking in this period",  accent: "text-emerald-700" },
@@ -881,8 +882,9 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
                   const dropArr = b?.dropoffLocations;
                   const dropoff = cityOf(Array.isArray(dropArr) ? dropArr[dropArr.length - 1] : (dropArr || b?.dropoffLocation));
                   const route = routeMap.get(`${norm(pickup)}|${norm(dropoff)}`);
+                  const enteredToll = N(st?.financials?.tollAmount);
                   const savedAssume = N(st?.financials?.assumeTollAmount);
-                  const assumed = savedAssume > 0 ? savedAssume : N(route?.tollAmount);
+                  const assumed = enteredToll > 0 ? enteredToll : savedAssume > 0 ? savedAssume : N(route?.tollAmount);
                   const actual = actualByBooking[id] || 0;
                   return {
                     id,
@@ -941,7 +943,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
                       </div>
                     )}
                     <p className="text-[9px] text-neutral-400">
-                      Assumed = Route Master value frozen at approval (live route lookup for older trips) · Actual = matched eToll sheet entries · card total also includes unmatched tolls
+                      Assumed = toll entered on the job, else Route Master value frozen at approval (live route lookup for older trips) · Actual = matched eToll sheet entries · card total also includes unmatched tolls
                     </p>
                   </div>
                 );
