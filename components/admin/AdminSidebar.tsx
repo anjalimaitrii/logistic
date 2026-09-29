@@ -150,7 +150,7 @@ export default function AdminSidebar({ isOpen, onClose, isExpanded, onHover }: A
   // Tabs an employee account never sees (applies to both Main and Operations groups).
   // Route Master is among them: it sets the money a route is costed at, which is a
   // decision for the fleet owner rather than the people working the trips.
-  const employeeHiddenLabels = ["Booking Requests", "Completed Jobs", "Reports", "Route Master"];
+  const employeeHiddenLabels = ["Booking Requests", "Reports", "Route Master"];
   const hideForEmployee = (item: NavItem) =>
     accountType === "employee" && employeeHiddenLabels.includes(item.label);
   const visibleNavItems = navItems.filter((item) => !hideForEmployee(item));

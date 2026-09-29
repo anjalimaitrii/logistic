@@ -21,6 +21,7 @@ import InvoiceDrawer from "@/components/admin/InvoiceDrawer";
 import ReceivePaymentDrawer from "@/components/admin/ReceivePaymentDrawer";
 import { isTripCompleted } from "@/lib/tripCompletion";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
+import { getAdminAccountType, type AdminAccountType } from "@/lib/adminRole";
 
 export default function AdminCompletedJobsPage() {
   const router = useRouter();
@@ -36,8 +37,11 @@ export default function AdminCompletedJobsPage() {
   const [isFinalizeDrawerOpen, setIsFinalizeDrawerOpen] = useState(false);
   const [invoiceJob, setInvoiceJob] = useState<any | null>(null);
   const [payTrip, setPayTrip] = useState<any | null>(null);
+  // Employees can view completed jobs; finalize, payments and invoices stay with the admin.
+  const [accountType, setAccountType] = useState<AdminAccountType>("admin");
 
   useEffect(() => {
+    setAccountType(getAdminAccountType());
     loadBookings();
   }, []);
 
@@ -254,7 +258,7 @@ export default function AdminCompletedJobsPage() {
             <Eye className="w-3.5 h-3.5" />
           </button>
           {/* Payment not finalized yet → finalize the deal · finalized → generate invoice */}
-          {!row.isPaymentFinalized ? (
+          {accountType === "employee" ? null : !row.isPaymentFinalized ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();
