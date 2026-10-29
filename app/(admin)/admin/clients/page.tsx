@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
-import { ChevronRight, Eye, Plus, X, Building2, Mail, Phone, User, MapPin, CreditCard, ArrowRight, MoreVertical, Users, UserPlus, Check, BookOpen, Trash2, Copy, MessageCircle } from "lucide-react";
+import { ChevronRight, Eye, Plus, X, Building2, Mail, Phone, User, MapPin, CreditCard, ArrowRight, MoreVertical, Users, UserPlus, Check, BookOpen, Trash2, Copy, MessageCircle, Pencil } from "lucide-react";
 import { companyService } from "@/services/companyService";
 import { clientService } from "@/services/clientService";
 import LedgerDrawer from "@/components/admin/LedgerDrawer";
@@ -52,6 +52,9 @@ export default function AdminClients() {
     city: "",
     billingName: "",
   });
+  // Set while the company drawer is correcting an existing company (a TPIN that
+  // was missed at registration, say) rather than registering a new one.
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formStep, setFormStep] = useState(1);
@@ -166,7 +169,9 @@ export default function AdminClients() {
   const handleCompanySubmit = async () => {
     setIsSubmitting(true);
 
-    const payload = {
+    // What this form owns. An edit sends only this — status and linked clients
+    // are not on the form, so they are left as they are.
+    const details = {
       companyName: companyForm.companyName,
       tpinNumber: companyForm.tpinNumber,
       address: {
@@ -178,20 +183,26 @@ export default function AdminClients() {
       accounting: {
         billingName: companyForm.billingName || companyForm.companyName,
       },
-      status: "Active"
     };
+    const payload = { ...details, status: "Active" };
 
     console.log("🚀 Submitting Company Payload:", payload);
     try {
-      const response = await companyService.create(payload);
-      console.log("✅ Company registration response:", response);
-      alert(`Success: ${payload.companyName} registered successfully!`);
+      if (editingCompanyId) {
+        await companyService.update(editingCompanyId, details);
+        alert(`Success: ${payload.companyName} updated successfully!`);
+      } else {
+        const response = await companyService.create(payload);
+        console.log("✅ Company registration response:", response);
+        alert(`Success: ${payload.companyName} registered successfully!`);
+      }
       if (viewType === 'companies') fetchData();
 
       setCompanyForm({
         companyName: "", tpinNumber: "", street: "", country: "", state: "", city: "",
         billingName: ""
       });
+      setEditingCompanyId(null);
       setCompanyModalOpen(false);
     } catch (error: any) {
       console.error("❌ Submission Error:", error);
@@ -199,6 +210,32 @@ export default function AdminClients() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // A draft left by closing "Register Company" is kept; one left by an edit is not.
+  const openCompanyCreate = () => {
+    if (editingCompanyId) {
+      setEditingCompanyId(null);
+      setCompanyForm({
+        companyName: "", tpinNumber: "", street: "", country: "", state: "", city: "",
+        billingName: ""
+      });
+    }
+    setCompanyModalOpen(true);
+  };
+
+  const openCompanyEdit = (company: any) => {
+    setEditingCompanyId(company._id);
+    setCompanyForm({
+      companyName: company.companyName || "",
+      tpinNumber: company.tpinNumber || "",
+      street: company.address?.street || "",
+      country: company.address?.country || "",
+      state: company.address?.state || "",
+      city: company.address?.city || "",
+      billingName: company.accounting?.billingName || "",
+    });
+    setCompanyModalOpen(true);
   };
 
   const handleAddClientClick = (company: any) => {
@@ -325,7 +362,7 @@ export default function AdminClients() {
 
             {viewType === 'companies' ? (
               <button
-                onClick={() => setCompanyModalOpen(true)}
+                onClick={openCompanyCreate}
                 className="bg-white text-slate-900 border border-neutral-200 px-5 py-2.5 rounded-xl font-semibold text-[10px] uppercase tracking-widest shadow-sm hover:bg-neutral-50 hover:border-neutral-300 transition-all w-fit flex items-center gap-2 cursor-pointer"
               >
                 <div className="p-0.5 rounded-md bg-neutral-100">
@@ -515,6 +552,13 @@ export default function AdminClients() {
                           </button>
                         )}
                         <button
+                          onClick={() => openCompanyEdit(item)}
+                          title={`Edit ${item.companyName || item.name}`}
+                          className="flex items-center justify-center px-3 py-2 rounded-lg bg-neutral-50 text-neutral-400 hover:text-primary hover:bg-primary/10 transition-all cursor-pointer"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                        <button
                           onClick={() => handleDeleteCompany(item)}
                           title={`Delete ${item.companyName || item.name}`}
                           className="flex items-center justify-center px-3 py-2 rounded-lg bg-neutral-50 text-neutral-300 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
@@ -545,7 +589,7 @@ export default function AdminClients() {
               <h3 className="text-slate-900 font-bold text-[15px]">No {viewType} Found</h3>
               <p className="text-neutral-400 text-[11px] max-w-[200px] mt-1">Start by adding your first {viewType === 'companies' ? 'business' : 'individual'} client.</p>
               <button
-                onClick={() => viewType === 'companies' ? setCompanyModalOpen(true) : setModalOpen(true)}
+                onClick={() => viewType === 'companies' ? openCompanyCreate() : setModalOpen(true)}
                 className="mt-6 px-6 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-slate-200 hover:brightness-110 transition-all"
               >
                 Add First {viewType === 'companies' ? 'Company' : 'Client'}
@@ -778,8 +822,8 @@ export default function AdminClients() {
                   <Building2 className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-[17px] font-semibold text-slate-900 tracking-tight">Register Company</h2>
-                  <p className="text-[11px] text-neutral-400 mt-0.5">Add a new company to the platform.</p>
+                  <h2 className="text-[17px] font-semibold text-slate-900 tracking-tight">{editingCompanyId ? "Edit Company" : "Register Company"}</h2>
+                  <p className="text-[11px] text-neutral-400 mt-0.5">{editingCompanyId ? "Update this company's details." : "Add a new company to the platform."}</p>
                 </div>
               </div>
               <button onClick={() => setCompanyModalOpen(false)} className="w-9 h-9 rounded-xl bg-neutral-50 flex items-center justify-center text-neutral-400 hover:text-slate-900 hover:bg-neutral-100 transition-all cursor-pointer">
@@ -879,7 +923,9 @@ export default function AdminClients() {
                 className={`flex-1 py-3 rounded-xl text-white text-[11px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-slate-200 cursor-pointer ${isSubmitting ? "bg-slate-400 cursor-not-allowed" : "bg-slate-900 hover:brightness-110"
                   }`}
               >
-                {isSubmitting ? "Registering..." : "Register Company"}
+                {editingCompanyId
+                  ? (isSubmitting ? "Saving..." : "Save Changes")
+                  : (isSubmitting ? "Registering..." : "Register Company")}
               </button>
             </div>
           </div>
