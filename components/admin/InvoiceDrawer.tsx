@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { X, Printer } from "lucide-react";
-import { formatDate } from "@/lib/datetime";
+import { formatDate, toAppDateKey } from "@/lib/datetime";
 import { assignmentService } from "@/services/assignmentService";
 import { bookingService } from "@/services/bookingService";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
@@ -26,17 +26,36 @@ const VAT_RATE = 0.16;
 const money = (n: number) =>
   Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 
+// The editable invoice fields as the booking holds them. Anyone can forget the
+// DN or the client's TPIN at the time, so the drawer edits a copy and writes back
+// only what changed. The date defaults to today until the invoice is raised.
+type InvoiceFields = { zraNo: string; dnNo: string; tpin: string; date: string };
+
+const savedFields = (b: InvoiceDrawerProps["booking"]): InvoiceFields => ({
+  zraNo: b?.zraInvoiceNo || "",
+  dnNo: (b?.deliveryOrders || []).filter(Boolean).join(", "),
+  // Kept on the booking once edited, so a reprint carries what was typed even if
+  // the company record still lacks it.
+  tpin: b?.invoiceTpin ?? (b?.clientId?.company?.tpinNumber || ""),
+  date: toAppDateKey(b?.invoiceDate || new Date()),
+});
+
 export default function InvoiceDrawer({ isOpen, onClose, booking, invoiceId }: InvoiceDrawerProps) {
   const [truckNo, setTruckNo] = useState("");
-  const [zraNo, setZraNo] = useState("");
-  const [isSavingZra, setIsSavingZra] = useState(false);
+  const [fields, setFields] = useState(() => savedFields(booking));
+  const [isSaving, setIsSaving] = useState(false);
 
   const bookingId = booking?._id;
+  const setField = (key: keyof InvoiceFields, value: string) => {
+    // An invoice always carries a date — clearing the picker keeps the last one.
+    if (key === "date" && !value) return;
+    setFields((f) => ({ ...f, [key]: value }));
+  };
 
   // The truck that ran the trip lives on the assignment, not the booking.
   useEffect(() => {
     if (!isOpen || !bookingId) return;
-    setZraNo(booking?.zraInvoiceNo || "");
+    setFields(savedFields(booking));
     let cancelled = false;
     (async () => {
       try {
@@ -56,7 +75,7 @@ export default function InvoiceDrawer({ isOpen, onClose, booking, invoiceId }: I
   // afterwards must not blank the document.
   const clientCompany =
     companyNameOf(booking) || clientNameOf(booking) || "Direct Client";
-  const clientTpin = (booking.clientId as any)?.company?.tpinNumber || "";
+  const clientTpin = fields.tpin.trim();
 
   const dropoffs: any[] = booking.dropoffLocations?.length
     ? booking.dropoffLocations
@@ -72,8 +91,9 @@ export default function InvoiceDrawer({ isOpen, onClose, booking, invoiceId }: I
   // The reference invoice writes "Various" when a load is not a single commodity.
   const commodity = goods.length === 0 ? "Various" : goods.length > 2 ? "Various" : goods.join(", ");
 
-  const dnNo = (booking.deliveryOrders || []).filter(Boolean).join(", ") || "—";
-  const dateStr = formatDate(booking.tripEndedAt || booking.cargoDetails?.loadingDate || booking.createdAt);
+  const dnNo = fields.dnNo.trim() || "—";
+  // The invoice is dated the day it is raised, not the day the trip ran.
+  const dateStr = formatDate(fields.date);
 
   const withTax = booking.withTax !== false;
   const subtotal = Number(booking.finalAmount || 0);
@@ -82,23 +102,34 @@ export default function InvoiceDrawer({ isOpen, onClose, booking, invoiceId }: I
 
   const invNo = invoiceId || booking.tripId || `INV-${booking._id?.slice(-6).toUpperCase()}`;
 
-  // Typed once, kept on the booking so a reprint carries the same number.
-  const saveZra = async () => {
-    const trimmed = zraNo.trim();
-    if (trimmed === (booking.zraInvoiceNo || "")) return;
-    setIsSavingZra(true);
+  // Typed once, kept on the booking so a reprint carries the same values. The
+  // date is only written when changed by hand, or by the first print — opening
+  // the drawer on Monday and printing on Wednesday must date it Wednesday.
+  const saveFields = async (stampDate = false) => {
+    const saved = savedFields(booking);
+    const patch: Record<string, unknown> = {};
+    if (fields.zraNo.trim() !== saved.zraNo) patch.zraInvoiceNo = fields.zraNo.trim();
+    if (fields.dnNo.trim() !== saved.dnNo) {
+      patch.deliveryOrders = fields.dnNo.split(",").map((s) => s.trim()).filter(Boolean);
+    }
+    if (fields.tpin.trim() !== saved.tpin) patch.invoiceTpin = fields.tpin.trim();
+    if (fields.date && (fields.date !== saved.date || (stampDate && !booking.invoiceDate))) {
+      patch.invoiceDate = fields.date;
+    }
+    if (!Object.keys(patch).length) return;
+    setIsSaving(true);
     try {
-      await bookingService.update(String(bookingId), { zraInvoiceNo: trimmed });
-      booking.zraInvoiceNo = trimmed;
+      await bookingService.update(String(bookingId), patch);
+      Object.assign(booking, patch);
     } catch (err) {
-      console.error("Could not save the ZRA invoice number:", err);
+      console.error("Could not save the invoice details:", err);
     } finally {
-      setIsSavingZra(false);
+      setIsSaving(false);
     }
   };
 
   const handlePrint = async () => {
-    await saveZra();
+    await saveFields(true);
     const w = window.open("", "_blank", "width=900,height=1100");
     if (!w) return;
     const cell = (v: string) => (v && v !== "—" ? v : "");
@@ -129,7 +160,7 @@ export default function InvoiceDrawer({ isOpen, onClose, booking, invoiceId }: I
             <tr><td class="title" colspan="6">${COMPANY.name}</td></tr>
             <tr>${'<td></td>'.repeat(6)}</tr>
             <tr><td class="sub" colspan="6">Tpin ${COMPANY.tpin}</td></tr>
-            <tr><td class="sub" colspan="6">Invoice details of ZRA invoice no ${cell(zraNo.trim())}</td></tr>
+            <tr><td class="sub" colspan="6">Invoice details of ZRA invoice no ${cell(fields.zraNo.trim())}</td></tr>
 
             <tr><td colspan="3"></td><td rowspan="2" class="c b">Delivery :-</td><td rowspan="2" class="c b">Mode of payment:-</td><td class="c b">Origin:</td></tr>
             <tr><td class="b" colspan="3">${clientCompany}</td><td></td></tr>
@@ -180,20 +211,30 @@ export default function InvoiceDrawer({ isOpen, onClose, booking, invoiceId }: I
           </button>
         </div>
 
-        {/* ZRA number — issued outside this system, so it is typed in here. */}
+        {/* ZRA number is issued outside this system; the rest can be corrected
+            here when they were missed at the time. Saved on blur. */}
         <div className="px-5 py-3 border-b border-neutral-100 bg-amber-50/40 shrink-0">
-          <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">ZRA Invoice No</label>
-          <div className="flex items-center gap-2 mt-1.5">
-            <input
-              type="text"
-              value={zraNo}
-              onChange={(e) => setZraNo(e.target.value)}
-              onBlur={saveZra}
-              placeholder="e.g. 000123456"
-              className="flex-1 bg-white border border-neutral-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-primary/40 transition-all"
-            />
-            {isSavingZra && <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Saving…</span>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-2.5">
+            {([
+              { key: "zraNo", label: "ZRA Invoice No", placeholder: "e.g. 000123456", type: "text" },
+              { key: "date", label: "Invoice Date", placeholder: "", type: "date" },
+              { key: "dnNo", label: "DN No", placeholder: "e.g. DO123, DO124", type: "text" },
+              { key: "tpin", label: "Client TPIN", placeholder: "e.g. 1000123456", type: "text" },
+            ] as const).map((f) => (
+              <div key={f.key}>
+                <label className="text-[9px] font-bold text-neutral-500 uppercase tracking-widest">{f.label}</label>
+                <input
+                  type={f.type}
+                  value={fields[f.key]}
+                  onChange={(e) => setField(f.key, e.target.value)}
+                  onBlur={() => saveFields()}
+                  placeholder={f.placeholder}
+                  className="mt-1.5 w-full bg-white border border-neutral-200 rounded-lg px-3 py-2 text-[12px] outline-none focus:border-primary/40 transition-all"
+                />
+              </div>
+            ))}
           </div>
+          {isSaving && <p className="mt-2 text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Saving…</p>}
         </div>
 
         <div className="flex-1 overflow-auto custom-scrollbar p-5">
@@ -206,7 +247,7 @@ export default function InvoiceDrawer({ isOpen, onClose, booking, invoiceId }: I
               <tr><Cell colSpan={6} className="!text-[18px] font-extrabold text-center">{COMPANY.name}</Cell></tr>
               <tr>{Array.from({ length: 6 }).map((_, i) => <Cell key={i} />)}</tr>
               <tr><Cell colSpan={6} className="!text-[13px] font-bold text-center">Tpin {COMPANY.tpin}</Cell></tr>
-              <tr><Cell colSpan={6} className="!text-[13px] font-bold text-center">Invoice details of ZRA invoice no {zraNo.trim()}</Cell></tr>
+              <tr><Cell colSpan={6} className="!text-[13px] font-bold text-center">Invoice details of ZRA invoice no {fields.zraNo.trim()}</Cell></tr>
 
               <tr>
                 <Cell colSpan={3} />
