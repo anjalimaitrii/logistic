@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
+import DateRangeFilter from "@/components/admin/DateRangeFilter";
 import {
   Package,
   Clock,
@@ -25,6 +26,7 @@ import EditJobDrawer from "@/components/admin/EditJobDrawer";
 import { isTripCompleted } from "@/lib/tripCompletion";
 import { isLastOffloading, stopCounts } from "@/lib/tripStage";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
+import { formatDate, inDateRange } from "@/lib/datetime";
 
 export default function AdminJobsPage() {
   const router = useRouter();
@@ -34,6 +36,9 @@ export default function AdminJobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
+  // Created-date range (YYYY-MM-DD), each end optional.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [isEditDrawerOpen, setIsEditDrawerOpen] = useState(false);
   const [gpsStatusMap, setGpsStatusMap] = useState<Record<string, string>>({});
@@ -183,7 +188,8 @@ export default function AdminJobsPage() {
       String(assignmentFor(b)?.truckNumber || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCompany = companyFilter === "all" || companyNameOf(b) === companyFilter;
     const matchesClient = clientFilter === "all" || clientNameOf(b) === clientFilter;
-    return matchesSearch && matchesCompany && matchesClient;
+    const matchesDate = inDateRange(b.createdAt || b.metadata?.createdAt, dateFrom, dateTo);
+    return matchesSearch && matchesCompany && matchesClient && matchesDate;
   });
 
   const jobsData = filteredBookings.map(b => {
@@ -206,6 +212,7 @@ export default function AdminJobsPage() {
       status: getStatusType(effectiveStatus),
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Assign Driver",
       truck: truckNo || "Unassigned",
+      date: formatDate(b?.createdAt || b?.metadata?.createdAt) || "—",
       route,
       gpsStatus,
       isComplete,
@@ -307,6 +314,12 @@ export default function AdminJobsPage() {
           </div>
         );
       }
+    },
+    {
+      // The day the booking was created.
+      label: "DATE",
+      key: "date",
+      render: (val: string) => <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">{val}</span>
     },
     {
       label: "CLIENT",
@@ -531,6 +544,7 @@ export default function AdminJobsPage() {
                 <option value="all">All Clients</option>
                 {uniqueClients.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+              <DateRangeFilter from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
               <div className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-emerald-100 flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 {displayedData.length} Result{displayedData.length !== 1 ? 's' : ''}

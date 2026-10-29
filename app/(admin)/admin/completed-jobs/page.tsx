@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
+import DateRangeFilter from "@/components/admin/DateRangeFilter";
 import {
   Package,
   CheckSquare,
@@ -21,6 +22,7 @@ import InvoiceDrawer from "@/components/admin/InvoiceDrawer";
 import ReceivePaymentDrawer from "@/components/admin/ReceivePaymentDrawer";
 import { isTripCompleted } from "@/lib/tripCompletion";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
+import { formatDate, inDateRange } from "@/lib/datetime";
 import { getAdminAccountType, type AdminAccountType } from "@/lib/adminRole";
 
 export default function AdminCompletedJobsPage() {
@@ -31,6 +33,9 @@ export default function AdminCompletedJobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
+  // Created-date range (YYYY-MM-DD), each end optional.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   // bookingId → new completion id (inv-001 / cash-001) shown once the trip completes
   const [newIdByBooking, setNewIdByBooking] = useState<Record<string, string>>({});
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
@@ -135,7 +140,8 @@ export default function AdminCompletedJobsPage() {
       String(assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id)?.truckNumber || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCompany = companyFilter === "all" || companyNameOf(b) === companyFilter;
     const matchesClient = clientFilter === "all" || clientNameOf(b) === clientFilter;
-    return matchesSearch && matchesCompany && matchesClient;
+    const matchesDate = inDateRange(b.createdAt || b.metadata?.createdAt, dateFrom, dateTo);
+    return matchesSearch && matchesCompany && matchesClient && matchesDate;
   });
 
   const jobsData = filteredBookings.map(b => {
@@ -153,9 +159,12 @@ export default function AdminCompletedJobsPage() {
       id: newIdByBooking[b?._id] || b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
       client: clientNameOf(b, "Direct Client"),
       companyName: companyNameOf(b, "Direct Booking"),
+      // Same TPIN the invoice prints: one typed on the invoice wins over the company's.
+      tpin: (b?.invoiceTpin ?? b?.clientId?.company?.tpinNumber ?? "").trim(),
       status: getStatusType(effectiveStatus),
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Assign Driver",
       truck: String(assignment?.truckNumber || "").toUpperCase() || "Unassigned",
+      date: formatDate(b?.createdAt || b?.metadata?.createdAt) || "—",
       route,
       isComplete,
       // Payment is "finalized" once a final amount has been set on the booking
@@ -182,6 +191,12 @@ export default function AdminCompletedJobsPage() {
       )
     },
     {
+      // The day the booking was created.
+      label: "DATE",
+      key: "date",
+      render: (val: string) => <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">{val}</span>
+    },
+    {
       label: "CLIENT",
       key: "client",
       render: (val: string, row: any) => (
@@ -192,6 +207,13 @@ export default function AdminCompletedJobsPage() {
           <span className="text-[12px] font-bold text-slate-700">{val}</span>
         </div>
       )
+    },
+    {
+      label: "TPIN",
+      key: "tpin",
+      render: (val: string) => val
+        ? <span className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">{val}</span>
+        : <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Missing</span>
     },
     {
       label: "STATUS",
@@ -389,6 +411,7 @@ export default function AdminCompletedJobsPage() {
                 <option value="all">All Clients</option>
                 {uniqueClients.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+              <DateRangeFilter from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
               <div className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-emerald-100 flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 {displayedData.length} Result{displayedData.length !== 1 ? 's' : ''}

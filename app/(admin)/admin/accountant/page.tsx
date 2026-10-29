@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import AdminLayout from "@/components/admin/AdminLayout";
 import StatCard from "@/components/admin/StatCard";
 import CommonTable from "@/components/admin/CommonTable";
+import DateRangeFilter from "@/components/admin/DateRangeFilter";
 import {
   Wallet,
   Clock,
@@ -22,6 +23,7 @@ import { settlementService } from "@/services/settlementService";
 import { isTripCompleted } from "@/lib/tripCompletion";
 import { tripGapService } from "@/services/tripGapService";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
+import { formatDate, inDateRange } from "@/lib/datetime";
 
 export default function AdminAccountant() {
   const router = useRouter();
@@ -30,6 +32,9 @@ export default function AdminAccountant() {
   const [searchQuery, setSearchQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
+  // Created-date range (YYYY-MM-DD), each end optional.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     loadBookings();
@@ -158,7 +163,8 @@ export default function AdminAccountant() {
       String(assignments.find(a => (a.bookingId?._id || a.bookingId) === b._id)?.truckNumber || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCompany = companyFilter === "all" || companyNameOf(b) === companyFilter;
     const matchesClient = clientFilter === "all" || clientNameOf(b) === clientFilter;
-    return matchesSearch && matchesCompany && matchesClient;
+    const matchesDate = inDateRange(b.createdAt || b.metadata?.createdAt, dateFrom, dateTo);
+    return matchesSearch && matchesCompany && matchesClient && matchesDate;
   });
 
   const tableData = filteredBookings.map(b => {
@@ -172,6 +178,7 @@ export default function AdminAccountant() {
       id: b.tripId || `#TRIP-${b._id.substring(b._id.length - 4).toUpperCase()}`,
       companyName: companyNameOf(b, "Direct Booking"),
       clientName: clientNameOf(b, "N/A"),
+      date: formatDate(b.createdAt || b.metadata?.createdAt) || "—",
       route: routeStops.length ? routeStops : ["N/A"],
       status: isApproved ? "Approved" : "Assigned",
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Unassigned",
@@ -196,6 +203,12 @@ export default function AdminAccountant() {
           )}
         </div>
       ),
+    },
+    {
+      // The day the booking was created.
+      label: "Date",
+      key: "date",
+      render: (val: string) => <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">{val}</span>
     },
     {
       label: "Company & Client",
@@ -342,6 +355,7 @@ export default function AdminAccountant() {
                   <option value="all">All Clients</option>
                   {uniqueClients.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
+                <DateRangeFilter from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
                 <div className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-emerald-100 flex items-center gap-2">
                   <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   {filteredBookings.length} Result{filteredBookings.length !== 1 ? 's' : ''}

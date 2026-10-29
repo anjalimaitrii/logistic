@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import AdminLayout from "@/components/admin/AdminLayout";
 import CommonTable from "@/components/admin/CommonTable";
+import DateRangeFilter from "@/components/admin/DateRangeFilter";
 import BookingChatPanel from "@/components/admin/BookingChatPanel";
-import { formatDate } from "@/lib/datetime";
+import { formatDate, inDateRange } from "@/lib/datetime";
 import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
 import { MessageSquare, CheckCircle, ChevronRight, Package, Search, Pencil, Trash2 } from "lucide-react";
 import StatCard from "@/components/admin/StatCard";
@@ -28,6 +29,9 @@ export default function BookingRequestsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
+  // Created-date range (YYYY-MM-DD), each end optional.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   useEffect(() => {
     loadRequests();
@@ -151,7 +155,8 @@ export default function BookingRequestsPage() {
       dropoffCity?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCompany = companyFilter === "all" || companyNameOf(req) === companyFilter;
     const matchesClient = clientFilter === "all" || clientNameOf(req) === clientFilter;
-    return matchesSearch && matchesCompany && matchesClient;
+    const matchesDate = inDateRange(req.createdAt || req.metadata?.createdAt, dateFrom, dateTo);
+    return matchesSearch && matchesCompany && matchesClient && matchesDate;
   });
 
   const tableData = filteredRequests.map(req => ({
@@ -172,6 +177,12 @@ export default function BookingRequestsPage() {
       label: "Job ID",
       key: "id",
       render: (val: string) => <span className="text-[12px] font-semibold text-primary tracking-tight">{val}</span>
+    },
+    {
+      // The day the booking was created.
+      label: "Date",
+      key: "date",
+      render: (val: string) => <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">{val}</span>
     },
     {
       label: "Customer",
@@ -376,6 +387,7 @@ export default function BookingRequestsPage() {
                 <option value="all">All Clients</option>
                 {uniqueClients.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+              <DateRangeFilter from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
               <div className="bg-blue-50 text-blue-600 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-blue-100 flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
                 {filteredRequests.length} Result{filteredRequests.length !== 1 ? 's' : ''}

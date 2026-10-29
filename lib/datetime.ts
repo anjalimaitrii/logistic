@@ -33,6 +33,18 @@ export const toAppDateKey = (input: DateInput): string => {
   return d.toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE });
 };
 
+/**
+ * Whether a date falls on or between two YYYY-MM-DD days (CAT), both ends
+ * included. An empty end is open; ends given the wrong way round are swapped.
+ */
+export const inDateRange = (input: DateInput, from: string, to: string): boolean => {
+  if (!from && !to) return true;
+  const key = toAppDateKey(input);
+  if (!key) return false;
+  const [lo, hi] = from && to && from > to ? [to, from] : [from, to];
+  return (!lo || key >= lo) && (!hi || key <= hi);
+};
+
 /** Today's date as YYYY-MM-DD in app timezone (CAT). */
 export const todayAppDateKey = (): string =>
   new Date().toLocaleDateString("en-CA", { timeZone: APP_TIME_ZONE });
