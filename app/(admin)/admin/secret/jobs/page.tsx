@@ -249,6 +249,7 @@ export default function SecretJobsPage() {
 
       {/* Table */}
       <CommonTable
+        pageSize={10}
         title="Completed Trips Ledger"
         icon="🔐"
         columns={columns}

@@ -301,6 +301,7 @@ export default function TruckProfilePage() {
 
             {/* Operational Route Log */}
             <CommonTable
+               pageSize={10}
                title="Asset Utilization Log"
                icon="🚐"
                columns={columns}

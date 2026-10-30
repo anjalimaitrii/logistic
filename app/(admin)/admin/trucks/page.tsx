@@ -400,6 +400,7 @@ export default function AdminTrucks() {
         </div>
 
         <CommonTable
+          pageSize={10}
           icon="🚛"
           columns={columns}
           title={searchQuery.trim() ? `Fleet Inventory · ${tableData.length} of ${allRows.length}` : "Fleet Inventory"}

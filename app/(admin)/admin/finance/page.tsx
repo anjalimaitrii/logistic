@@ -146,6 +146,7 @@ export default function FinancePage() {
           {/* Recent Transactions Table Area */}
           <div className="lg:col-span-2">
             <CommonTable
+              pageSize={10}
               title="Recent Transactions"
               icon="💳"
               columns={columns}

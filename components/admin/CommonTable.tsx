@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+
 interface Column {
   label: string;
   key: string;
@@ -16,9 +19,38 @@ interface CommonTableProps {
   action?: React.ReactNode;
   emptyState?: React.ReactNode;
   isLoading?: boolean;
+  // Rows per page. Left out, every row shows at once, as before.
+  pageSize?: number;
 }
 
-export default function CommonTable({ columns, data, onRowClick, title, icon, action, emptyState, isLoading }: CommonTableProps) {
+// Page numbers to show: the first, the last, and two either side of the current
+// one, with null marking a gap.
+function pageList(current: number, total: number): (number | null)[] {
+  const pages: (number | null)[] = [];
+  for (let p = 1; p <= total; p++) {
+    if (p === 1 || p === total || Math.abs(p - current) <= 2) pages.push(p);
+    else if (pages[pages.length - 1] !== null) pages.push(null);
+  }
+  return pages;
+}
+
+export default function CommonTable({ columns, data, onRowClick, title, icon, action, emptyState, isLoading, pageSize }: CommonTableProps) {
+  const [page, setPage] = useState(1);
+  // `pageSize` is the starting size; the footer lets the reader change it.
+  const [perPage, setPerPage] = useState(pageSize || 0);
+  const pageCount = perPage ? Math.max(1, Math.ceil(data.length / perPage)) : 1;
+
+  // A new filter or search changes the row count — start again from page one.
+  const [rowCount, setRowCount] = useState(data.length);
+  if (rowCount !== data.length) {
+    setRowCount(data.length);
+    setPage(1);
+  }
+
+  const current = Math.min(page, pageCount);
+  const rows = perPage ? data.slice((current - 1) * perPage, current * perPage) : data;
+  const first = data.length ? (current - 1) * perPage + 1 : 0;
+
   return (
     <div className="bg-white border border-neutral-100 rounded-2xl overflow-hidden shadow-sm">
       {(title || icon || action) && (
@@ -55,8 +87,8 @@ export default function CommonTable({ columns, data, onRowClick, title, icon, ac
                   </div>
                 </td>
               </tr>
-            ) : data.length > 0 ? (
-              data.map((row, i) => (
+            ) : rows.length > 0 ? (
+              rows.map((row, i) => (
                 <tr
                   key={i}
                   className={`hover:bg-neutral-50/40 transition-colors group ${onRowClick ? "cursor-pointer" : ""}`}
@@ -79,6 +111,63 @@ export default function CommonTable({ columns, data, onRowClick, title, icon, ac
           </tbody>
         </table>
       </div>
+
+      {!!pageSize && !isLoading && data.length > 0 && (
+        <div className="px-5 py-3 border-t border-neutral-100 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+              Showing {first}–{first + rows.length - 1} of {data.length}
+            </span>
+            <label className="flex items-center gap-1.5 text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+              Rows
+              <select
+                value={perPage}
+                onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}
+                className="px-2 py-1 bg-slate-50 border border-slate-100 rounded-lg text-[11px] font-bold text-slate-600 focus:outline-none cursor-pointer"
+              >
+                {[...new Set([5, 10, 25, 50, pageSize])].sort((a, b) => a - b).map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {pageCount > 1 && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage(current - 1)}
+              disabled={current === 1}
+              title="Previous page"
+              className="w-7 h-7 flex items-center justify-center rounded-lg border border-neutral-100 text-slate-500 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            {pageList(current, pageCount).map((p, i) =>
+              p === null ? (
+                <span key={`gap-${i}`} className="w-7 text-center text-[11px] text-neutral-300">…</span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`min-w-7 h-7 px-2 rounded-lg text-[11px] font-bold transition-all ${
+                    p === current ? "bg-slate-900 text-white" : "border border-neutral-100 text-slate-600 hover:bg-neutral-50"
+                  }`}
+                >
+                  {p}
+                </button>
+              )
+            )}
+            <button
+              onClick={() => setPage(current + 1)}
+              disabled={current === pageCount}
+              title="Next page"
+              className="w-7 h-7 flex items-center justify-center rounded-lg border border-neutral-100 text-slate-500 hover:bg-neutral-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

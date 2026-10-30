@@ -355,6 +355,7 @@ export default function BookingRequestsPage() {
         </div>
 
         <CommonTable
+          pageSize={10}
           title="Recent Submissions"
           icon="📩"
           columns={columns}

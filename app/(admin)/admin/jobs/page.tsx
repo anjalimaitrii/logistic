@@ -511,6 +511,7 @@ export default function AdminJobsPage() {
         </div>
 
         <CommonTable
+          pageSize={10}
           title="Active Trips"
           icon={<Package className="w-4 h-4 text-orange-500" />}
           columns={columns}

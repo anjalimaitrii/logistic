@@ -243,6 +243,7 @@ export default function AdminDrivers() {
         </div>
 
         <CommonTable
+          pageSize={10}
           title="Staff Directory"
           icon="👥"
           columns={columns}

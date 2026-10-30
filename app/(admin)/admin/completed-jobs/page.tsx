@@ -463,6 +463,7 @@ export default function AdminCompletedJobsPage() {
           icon={<CheckSquare className="w-4 h-4 text-emerald-500" />}
           columns={columns}
           data={isLoading ? [] : displayedData}
+          pageSize={10}
           action={
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative group">

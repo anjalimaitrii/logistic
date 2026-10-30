@@ -297,6 +297,7 @@ export default function SecretDashboard() {
 
         {/* Pending Special Jobs — finalize the deal here */}
         <CommonTable
+          pageSize={10}
           title="Pending Special Jobs"
           icon="🔐"
           columns={columns}

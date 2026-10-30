@@ -301,6 +301,7 @@ export default function AdminOperations() {
 
         {/* Active Jobs Table */}
         <CommonTable
+          pageSize={10}
           title="Operation Ready Jobs"
           icon="📦"
           columns={columns}

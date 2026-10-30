@@ -324,6 +324,7 @@ export default function AdminAccountant() {
         {/* Table View */}
         <div className="block">
           <CommonTable
+            pageSize={10}
             title="Assigned Trip Ledger"
             icon="💳"
             isLoading={isLoading}

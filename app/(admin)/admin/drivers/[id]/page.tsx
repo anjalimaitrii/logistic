@@ -237,6 +237,7 @@ export default function DriverProfilePage() {
 
         {/* History Ledger */}
         <CommonTable 
+          pageSize={10}
           title="Trip History Ledger" 
           icon="📋" 
           columns={columns}
