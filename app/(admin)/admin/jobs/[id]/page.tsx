@@ -41,7 +41,7 @@ import { uploadService } from "@/services/uploadService";
 import React from "react";
 import { TYRE_POSITIONS, TYRE_CONDITIONS } from "@/lib/tyrePositions";
 import { truckService } from "@/services/truckService";
-import { isLastOffloading, stopCounts } from "@/lib/tripStage";
+import { isLastOffloading, stopCounts, statusLabel } from "@/lib/tripStage";
 
 function formatCAT(dateStr: string): string {
   try {
@@ -882,7 +882,7 @@ export default function JobDetailReport() {
                     jobInfo?.status === "CANCELLED" ? "bg-rose-50 text-rose-500 border-rose-100" :
                       "bg-neutral-50 text-neutral-400 border-neutral-100"
                 }`}>
-                {statusChipLabel(jobInfo?.status)}
+                {statusLabel(statusChipLabel(jobInfo?.status))}
               </div>
               {!booking?.tripStatus && booking?.status !== "cancelled" && (
                 <button
@@ -1552,7 +1552,7 @@ export default function JobDetailReport() {
                               />
                               <Btn
                                 id={multi ? `OFFLOADING_${i + 1}` : "OFFLOADING"}
-                                label={multi ? `${l} · Offload` : "Offloading"}
+                                label={multi ? `${l} · Offloaded` : "Offloaded"}
                                 icon={<ArrowDownCircle className="w-4 h-4" />}
                                 city={multi ? undefined : loc?.address?.city}
                               />

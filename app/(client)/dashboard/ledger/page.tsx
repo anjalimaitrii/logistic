@@ -19,7 +19,8 @@ import { ClientSidebarNavigation } from "@/components/client/ClientSidebarNaviga
 import { ClientMobileNav } from "@/components/client/ClientMobileNav";
 import { bookingService } from "@/services/bookingService";
 import ClientNotificationBell from "@/components/client/ClientNotificationBell";
-import { formatDate } from "@/lib/datetime";
+import { formatDate, inDateRange } from "@/lib/datetime";
+import DateRangeFilter from "@/components/admin/DateRangeFilter";
 import { clientNameOf } from "@/lib/bookingParty";
 
 export default function ClientLedgerPage() {
@@ -30,6 +31,15 @@ export default function ClientLedgerPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [periodFilter, setPeriodFilter] = useState<"daily" | "monthly">("monthly");
+  // A chosen date range (YYYY-MM-DD, each end optional) takes the place of Daily / Monthly.
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const usingRange = !!(dateFrom || dateTo);
+  const choosePeriod = (p: "daily" | "monthly") => {
+    setPeriodFilter(p);
+    setDateFrom("");
+    setDateTo("");
+  };
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
   useEffect(() => {
@@ -63,8 +73,12 @@ export default function ClientLedgerPage() {
   };
   const nowKey = catKey(new Date(), periodFilter);
 
-  // Bookings within the selected period (Daily / Monthly) — drives both stats and table
-  const periodBookings = bookings.filter(b => catKey(b.createdAt, periodFilter) === nowKey);
+  // Within the chosen date range, or else the current day / month.
+  const inPeriod = (b: any) =>
+    usingRange ? inDateRange(b.createdAt, dateFrom, dateTo) : catKey(b.createdAt, periodFilter) === nowKey;
+
+  // Bookings within the selected period — drives both stats and table
+  const periodBookings = bookings.filter(inPeriod);
 
   // Financial Stats — for the selected period
   const stats = {
@@ -86,7 +100,7 @@ export default function ClientLedgerPage() {
     const matchesStatus = statusFilter === "all"
       || (statusFilter === "due"     && hasAmount && bal > 0)
       || (statusFilter === "settled" && hasAmount && bal <= 0);
-    const matchesPeriod = catKey(b.createdAt, periodFilter) === nowKey;
+    const matchesPeriod = inPeriod(b);
     return matchesSearch && matchesStatus && matchesPeriod;
   });
 
@@ -138,7 +152,7 @@ export default function ClientLedgerPage() {
           </div>
         </header>
 
-        <div className="max-w-6xl mx-auto">
+        <div className="w-full">
           {/* Header */}
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
             <div className="space-y-1.5">
@@ -151,15 +165,15 @@ export default function ClientLedgerPage() {
               <p className="text-[11px] text-neutral-400 font-medium">Track your shipment expenses and payment history.</p>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="bg-white border border-neutral-100 rounded-xl p-1 flex items-center gap-1 shadow-sm">
                 <button
-                  onClick={() => setPeriodFilter("daily")}
-                  className={`px-4 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all ${periodFilter === "daily" ? "bg-slate-900 text-white" : "text-neutral-400 hover:text-slate-600"}`}
+                  onClick={() => choosePeriod("daily")}
+                  className={`px-4 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all ${!usingRange && periodFilter === "daily" ? "bg-slate-900 text-white" : "text-neutral-400 hover:text-slate-600"}`}
                 >Daily</button>
                 <button
-                  onClick={() => setPeriodFilter("monthly")}
-                  className={`px-4 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all ${periodFilter === "monthly" ? "bg-slate-900 text-white" : "text-neutral-400 hover:text-slate-600"}`}
+                  onClick={() => choosePeriod("monthly")}
+                  className={`px-4 py-1.5 rounded-lg text-[9px] font-bold uppercase tracking-widest transition-all ${!usingRange && periodFilter === "monthly" ? "bg-slate-900 text-white" : "text-neutral-400 hover:text-slate-600"}`}
                 >Monthly</button>
               </div>
             </div>
@@ -227,6 +241,7 @@ export default function ClientLedgerPage() {
                     </button>
                   ))}
                 </div>
+                <DateRangeFilter from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
               </div>
             </div>
 

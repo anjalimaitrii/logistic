@@ -25,6 +25,19 @@ export function isLastOffloading(
   return ts === (multi ? `offloading_${dropoffCount}` : "offloading");
 }
 
+/**
+ * A trip or driver status as people read it. The stored value names the step
+ * ("offloading"), but it is only recorded once the cargo is off, so on screen
+ * it reads "offloaded". Display only — the stored value never changes, since
+ * the backend and the driver app both key off it. Keeps the input's case and
+ * any stop suffix: "OFFLOADING_2" → "OFFLOADED_2".
+ */
+export function statusLabel(status?: string): string {
+  return String(status || "").replace(/offloading/gi, (m) =>
+    m === m.toUpperCase() ? "OFFLOADED" : m[0] === "O" ? "Offloaded" : "offloaded"
+  );
+}
+
 /** Counts straight off a booking, defaulting to the single-stop shape. */
 export function stopCounts(booking: any): { pickups: number; dropoffs: number } {
   return {

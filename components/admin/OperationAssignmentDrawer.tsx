@@ -36,6 +36,7 @@ import { assignmentService } from "@/services/assignmentService";
 import { truckService } from "@/services/truckService";
 import { cleanDriverName } from "@/services/liveTrackingService";
 import { useNotifications } from "@/context/NotificationContext";
+import { statusLabel } from "@/lib/tripStage";
 
 interface OperationAssignmentDrawerProps {
   isOpen: boolean;
@@ -414,7 +415,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                                 <optgroup label="── Available ──">
                                   {availableDrivers.map((d) => (
                                     <option key={d._id} value={d._id}>
-                                      {complianceDot(d.assignedTruck?.complianceDocs)} {cleanDriverName(d.name)} · {d.assignedTruck?.truckId || "No Truck"}{d.driverStatus === "returning" ? " — RETURNING" : d.driverStatus === "offloading" ? " — OFFLOADING" : ""}
+                                      {complianceDot(d.assignedTruck?.complianceDocs)} {cleanDriverName(d.name)} · {d.assignedTruck?.truckId || "No Truck"}{d.driverStatus === "returning" ? " — RETURNING" : d.driverStatus === "offloading" ? " — OFFLOADED" : ""}
                                     </option>
                                   ))}
                                 </optgroup>
@@ -498,7 +499,7 @@ export default function OperationAssignmentDrawer({ isOpen, onClose, job, onSubm
                                   <div className="flex items-start gap-1.5 px-2 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
                                     <div className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse shrink-0 mt-1" />
                                     <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wide leading-relaxed">
-                                      Driver {formData.driverStatus} — this job will be queued, and the current
+                                      Driver {statusLabel(formData.driverStatus)} — this job will be queued, and the current
                                       trip will end at this job&apos;s pickup point instead of the warehouse
                                     </span>
                                   </div>

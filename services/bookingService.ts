@@ -102,6 +102,11 @@ export const bookingService = {
     });
   },
 
+  /** Proof-of-delivery files with short-lived links that open (the bucket is private). */
+  getAttachments: async (id: string): Promise<{ files: { name: string; type: string; size: number; url: string }[] }> => {
+    return await fetchApi(`/api/bookings/${id}/attachments`);
+  },
+
   /** Put trips of one company on a single combined invoice. */
   groupInvoice: async (bookingIds: string[]): Promise<{ invoiceGroupId: string }> => {
     return await fetchApi('/api/bookings/invoice-group', {

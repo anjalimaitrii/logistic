@@ -7,7 +7,6 @@ import { ClientMobileNav } from "@/components/client/ClientMobileNav";
 import { canChatForTrip } from "@/lib/chatAvailability";
 import {
    Search,
-   Filter,
    MessageSquare,
    Eye,
    TrendingUp,
@@ -16,24 +15,33 @@ import {
    ChevronRight,
    X,
    MapPin,
-   Plus
+   Plus,
+   FileText
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { bookingService } from "@/services/bookingService";
 import ClientNotificationBell from "@/components/client/ClientNotificationBell";
 import { useClientNotifications } from "@/context/ClientNotificationContext";
-import { formatDate, todayAppDateKey } from "@/lib/datetime";
+import { formatDate, inDateRange } from "@/lib/datetime";
+import DateRangeFilter from "@/components/admin/DateRangeFilter";
 import { clientNameOf } from "@/lib/bookingParty";
+import { statusLabel } from "@/lib/tripStage";
+
+// A multi-stop trip reports "offloading_2"; its colour is the step's, whatever the stop.
+const stepOf = (type: string) => (type || "").toLowerCase().replace(/_\d+$/, "");
 
 const getStatusStyles = (type: string) => {
-   switch (type?.toLowerCase()) {
+   switch (stepOf(type)) {
+      case "offloading": return "bg-orange-50 text-orange-600 border-orange-100";
       case "transit":
       case "active":     return "bg-indigo-50 text-indigo-600 border-indigo-100";
       case "accepted":   return "bg-blue-50 text-blue-600 border-blue-100";
       case "finalized":  return "bg-violet-50 text-violet-600 border-violet-100";
-      case "delivered":
+      case "delivered":  return "bg-sky-50 text-sky-600 border-sky-100";
+      case "paid":
       case "completed":  return "bg-emerald-50 text-emerald-600 border-emerald-100";
+      case "payment due":
       case "pending":    return "bg-amber-50 text-amber-600 border-amber-100";
       case "rejected":   return "bg-rose-50 text-rose-600 border-rose-100";
       default:           return "bg-slate-50 text-slate-500 border-slate-100";
@@ -41,22 +49,185 @@ const getStatusStyles = (type: string) => {
 };
 
 const getDotColor = (type: string) => {
-   switch (type?.toLowerCase()) {
+   switch (stepOf(type)) {
+      case "offloading": return "bg-orange-500";
       case "transit":
       case "active":    return "bg-indigo-500 animate-pulse";
       case "accepted":  return "bg-blue-500";
       case "finalized": return "bg-violet-500";
-      case "delivered":
+      case "delivered": return "bg-sky-500";
       case "completed": return "bg-emerald-500";
       case "pending":   return "bg-amber-500";
       default:          return "bg-rose-500";
    }
 };
 
+// What each status means, in a sentence — so a client is not left decoding
+// "offloaded" or "repositioning". Keyed by the step, without any stop number.
+const STATUS_HINTS: Record<string, string> = {
+   pending:       "Booking received — waiting to be confirmed.",
+   accepted:      "Booking accepted — the price is being finalised.",
+   active:        "Booking confirmed — a truck is being arranged.",
+   finalized:     "Price agreed — a truck will be assigned to this trip.",
+   paid:          "Paid in full.",
+   started:       "Trip started — the truck is heading to the pickup point.",
+   arrived:       "The truck has reached the pickup point.",
+   loading:       "Your cargo is being loaded onto the truck.",
+   departed:      "Loaded — the truck is on its way to the delivery point.",
+   transit:       "On the way to the delivery point.",
+   reached:       "The truck has reached the delivery point.",
+   offloading:    "Your cargo has been offloaded at the delivery point.",
+   returning:     "Delivery done — the truck has left and is heading back to the yard.",
+   repositioning: "Delivery done — the truck has left for its next job.",
+   delivered:     "Delivered — the invoice is still to be raised.",
+   completed:     "Completed — delivered and invoiced.",
+   rejected:      "This booking was declined.",
+   cancelled:     "This booking was cancelled.",
+};
+
+// A multi-stop trip says which stop: pickups for the loading side, drops for the delivery side.
+const statusHint = (status: string): string => {
+   const [, step = "", n] = (status || "").toLowerCase().match(/^(.*?)(?:_(\d+))?$/) || [];
+   const hint = STATUS_HINTS[step] || "";
+   if (!hint || !n) return hint;
+   const where = ["arrived", "loading", "departed"].includes(step) ? `pickup ${n}`
+      : ["reached", "offloading"].includes(step) ? `drop ${n}` : "";
+   return where ? `${hint} (${where})` : hint;
+};
+
+// The trip status chip, explained on hover.
+function StatusBadge({ status }: { status: string }) {
+   const hint = statusHint(status);
+   return (
+      <span className="relative group inline-flex">
+         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(status)} ${hint ? "cursor-help" : ""}`}>
+            <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${getDotColor(status)}`} />
+            {statusLabel(status)}
+         </span>
+         {hint && (
+            <span
+               role="tooltip"
+               className="absolute bottom-full left-0 mb-1.5 hidden group-hover:block z-50 w-max max-w-[220px] bg-slate-900 text-white text-[10px] font-medium leading-snug px-2.5 py-1.5 rounded-lg shadow-xl pointer-events-none"
+            >
+               {hint}
+            </span>
+         )}
+      </span>
+   );
+}
+
+// For the client a trip is complete once it is invoiced, not the moment the
+// truck is empty: until the invoice is printed it reads "delivered" — the cargo
+// is in, the bill is not.
+const clientTripStatus = (b: any): string => {
+   const ts = (b?.tripStatus || "").toLowerCase();
+   if (ts === "completed" || ts === "delivered") {
+      return b?.invoicedAt || b?.invoiceGroupId ? "completed" : "delivered";
+   }
+   return b?.tripStatus || b?.status || "pending";
+};
+
+// The trip-stage filter, in the client's terms: "delivered" is still waiting on
+// its invoice, "completed" has it.
+const CLIENT_STAGES = {
+   "not-started": { label: "Not Started", test: (b: any) => !b?.tripStatus },
+   ongoing:       { label: "Ongoing",     test: (b: any) => !!b?.tripStatus && !["completed", "delivered"].includes(clientTripStatus(b)) },
+   delivered:     { label: "Delivered",   test: (b: any) => clientTripStatus(b) === "delivered" },
+   completed:     { label: "Completed",   test: (b: any) => clientTripStatus(b) === "completed" },
+};
+
 const getLabel = (idx: number, offset = 0) => String.fromCharCode(65 + offset + idx);
 
 // ── Booking detail modal — defined outside to prevent focus loss ──
 interface ModalProps { booking: any; onClose: () => void; }
+
+// What a trip's proof of delivery is made of: the photos and receipts uploaded
+// when the cargo came off, and the delivery note numbers recorded with them.
+const podFiles = (b: any): any[] => (b?.attachments || []).filter((f: any) => f?.url);
+const podNotes = (b: any): string[] => (b?.deliveryOrders || []).filter(Boolean);
+
+// ── Proof of delivery viewer ──
+function PodModal({ booking, onClose }: ModalProps) {
+   const notes = podNotes(booking);
+   // The stored links do not open — the bucket is private — so the files are
+   // fetched with signed links each time the viewer opens.
+   const [files, setFiles] = useState<any[] | null>(null);
+   const [loadError, setLoadError] = useState(false);
+   useEffect(() => {
+      let cancelled = false;
+      bookingService.getAttachments(String(booking._id))
+         .then((r) => { if (!cancelled) setFiles(r.files || []); })
+         .catch(() => { if (!cancelled) { setFiles([]); setLoadError(true); } });
+      return () => { cancelled = true; };
+   }, [booking._id]);
+
+   return (
+      <div className="fixed inset-0 z-600 flex items-center justify-center p-4">
+         <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />
+
+         <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
+         >
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+               <div>
+                  <h2 className="text-[14px] font-semibold text-slate-900 uppercase tracking-widest">Proof of Delivery</h2>
+                  <p className="text-[10px] text-slate-400 mt-0.5">{booking.tripId || ""}</p>
+               </div>
+               <button
+                  onClick={onClose}
+                  className="p-2 rounded-full bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-all"
+               >
+                  <X className="w-4 h-4" />
+               </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
+               {notes.length > 0 && (
+                  <div className="bg-slate-50 rounded-2xl p-4">
+                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Delivery Note No</p>
+                     <p className="text-[13px] font-bold text-slate-900 mt-1">{notes.join(", ")}</p>
+                  </div>
+               )}
+
+               {files === null ? (
+                  <p className="text-[11px] text-slate-400 text-center py-6">Loading files…</p>
+               ) : loadError ? (
+                  <p className="text-[11px] text-rose-500 text-center py-6">Could not load the delivery files. Please try again.</p>
+               ) : files.length > 0 ? (
+                  <div className="grid grid-cols-2 gap-3">
+                     {files.map((f, i) => (
+                        <a
+                           key={i}
+                           href={f.url}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           title="Open in a new tab"
+                           className="block rounded-xl border border-slate-100 overflow-hidden hover:border-primary/30 transition-all"
+                        >
+                           {String(f.type || "").startsWith("image/") ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={f.url} alt={f.name || `Delivery photo ${i + 1}`} className="w-full h-32 object-cover bg-slate-50" />
+                           ) : (
+                              <div className="w-full h-32 flex items-center justify-center bg-slate-50">
+                                 <FileText className="w-8 h-8 text-slate-300" />
+                              </div>
+                           )}
+                           <p className="px-3 py-2 text-[10px] font-semibold text-slate-600 truncate">{f.name || `File ${i + 1}`}</p>
+                        </a>
+                     ))}
+                  </div>
+               ) : (
+                  <p className="text-[11px] text-slate-400 italic text-center py-6">No photos or documents were uploaded at delivery.</p>
+               )}
+            </div>
+         </motion.div>
+      </div>
+   );
+}
 
 function BookingDetailModal({ booking, onClose }: ModalProps) {
    const pickups: any[] = booking.pickupLocations || [];
@@ -141,10 +312,12 @@ function BookingDetailModal({ booking, onClose }: ModalProps) {
                {/* Status + Vehicle */}
                <div className="grid grid-cols-2 gap-3">
                   <div className="bg-slate-50 rounded-2xl p-4 space-y-1">
-                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Status</p>
-                     <span className={`inline-block px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(booking.status)}`}>
-                        {booking.status || "—"}
-                     </span>
+                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Trip Status</p>
+                     {/* The trip's own status, as the table shows it — not the booking's office status. */}
+                     <div><StatusBadge status={clientTripStatus(booking)} /></div>
+                     {statusHint(clientTripStatus(booking)) && (
+                        <p className="text-[10px] text-slate-500 leading-snug pt-1">{statusHint(clientTripStatus(booking))}</p>
+                     )}
                   </div>
                   <div className="bg-slate-50 rounded-2xl p-4 space-y-1">
                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Vehicle</p>
@@ -267,25 +440,17 @@ export default function JobsPage() {
    const { unreadTrips, openChat } = useClientNotifications();
    const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
    const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
+   const [podBooking, setPodBooking] = useState<any | null>(null);
    const [bookings, setBookings] = useState<any[]>([]);
    const [isLoading, setIsLoading] = useState(true);
    const [viewMode, setViewMode] = useState<"personal" | "company">("personal");
    const [user, setUser] = useState<any>(null);
    const [cancellingId, setCancellingId] = useState<string | null>(null);
-   const [filterOpen, setFilterOpen] = useState(false);
+   // Table filters: created-date range (YYYY-MM-DD, each end optional), trip stage, search.
    const [startDate, setStartDate] = useState("");
    const [endDate, setEndDate] = useState("");
-   const filterRef = React.useRef<HTMLDivElement>(null);
-
-   useEffect(() => {
-      const handleClick = (e: MouseEvent) => {
-         if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
-            setFilterOpen(false);
-         }
-      };
-      document.addEventListener("mousedown", handleClick);
-      return () => document.removeEventListener("mousedown", handleClick);
-   }, []);
+   const [stageFilter, setStageFilter] = useState<"all" | keyof typeof CLIENT_STAGES>("all");
+   const [searchQuery, setSearchQuery] = useState("");
    const isDesktop = useMediaQuery("(min-width: 768px)");
 
    useEffect(() => {
@@ -345,37 +510,60 @@ export default function JobsPage() {
    const dynamicStats = [
       { label: "Total Jobs",  value: currentViewBookings.length, icon: Package, color: "text-primary", bg: "bg-primary/10" },
       { label: "Finalized",   value: currentViewBookings.filter(b => b.status?.toLowerCase() === "finalized").length, icon: TrendingUp, color: "text-violet-600", bg: "bg-violet-50" },
-      { label: "Completed",   value: currentViewBookings.filter(b => ["completed", "delivered"].includes(b.tripStatus?.toLowerCase())).length, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
+      { label: "Completed",   value: currentViewBookings.filter(b => clientTripStatus(b) === "completed").length, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
    ];
 
-   // ── Date range filter ──
-   const dateFilteredBookings = currentViewBookings.filter(b => {
-      if (!startDate && !endDate) return true;
-      const bookingDate = new Date(b.createdAt || b.cargoDetails?.loadingDate);
-      if (startDate && bookingDate < new Date(startDate)) return false;
-      if (endDate && bookingDate > new Date(endDate + "T23:59:59")) return false;
-      return true;
+   // ── Date range and search ── (days compared in CAT, like every other date here)
+   const query = searchQuery.trim().toLowerCase();
+   const searchedBookings = currentViewBookings.filter(b => {
+      if (b.status === "cancelled") return false;
+      if (!inDateRange(b.cargoDetails?.loadingDate || b.createdAt, startDate, endDate)) return false;
+      if (!query) return true;
+      // Trip ID, route, cargo, who booked it and the POD (delivery note) numbers.
+      const haystack = [
+         b.tripId,
+         ...(b.pickupLocations || []).map((p: any) => p?.address?.city),
+         ...(b.dropoffLocations || []).map((d: any) => d?.address?.city),
+         ...[].concat(b.cargoDetails?.goodsType || []),
+         clientNameOf(b),
+         ...(b.deliveryOrders || []),
+      ].filter(Boolean).join(" ").toLowerCase();
+      return haystack.includes(query);
    });
 
+   // ── Trip stage ── (counted after the date and search, so each option says what it would show)
+   const stageFilteredBookings = stageFilter === "all"
+      ? searchedBookings
+      : searchedBookings.filter(CLIENT_STAGES[stageFilter].test);
+
    // ── Map bookings to display rows (new multi-location structure) ──
-   const displayJobs = dateFilteredBookings.filter(b => b.status !== "cancelled").map(b => {
+   const displayJobs = stageFilteredBookings.map(b => {
       const allCities = [
          ...(b.pickupLocations || []).map((p: any) => p?.address?.city).filter(Boolean),
          ...(b.dropoffLocations || []).map((d: any) => d?.address?.city).filter(Boolean),
       ] as string[];
       // Did the logged-in client create this booking? (company-mates only get to view)
       const isOwn = String(b.clientId?._id || b.clientId || "") === String(user?._id || user?.id || "");
+      // Where the money stands, in the client's terms. The booking's own status
+      // ("finalized", "paid"…) is an office word and read as a second trip status.
+      const billed = Number(b.financials?.finalAmount || b.finalAmount || 0);
+      const paidSoFar = Number(b.advancePaid || 0);
+      const fullyPaid = (b.status || "").toLowerCase() === "paid" || (billed > 0 && paidSoFar >= billed);
       return {
          raw: b,
          tripId: b.tripId || `#${b._id?.slice(-7).toUpperCase()}`,
          cities: allCities.length ? allCities : ["—"],
          cargo: b.cargoDetails?.goodsType || "Cargo",
          weight: b.cargoDetails?.weight || 0,
-         status: b.tripStatus || b.status || "pending",
-         jobStatus: b.status || "",
-         date: b.cargoDetails?.loadingDate
-            ? formatDate(b.cargoDetails.loadingDate, { year: undefined })
-            : "N/A",
+         status: clientTripStatus(b),
+         // Nothing until an amount is billed.
+         payment: billed > 0 ? (fullyPaid ? "Paid" : "Payment Due") : "",
+         // What is left to pay, shown only once part of the bill is in.
+         balance: !fullyPaid && paidSoFar > 0 ? Math.max(0, billed - paidSoFar) : 0,
+         podCount: podFiles(b).length,
+         hasPod: podFiles(b).length > 0 || podNotes(b).length > 0,
+         // The trip's date — its loading day, or the day it was booked. The date filter reads the same.
+         date: formatDate(b.cargoDetails?.loadingDate || b.createdAt) || "—",
          finalAmount: b.financials?.finalAmount || b.finalAmount,
          bookedBy: clientNameOf(b, "—"),
          isOwn,
@@ -428,7 +616,7 @@ export default function JobsPage() {
                </div>
             </header>
 
-            <div className="max-w-6xl mx-auto">
+            <div className="w-full">
                {/* ── PAGE HEADER ── */}
                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                   <div>
@@ -455,60 +643,6 @@ export default function JobsPage() {
                            Company Jobs
                         </button>
                      </div>
-                     <div className="relative" ref={filterRef}>
-                        <button
-                           onClick={() => setFilterOpen(v => !v)}
-                           className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-[11px] font-bold uppercase tracking-widest transition-all ${(startDate || endDate) ? "bg-primary text-white border-primary shadow-md shadow-primary/20" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-                        >
-                           <Filter className="w-3.5 h-3.5" />
-                           Filter
-                           {(startDate || endDate) && <span className="w-1.5 h-1.5 rounded-full bg-white/70 ml-0.5" />}
-                        </button>
-
-                        {filterOpen && (
-                           <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 p-4 space-y-3">
-                              <div className="flex items-center justify-between">
-                                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Date Range</span>
-                                 {(startDate || endDate) && (
-                                    <button
-                                       onClick={() => { setStartDate(""); setEndDate(""); }}
-                                       className="text-[9px] font-bold text-rose-500 hover:text-rose-700 uppercase tracking-widest transition-colors"
-                                    >
-                                       Clear
-                                    </button>
-                                 )}
-                              </div>
-                              <div className="grid grid-cols-2 gap-3">
-                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Start</label>
-                                    <input
-                                       type="date"
-                                       value={startDate}
-                                       max={todayAppDateKey()}
-                                       onChange={e => setStartDate(e.target.value)}
-                                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[12px] font-medium text-slate-800 outline-none focus:border-primary/40 focus:bg-white transition-all"
-                                    />
-                                 </div>
-                                 <div className="space-y-1">
-                                    <label className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">End</label>
-                                    <input
-                                       type="date"
-                                       value={endDate}
-                                       min={startDate || undefined}
-                                       max={todayAppDateKey()}
-                                       onChange={e => setEndDate(e.target.value)}
-                                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-[12px] font-medium text-slate-800 outline-none focus:border-primary/40 focus:bg-white transition-all"
-                                    />
-                                 </div>
-                              </div>
-                              {(startDate || endDate) && (
-                                 <p className="text-[10px] text-slate-400 font-medium text-center">
-                                    {displayJobs.length} result{displayJobs.length !== 1 ? "s" : ""} found
-                                 </p>
-                              )}
-                           </div>
-                        )}
-                     </div>
                   </div>
                </div>
 
@@ -527,14 +661,37 @@ export default function JobsPage() {
 
                {/* ── JOBS TABLE ── */}
                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                  <div className="px-5 py-4 border-b border-slate-50 flex items-center justify-between bg-slate-50/30">
+                  <div className="px-5 py-4 border-b border-slate-50 flex flex-wrap items-center justify-between gap-3 bg-slate-50/30">
                      <h3 className="text-[11px] font-bold text-slate-900 uppercase tracking-widest flex items-center gap-2">
                         <div className="w-1.5 h-4 bg-primary rounded-full" />
                         {viewMode === "personal" ? "My Bookings" : `Company Bookings (${user?.company?.companyName || "All"})`}
                      </h3>
-                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                        {isLoading ? "Fetching…" : `${displayJobs.length} items`}
-                     </span>
+                     <div className="flex flex-wrap items-center gap-2">
+                        <div className="relative group">
+                           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300 group-focus-within:text-primary transition-colors" />
+                           <input
+                              type="text"
+                              placeholder="Search trip, city, POD no…"
+                              value={searchQuery}
+                              onChange={(e) => setSearchQuery(e.target.value)}
+                              className="bg-white border border-slate-100 rounded-lg pl-9 pr-3 py-2 text-[11px] font-medium outline-none focus:border-primary/20 transition-all w-48"
+                           />
+                        </div>
+                        <select
+                           value={stageFilter}
+                           onChange={(e) => setStageFilter(e.target.value as typeof stageFilter)}
+                           className="px-3 py-2 bg-white border border-slate-100 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                        >
+                           <option value="all">All Trips ({searchedBookings.length})</option>
+                           {(Object.keys(CLIENT_STAGES) as (keyof typeof CLIENT_STAGES)[]).map(k => (
+                              <option key={k} value={k}>{CLIENT_STAGES[k].label} ({searchedBookings.filter(CLIENT_STAGES[k].test).length})</option>
+                           ))}
+                        </select>
+                        <DateRangeFilter from={startDate} to={endDate} onChange={(f, t) => { setStartDate(f); setEndDate(t); }} />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                           {isLoading ? "Fetching…" : `${displayJobs.length} items`}
+                        </span>
+                     </div>
                   </div>
 
                   {/* Desktop Table */}
@@ -543,22 +700,25 @@ export default function JobsPage() {
                         <thead>
                            <tr className="bg-slate-50/50 border-b border-slate-50">
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Sr. No.</th>
+                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Date</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Route</th>
                               {viewMode === "company" && (
                                  <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Booked By</th>
                               )}
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cargo</th>
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Amount</th>
-                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status</th>
+                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Bill Amount</th>
+                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Payment</th>
+                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Trip Status</th>
+                              <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">POD</th>
                               <th className="px-6 py-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right">Actions</th>
                            </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                            {isLoading ? (
-                              <tr><td colSpan={viewMode === "company" ? 7 : 6} className="px-6 py-12 text-center text-[12px] text-slate-400 italic">Loading your shipments...</td></tr>
+                              <tr><td colSpan={viewMode === "company" ? 10 : 9} className="px-6 py-12 text-center text-[12px] text-slate-400 italic">Loading your shipments...</td></tr>
                            ) : displayJobs.length === 0 ? (
                               <tr>
-                                 <td colSpan={viewMode === "company" ? 7 : 6} className="px-6 py-12 text-center">
+                                 <td colSpan={viewMode === "company" ? 10 : 9} className="px-6 py-12 text-center">
                                     <Package className="w-8 h-8 text-slate-100 mx-auto mb-2" />
                                     <p className="text-[12px] font-medium text-slate-400">No bookings found yet.</p>
                                  </td>
@@ -568,7 +728,9 @@ export default function JobsPage() {
                                  <tr key={i} className="hover:bg-slate-50/80 transition-colors group">
                                     <td className="px-6 py-4">
                                        <span className="text-[13px] font-bold text-slate-900">{i + 1}</span>
-                                       <p className="text-[10px] text-slate-400 mt-0.5">{job.date}</p>
+                                    </td>
+                                    <td className="px-6 py-4">
+                                       <span className="text-[12px] font-medium text-slate-600 whitespace-nowrap">{job.date}</span>
                                     </td>
                                     <td className="px-6 py-4">
                                        <div className="relative group inline-flex items-center gap-1">
@@ -604,17 +766,34 @@ export default function JobsPage() {
                                        )}
                                     </td>
                                     <td className="px-6 py-4">
-                                       <div className="flex flex-col gap-1 items-start">
-                                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(job.status)}`}>
-                                             <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${getDotColor(job.status)}`} />
-                                             {job.status}
-                                          </span>
-                                          {job.jobStatus && job.jobStatus !== job.status && (
-                                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest border ${getStatusStyles(job.jobStatus)}`}>
-                                                {job.jobStatus}
+                                       {job.payment ? (
+                                          <div className="flex flex-col gap-1 items-start">
+                                             <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(job.payment)}`}>
+                                                {job.payment}
                                              </span>
-                                          )}
-                                       </div>
+                                             {job.balance > 0 && (
+                                                <span className="text-[10px] font-semibold text-slate-500">K{job.balance} left</span>
+                                             )}
+                                          </div>
+                                       ) : (
+                                          <span className="text-[10px] font-bold text-slate-300 uppercase">---</span>
+                                       )}
+                                    </td>
+                                    <td className="px-6 py-4">
+                                       <StatusBadge status={job.status} />
+                                    </td>
+                                    <td className="px-6 py-4">
+                                       {job.hasPod ? (
+                                          <button
+                                             onClick={() => setPodBooking(job.raw)}
+                                             className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-emerald-100 bg-emerald-50 text-emerald-700 text-[9px] font-bold uppercase tracking-widest hover:bg-emerald-100 transition-all"
+                                          >
+                                             <FileText className="w-3 h-3" />
+                                             View{job.podCount > 0 ? ` (${job.podCount})` : ""}
+                                          </button>
+                                       ) : (
+                                          <span className="text-[10px] font-bold text-slate-300 uppercase">---</span>
+                                       )}
                                     </td>
                                     <td className="px-6 py-4 text-right">
                                        <div className="flex justify-end gap-2">
@@ -674,18 +853,27 @@ export default function JobsPage() {
                                     <span className="text-[12px] font-bold text-slate-900">{i + 1}</span>
                                     <p className="text-[10px] text-slate-400">{job.date}</p>
                                  </div>
-                                 <div className="flex flex-col gap-1 items-end">
-                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(job.status)}`}>
-                                       <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${getDotColor(job.status)}`} />
-                                       {job.status}
-                                    </span>
-                                    {job.jobStatus && job.jobStatus !== job.status && (
-                                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest border ${getStatusStyles(job.jobStatus)}`}>
-                                          {job.jobStatus}
-                                       </span>
-                                    )}
-                                 </div>
+                                 <StatusBadge status={job.status} />
                               </div>
+                              {/* Phones have no hover — the status is spelt out under it instead. */}
+                              {statusHint(job.status) && (
+                                 <p className="-mt-2 text-[10px] text-slate-500 text-right">{statusHint(job.status)}</p>
+                              )}
+                              {/* The bill and where its payment stands, apart from the trip status. */}
+                              {job.finalAmount && (
+                                 <div className="flex items-center justify-between">
+                                    <div>
+                                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Bill Amount</p>
+                                       <span className="text-[12px] font-bold text-slate-900">K{job.finalAmount}</span>
+                                       {job.balance > 0 && (
+                                          <span className="ml-2 text-[10px] font-semibold text-slate-500">K{job.balance} left</span>
+                                       )}
+                                    </div>
+                                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(job.payment)}`}>
+                                       {job.payment}
+                                    </span>
+                                 </div>
+                              )}
                               <div className="bg-slate-50/80 p-3 rounded-xl border border-slate-100">
                                  <div className="inline-flex items-center gap-1 flex-wrap">
                                     <span className="text-[12px] font-medium text-slate-600 italic">{job.cities[0]}</span>
@@ -715,6 +903,14 @@ export default function JobsPage() {
                                     >
                                        <Eye className="w-3.5 h-3.5" /> View
                                     </button>
+                                    {job.hasPod && (
+                                       <button
+                                          onClick={() => setPodBooking(job.raw)}
+                                          className="px-3 py-2 bg-emerald-50 hover:bg-emerald-100 rounded-lg text-[10px] font-bold text-emerald-700 uppercase tracking-widest transition-all flex items-center gap-1.5"
+                                       >
+                                          <FileText className="w-3.5 h-3.5" /> POD
+                                       </button>
+                                    )}
                                     {job.isOwn && canChatForTrip(job.raw) && (
                                        <button
                                           onClick={() => openChat(job.tripId)}
@@ -750,6 +946,11 @@ export default function JobsPage() {
          <AnimatePresence>
             {selectedBooking && (
                <BookingDetailModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
+            )}
+         </AnimatePresence>
+         <AnimatePresence>
+            {podBooking && (
+               <PodModal booking={podBooking} onClose={() => setPodBooking(null)} />
             )}
          </AnimatePresence>
 

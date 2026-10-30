@@ -151,9 +151,10 @@ export default function AdminCompletedJobsPage() {
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      // The ID this table shows (INV-xxx / CASH-xxx) and the TPIN column.
+      // The ID this table shows (INV-xxx / CASH-xxx), the TPIN and the POD number.
       (newIdByBooking[b._id] || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
       tpinOf(b).toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (b.deliveryOrders || []).some((d: string) => String(d || "").toLowerCase().includes(searchQuery.toLowerCase())) ||
       clientNameOf(b).toLowerCase().includes(searchQuery.toLowerCase()) ||
       pickupCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
       dropoffCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -180,6 +181,8 @@ export default function AdminCompletedJobsPage() {
       client: clientNameOf(b, "Direct Client"),
       companyName: companyNameOf(b, "Direct Booking"),
       tpin: tpinOf(b),
+      // The POD number: the delivery order(s) recorded at offloading — what the invoice prints as "DN No".
+      podNo: (b?.deliveryOrders || []).filter(Boolean).join(", "),
       status: getStatusType(effectiveStatus),
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Assign Driver",
       truck: String(assignment?.truckNumber || "").toUpperCase() || "Unassigned",
@@ -280,16 +283,14 @@ export default function AdminCompletedJobsPage() {
       key: "client",
       render: (val: string, row: any) => (
         <div className="flex flex-col gap-0.5">
-          <div className="flex items-center gap-2">
-            <span className="px-1.5 py-0.5 rounded bg-slate-900 text-white text-[7.5px] font-bold uppercase tracking-wider">{row.companyName}</span>
-          </div>
-          <span className="text-[12px] font-bold text-slate-700">{val}</span>
+          <span className="text-[13px] font-bold text-slate-900">{row.companyName}</span>
+          <span className="text-[10px] font-medium text-slate-400">{val}</span>
         </div>
       )
     },
     {
-      label: "TPIN",
-      key: "tpin",
+      label: "POD NO",
+      key: "podNo",
       render: (val: string) => val
         ? <span className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">{val}</span>
         : <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Missing</span>
@@ -423,7 +424,7 @@ export default function AdminCompletedJobsPage() {
 
   return (
     <AdminLayout>
-      <div className="p-4 md:p-6 space-y-6 max-w-[1400px] mx-auto">
+      <div className="p-4 md:p-6 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-1.5 text-[9px] text-neutral-400 mb-1 font-medium uppercase tracking-widest">

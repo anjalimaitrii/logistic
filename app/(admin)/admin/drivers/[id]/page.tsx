@@ -62,6 +62,8 @@ export default function DriverProfilePage() {
   const dutyMap: Record<string, { label: string; variant: "success" | "warning" | "primary" }> = {
     available:         { label: "Available", variant: "success" },
     on_trip:           { label: "On Trip",   variant: "primary" },
+    // Stored as "offloading"; recorded once the cargo is off.
+    offloading:        { label: "Offloaded", variant: "warning" },
     returning:         { label: "Returning", variant: "warning" },
     under_inspection:  { label: "Inspection", variant: "warning" },
   };

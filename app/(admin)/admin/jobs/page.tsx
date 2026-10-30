@@ -24,7 +24,7 @@ import { cleanDriverName } from "@/services/liveTrackingService";
 import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
 import { isTripCompleted } from "@/lib/tripCompletion";
-import { isLastOffloading, stopCounts } from "@/lib/tripStage";
+import { isLastOffloading, stopCounts, statusLabel } from "@/lib/tripStage";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
 import { formatDate, inDateRange } from "@/lib/datetime";
 
@@ -134,7 +134,7 @@ export default function AdminJobsPage() {
     if (s === 'transit') return 'IN TRANSIT';
     if (s === 'delivered') return 'DELIVERED';
     if (s === 'delayed') return 'DELAYED';
-    return s.toUpperCase();
+    return statusLabel(s.toUpperCase());
   };
 
   const getStatusStyles = (status: string) => {
@@ -462,7 +462,7 @@ export default function AdminJobsPage() {
 
   return (
     <AdminLayout>
-      <div className="p-4 md:p-6 space-y-6 max-w-[1400px] mx-auto">
+      <div className="p-4 md:p-6 space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-1.5 text-[9px] text-neutral-400 mb-1 font-medium uppercase tracking-widest">
