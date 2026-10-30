@@ -20,3 +20,13 @@ export function companyNameOf(booking: any, fallback = ""): string {
     fallback
   );
 }
+
+/**
+ * Who an invoice is addressed to — the client's company, or the client when
+ * there is none. Trips sharing this can go on one combined invoice.
+ */
+export function invoicePartyOf(booking: any): string {
+  const client = booking?.clientId as any;
+  const company = client?.company;
+  return String((company && typeof company === "object" ? company._id : company) || client?._id || "");
+}

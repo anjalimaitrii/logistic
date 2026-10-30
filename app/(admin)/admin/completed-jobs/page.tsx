@@ -10,7 +10,8 @@ import {
   CheckSquare,
   ChevronRight,
   Eye,
-  Search
+  Search,
+  X
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
@@ -21,9 +22,20 @@ import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
 import InvoiceDrawer from "@/components/admin/InvoiceDrawer";
 import ReceivePaymentDrawer from "@/components/admin/ReceivePaymentDrawer";
 import { isTripCompleted } from "@/lib/tripCompletion";
-import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
+import { clientNameOf, companyNameOf, invoicePartyOf } from "@/lib/bookingParty";
 import { formatDate, inDateRange } from "@/lib/datetime";
 import { getAdminAccountType, type AdminAccountType } from "@/lib/adminRole";
+
+// Same TPIN the invoice prints: one typed on the invoice wins over the company's.
+const tpinOf = (b: any): string => String(b?.invoiceTpin ?? b?.clientId?.company?.tpinNumber ?? "").trim();
+
+// The stage filter. A trip is invoiced once its invoice is printed, and paid once
+// the billed amount is in — so an invoiced trip can still be awaiting payment.
+const STAGES = {
+  "invoice-pending": { label: "Invoice Pending", test: (j: any) => !j.isInvoiced },
+  invoiced: { label: "Invoiced", test: (j: any) => j.isInvoiced },
+  "payment-pending": { label: "Payment Pending", test: (j: any) => !j.isFullyPaid },
+};
 
 export default function AdminCompletedJobsPage() {
   const router = useRouter();
@@ -33,6 +45,8 @@ export default function AdminCompletedJobsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [companyFilter, setCompanyFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
+  // Where a completed trip stands on its invoice and its payment.
+  const [stageFilter, setStageFilter] = useState<"all" | keyof typeof STAGES>("all");
   // Created-date range (YYYY-MM-DD), each end optional.
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -41,6 +55,9 @@ export default function AdminCompletedJobsPage() {
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [isFinalizeDrawerOpen, setIsFinalizeDrawerOpen] = useState(false);
   const [invoiceJob, setInvoiceJob] = useState<any | null>(null);
+  // Trips ticked for one combined invoice, and the trips of the one being shown.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [invoiceGroup, setInvoiceGroup] = useState<any[] | null>(null);
   const [payTrip, setPayTrip] = useState<any | null>(null);
   // Employees can view completed jobs; finalize, payments and invoices stay with the admin.
   const [accountType, setAccountType] = useState<AdminAccountType>("admin");
@@ -134,6 +151,9 @@ export default function AdminCompletedJobsPage() {
     const matchesSearch =
       b._id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       b.tripId?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      // The ID this table shows (INV-xxx / CASH-xxx) and the TPIN column.
+      (newIdByBooking[b._id] || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      tpinOf(b).toLowerCase().includes(searchQuery.toLowerCase()) ||
       clientNameOf(b).toLowerCase().includes(searchQuery.toLowerCase()) ||
       pickupCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
       dropoffCity.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -159,8 +179,7 @@ export default function AdminCompletedJobsPage() {
       id: newIdByBooking[b?._id] || b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
       client: clientNameOf(b, "Direct Client"),
       companyName: companyNameOf(b, "Direct Booking"),
-      // Same TPIN the invoice prints: one typed on the invoice wins over the company's.
-      tpin: (b?.invoiceTpin ?? b?.clientId?.company?.tpinNumber ?? "").trim(),
+      tpin: tpinOf(b),
       status: getStatusType(effectiveStatus),
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Assign Driver",
       truck: String(assignment?.truckNumber || "").toUpperCase() || "Unassigned",
@@ -169,6 +188,14 @@ export default function AdminCompletedJobsPage() {
       isComplete,
       // Payment is "finalized" once a final amount has been set on the booking
       isPaymentFinalized: (b?.finalAmount || 0) > 0,
+      // Who the invoice is addressed to; a combined invoice holds one party only.
+      party: invoicePartyOf(b),
+      // Billed tax trips only — cash trips are filed apart and never invoiced.
+      // Raised only once printed — editing the drawer's fields does not count.
+      isInvoiced: !!b?.invoicedAt || !!b?.invoiceGroupId,
+      // An invoiced trip is already billed — combining it again would bill it twice.
+      canCombine: isComplete && (b?.finalAmount || 0) > 0 && b?.withTax !== false && !!invoicePartyOf(b)
+        && !b?.invoicedAt && !b?.invoiceGroupId,
       // Fully paid → status 'paid' or advance already covers the billed amount
       isFullyPaid: (b?.status || "").toLowerCase() === "paid"
         || ((b?.finalAmount || 0) > 0 && (b?.advancePaid || 0) >= (b?.finalAmount || 0)),
@@ -177,16 +204,68 @@ export default function AdminCompletedJobsPage() {
   });
 
   // Only completed trips show on this page
-  const displayedData = jobsData.filter(j => j.isComplete);
+  const completedRows = jobsData.filter(j => j.isComplete);
+  // The stages overlap — an invoiced trip can still be waiting on its payment.
+  const displayedData = stageFilter === "all" ? completedRows : completedRows.filter(STAGES[stageFilter].test);
+
+  // Rows read oldest trip first on a combined invoice.
+  const oldestFirst = (list: any[]) =>
+    [...list].sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+
+  // The first ticked trip fixes the company; the rest must match it.
+  const firstSelected = bookings.find(b => selectedIds.has(String(b._id)));
+  const selectedParty = firstSelected ? invoicePartyOf(firstSelected) : "";
+
+  const toggleSelect = (id: string) =>
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+
+  const openCombinedInvoice = () =>
+    setInvoiceGroup(oldestFirst(bookings.filter(b => selectedIds.has(String(b._id)))));
+
+  // A trip already on a combined invoice opens that whole invoice.
+  const openInvoice = (b: any) => {
+    const members = b.invoiceGroupId ? bookings.filter(x => x.invoiceGroupId === b.invoiceGroupId) : [];
+    if (members.length > 1) setInvoiceGroup(oldestFirst(members));
+    else setInvoiceJob(b);
+  };
 
   const columns = [
     {
+      label: "",
+      key: "select",
+      render: (_: any, row: any) => {
+        if (accountType === "employee" || !row.canCombine) return null;
+        const id = String(row.raw._id);
+        const otherCompany = !!selectedParty && selectedParty !== row.party;
+        return (
+          <input
+            type="checkbox"
+            checked={selectedIds.has(id)}
+            disabled={otherCompany}
+            onClick={(e) => e.stopPropagation()}
+            onChange={() => toggleSelect(id)}
+            title={otherCompany ? "Only trips of the same company can share an invoice" : "Select for a combined invoice"}
+            className="w-3.5 h-3.5 accent-emerald-600 cursor-pointer disabled:cursor-not-allowed disabled:opacity-30"
+          />
+        );
+      }
+    },
+    {
       label: "TRIP ID",
       key: "id",
-      render: (val: string) => (
+      render: (val: string, row: any) => (
         <div className="flex items-center gap-2">
           <span title="Trip Completed" className="w-2 h-2 rounded-full shrink-0 bg-slate-400" />
           <span className="text-[12px] font-bold text-orange-500 tracking-tight">{val}</span>
+          {row.raw.invoiceGroupId && (
+            <span title="On a combined invoice" className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600 text-[8px] font-bold uppercase tracking-wider">
+              Combined
+            </span>
+          )}
         </div>
       )
     },
@@ -308,11 +387,13 @@ export default function AdminCompletedJobsPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setInvoiceJob(row.raw);
+                  openInvoice(row.raw);
                 }}
-                className="px-3 py-1.5 bg-emerald-600 text-white text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:brightness-110 transition-all shadow-sm"
+                className={row.isInvoiced
+                  ? "px-3 py-1.5 bg-white border border-emerald-200 text-emerald-700 text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:bg-emerald-50 transition-all"
+                  : "px-3 py-1.5 bg-emerald-600 text-white text-[9px] font-semibold rounded-lg uppercase tracking-widest hover:brightness-110 transition-all shadow-sm"}
               >
-                Generate Invoice
+                {row.isInvoiced ? "View Invoice" : "Generate Invoice"}
               </button>
             </>
           )}
@@ -324,7 +405,7 @@ export default function AdminCompletedJobsPage() {
   const kpis = [
     {
       label: "COMPLETED",
-      value: displayedData.length.toString(),
+      value: completedRows.length.toString(),
       icon: <CheckSquare className="w-5 h-5 text-emerald-500" />,
       subText: "Trips delivered",
       trend: "Done",
@@ -382,7 +463,6 @@ export default function AdminCompletedJobsPage() {
           icon={<CheckSquare className="w-4 h-4 text-emerald-500" />}
           columns={columns}
           data={isLoading ? [] : displayedData}
-          onRowClick={(row) => router.push(`/admin/jobs/${row.raw._id}`)}
           action={
             <div className="flex flex-wrap items-center gap-2">
               <div className="relative group">
@@ -411,7 +491,36 @@ export default function AdminCompletedJobsPage() {
                 <option value="all">All Clients</option>
                 {uniqueClients.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
+              <select
+                value={stageFilter}
+                onChange={(e) => setStageFilter(e.target.value as typeof stageFilter)}
+                className="px-3 py-2 bg-slate-50 border border-slate-100 rounded-xl text-[11px] font-bold text-slate-600 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer max-w-[180px]"
+              >
+                <option value="all">All Trips ({completedRows.length})</option>
+                {(Object.keys(STAGES) as (keyof typeof STAGES)[]).map(k => (
+                  <option key={k} value={k}>{STAGES[k].label} ({completedRows.filter(STAGES[k].test).length})</option>
+                ))}
+              </select>
               <DateRangeFilter from={dateFrom} to={dateTo} onChange={(f, t) => { setDateFrom(f); setDateTo(t); }} />
+              {selectedIds.size > 0 && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={openCombinedInvoice}
+                    disabled={selectedIds.size < 2}
+                    title={selectedIds.size < 2 ? "Tick at least two trips" : "One invoice for the ticked trips"}
+                    className="px-3 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:brightness-110 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Combined Invoice ({selectedIds.size})
+                  </button>
+                  <button
+                    onClick={() => setSelectedIds(new Set())}
+                    title="Clear selection"
+                    className="p-1.5 text-slate-300 hover:text-rose-500 transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
               <div className="bg-emerald-50 text-emerald-600 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-widest border border-emerald-100 flex items-center gap-2">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 {displayedData.length} Result{displayedData.length !== 1 ? 's' : ''}
@@ -457,10 +566,13 @@ export default function AdminCompletedJobsPage() {
         />
 
         <InvoiceDrawer
-          isOpen={!!invoiceJob}
-          onClose={() => setInvoiceJob(null)}
+          isOpen={!!invoiceJob || !!invoiceGroup}
+          onClose={() => { setInvoiceJob(null); setInvoiceGroup(null); }}
           booking={invoiceJob}
           invoiceId={invoiceJob ? newIdByBooking[invoiceJob._id] : undefined}
+          group={invoiceGroup || undefined}
+          invoiceIds={newIdByBooking}
+          onInvoiceChanged={() => { setSelectedIds(new Set()); loadBookings(); }}
         />
 
         <ReceivePaymentDrawer

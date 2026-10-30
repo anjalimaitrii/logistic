@@ -102,6 +102,21 @@ export const bookingService = {
     });
   },
 
+  /** Put trips of one company on a single combined invoice. */
+  groupInvoice: async (bookingIds: string[]): Promise<{ invoiceGroupId: string }> => {
+    return await fetchApi('/api/bookings/invoice-group', {
+      method: 'POST',
+      body: JSON.stringify({ bookingIds }),
+    });
+  },
+
+  /** Split a combined invoice back into one invoice per trip. */
+  ungroupInvoice: async (invoiceGroupId: string) => {
+    return await fetchApi(`/api/bookings/invoice-group/${invoiceGroupId}`, {
+      method: 'DELETE',
+    });
+  },
+
   changeAddress: async (id: string, newPickup: any, newDropoff: any, reason: string, financials?: { newPickupKm: number; newDropoffKm: number; newFinalAmount: number }, indexes?: { pickupIndex?: number; dropoffIndex?: number }) => {
     return await fetchApi(`/api/bookings/${id}/address`, {
       method: 'PATCH',
