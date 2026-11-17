@@ -13,6 +13,7 @@ import { routeService }           from "@/services/routeService";
 import { tollService }            from "@/services/tollService";
 import { formatDate, todayAppDateKey } from "@/lib/datetime";
 import { cleanDriverName } from "@/services/liveTrackingService";
+import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const N = (v: any) => parseFloat(String(v ?? 0).replace(/[^\d.-]/g, "")) || 0;
@@ -38,22 +39,33 @@ function xlSheet(name: string, rows: string[]) {
   return `<Worksheet ss:Name="${name}"><Table>${rows.join("")}</Table></Worksheet>`;
 }
 
+// What every sheet says about a trip, looked up by booking id.
+interface TripInfo { ref: string; tripNo: string; client: string; truck: string; driver: string }
+
 function exportReport(
   from: string, to: string, stats: any,
   filteredBookings: any[], filteredSettlements: any[],
-  driverByBooking: Record<string, string>,
-  damageRecords: { tripId: string; driverName: string; truckLabel: string; date: any; items: any[]; total: number }[],
+  tripInfo: (bookingId: string) => TripInfo,
+  damageRecords: { bookingId: string; tripId: string; driverName: string; truckLabel: string; date: any; items: any[]; total: number }[],
+  partyLabel = "",   // the company / client the report is narrowed to, if any
 ) {
   const S = (v: string | number) => xlCell(v, "String");
   const N2 = (v: number) => xlCell(v, "Number");
   const H = (v: string) => xlCell(v, "String", true, "#1e293b");   // bold header (dark)
   const SH = (v: string | number, bold = false) => xlCell(v, "String", bold);
+  // Booking ref, trip no, client, truck no, driver — the same lead columns on every cost sheet.
+  const leadHeaders = [H("Booking Ref"), H("Trip no"), H("Client name"), H("Truck no"), H("Driver")];
+  const leadCells = (bId: string) => {
+    const t = tripInfo(bId);
+    return [S(t.ref), S(t.tripNo), S(t.client), S(t.truck), S(t.driver)];
+  };
+  const blanks = (n: number) => Array.from({ length: n }, () => SH(""));
 
   // ── Sheet 1: Summary ────────────────────────────────────────────────────────
   const summaryRows = [
-    xlRow(xlCell(`Operations Report: ${from} to ${to}`, "String", true)),
+    xlRow(xlCell(`Operations Report${partyLabel ? ` — ${partyLabel}` : ""}: ${from} to ${to}`, "String", true)),
     xlBlank(),
-    xlRow(H("Metric"), H("Amount (NGN)")),
+    xlRow(H("Metric"), H("Amount (ZMW)")),
     xlRow(S("Net P&L"),          N2(Math.round(stats.netPnL))),
     xlRow(S("Total Revenue"),    N2(Math.round(stats.totalRevenue))),
     xlRow(S("Total Costs"),      N2(Math.round(stats.totalCosts))),
@@ -61,8 +73,10 @@ function exportReport(
     xlRow(S("Pending Revenue"),  N2(Math.round(stats.pendingRevenue))),
     xlRow(S("Paid Trips"),  N2(stats.completedTrips)),
     xlRow(S("Total Bookings"),   N2(stats.totalBookings)),
+    // Each truck counted once, however many trips it ran.
+    xlRow(S("Trucks Used (unique)"), N2(stats.uniqueTrucks)),
     xlBlank(),
-    xlRow(H("Cost Item"), H("Amount (NGN)")),
+    xlRow(H("Cost Item"), H("Amount (ZMW)")),
     xlRow(S("Driver Allocation"), N2(Math.round(stats.allocationCost))),
     xlRow(S("Fuel Cost"),         N2(Math.round(stats.fuelCost))),
     xlRow(S("Toll Charges"),      N2(Math.round(stats.tollAmount))),
@@ -72,43 +86,52 @@ function exportReport(
     xlRow(SH("TOTAL COSTS", true), N2(Math.round(stats.totalCosts))),
   ];
   if (Object.keys(stats.categoryTotals).length) {
-    summaryRows.push(xlBlank(), xlRow(H("Expense Category"), H("Amount (NGN)")));
+    summaryRows.push(xlBlank(), xlRow(H("Expense Category"), H("Amount (ZMW)")));
     Object.entries(stats.categoryTotals).sort(([, a], [, b]) => (b as number) - (a as number))
       .forEach(([cat, v]) => summaryRows.push(xlRow(S(cat), N2(Math.round(v as number)))));
   }
 
   // ── Sheet 2: Revenue ────────────────────────────────────────────────────────
-  const revRows = [xlRow(H("Trip ID"), H("Driver"), H("Route"), H("Loading Date"), H("Final Amount (NGN)"), H("Advance Paid (NGN)"), H("Balance (NGN)"), H("Status"))];
+  const revRows = [xlRow(H("Trip ID"), H("Truck no"), H("Client name"), H("Driver"), H("Route"), H("POD no"), H("Loading Date"), H("Final Amount (ZMW)"), H("Advance Paid (ZMW)"), H("Balance (ZMW)"), H("Status"))];
+  // A stop names its city; the full address is too long for a route cell. A stop
+  // keeps its address as an object, which used to print "[object Object]".
+  const locStr = (v: any): string => {
+    if (!v) return "-";
+    if (typeof v === "string") return v;
+    const a = v.address && typeof v.address === "object" ? v.address : v;
+    if (typeof v.address === "string") return v.address;
+    return a.city || [a.plotNo, a.street, a.state, a.country].filter(Boolean).join(", ") || "-";
+  };
+  let balanceTotal = 0;
   filteredBookings.filter(b => N(b.finalAmount) > 0).forEach(b => {
-    const bId = b._id ?? "";
-    const tripLabel = b.tripId || bId.slice(-7).toUpperCase();
-    const driver = cleanName(driverByBooking[bId]);
-    const locStr  = (v: any): string => { if (!v) return "-"; if (typeof v === "string") return v; return v?.address || [v?.plotNo, v?.street, v?.city, v?.state, v?.country].filter(Boolean).join(", ") || "-"; };
-    const pickup  = locStr(Array.isArray(b.pickupLocations)  ? b.pickupLocations[0]  : (b.pickupLocations  || b.pickupLocation));
-    const dropoff = locStr(Array.isArray(b.dropoffLocations) ? b.dropoffLocations[0] : (b.dropoffLocations || b.dropoffLocation));
+    const bId = String(b._id ?? "");
+    const t = tripInfo(bId);
+    const pickups: any[]  = Array.isArray(b.pickupLocations)  ? b.pickupLocations  : [b.pickupLocations  || b.pickupLocation];
+    const dropoffs: any[] = Array.isArray(b.dropoffLocations) ? b.dropoffLocations : [b.dropoffLocations || b.dropoffLocation];
+    const route   = `${locStr(pickups[0])} → ${locStr(dropoffs[dropoffs.length - 1])}`;
+    const podNo   = (b.deliveryOrders || []).filter(Boolean).join(", ") || "-";
     const balance = Math.round(N(b.finalAmount) - N(b.advancePaid));
+    balanceTotal += balance;
     const status  = b.tripStatus || b.status || "-";
-    revRows.push(xlRow(S(tripLabel), S(driver), S(`${pickup} → ${dropoff}`), S(fmtDate(b.cargoDetails?.loadingDate || b.createdAt)), N2(Math.round(N(b.finalAmount))), N2(Math.round(N(b.advancePaid))), N2(balance), S(status)));
+    revRows.push(xlRow(S(t.tripNo), S(t.truck), S(t.client), S(t.driver), S(route), S(podNo), S(fmtDate(b.cargoDetails?.loadingDate || b.createdAt)), N2(Math.round(N(b.finalAmount))), N2(Math.round(N(b.advancePaid))), N2(balance), S(status)));
   });
-  revRows.push(xlBlank(8), xlRow(SH(""), SH(""), SH(""), SH(""), SH("TOTAL REVENUE", true), N2(Math.round(stats.totalRevenue)), N2(Math.round(stats.advancePaid)), SH("")));
+  revRows.push(xlBlank(11), xlRow(...blanks(6), SH("TOTAL REVENUE", true), N2(Math.round(stats.totalRevenue)), N2(Math.round(stats.advancePaid)), N2(balanceTotal), SH("")));
 
   // ── Sheet 3: Driver Allocation ───────────────────────────────────────────────
-  const allocRows = [xlRow(H("Booking Ref"), H("Driver"), H("Date"), H("Cash Allocation (NGN)"))];
+  const allocRows = [xlRow(...leadHeaders, H("Date"), H("Cash Allocation (ZMW)"))];
   filteredSettlements.forEach(st => {
     const bId = typeof st.bookingId === "string" ? st.bookingId : st.bookingId?._id;
     const alloc = N(st.financials?.cashAllocation);
     if (!alloc) return;
-    allocRows.push(xlRow(S(bId ? bId.slice(-8).toUpperCase() : "-"), S(cleanName(driverByBooking[bId])), S(fmtDate(st.createdAt)), N2(Math.round(alloc))));
+    allocRows.push(xlRow(...leadCells(bId), S(fmtDate(st.createdAt)), N2(Math.round(alloc))));
   });
-  allocRows.push(xlBlank(4), xlRow(SH(""), SH(""), SH("TOTAL", true), N2(Math.round(stats.allocationCost))));
+  allocRows.push(xlBlank(7), xlRow(...blanks(5), SH("TOTAL", true), N2(Math.round(stats.allocationCost))));
 
   // ── Sheet 4: Fuel ────────────────────────────────────────────────────────────
-  const fuelRows = [xlRow(H("Booking Ref"), H("Driver"), H("Date"), H("From"), H("To"), H("KM"), H("Liters"), H("Rate (NGN/L)"), H("Amount (NGN)"))];
+  const fuelRows = [xlRow(...leadHeaders, H("Date"), H("From"), H("To"), H("KM"), H("Liters"), H("Rate (ZMW/L)"), H("Amount (ZMW)"))];
   filteredSettlements.forEach(st => {
     if (!N(st.financials?.fuelTotal)) return;
     const bId = typeof st.bookingId === "string" ? st.bookingId : st.bookingId?._id;
-    const bRef = bId ? bId.slice(-8).toUpperCase() : "-";
-    const driver = cleanName(driverByBooking[bId]);
     // Cargo legs AND empty legs. financials.fuelTotal covers both, so exporting
     // only the cargo legs would produce a sheet that fails its own footer.
     const legs: any[] = [
@@ -116,32 +139,32 @@ function exportReport(
       ...(Array.isArray(st.extraLegs) ? st.extraLegs : []),
     ];
     if (legs.length) {
-      legs.forEach((leg: any) => fuelRows.push(xlRow(S(bRef), S(driver), S(fmtDate(st.createdAt)), S(leg.kind ? `(empty) ${leg.from ?? "-"}` : (leg.from ?? "-")), S(leg.to ?? "-"), N2(Number(leg.km ?? 0)), N2(Number(leg.liters ?? 0)), N2(Number(leg.mileage ?? 0)), N2(Math.round(N(leg.amount))))));
+      legs.forEach((leg: any) => fuelRows.push(xlRow(...leadCells(bId), S(fmtDate(st.createdAt)), S(leg.kind ? `(empty) ${leg.from ?? "-"}` : (leg.from ?? "-")), S(leg.to ?? "-"), N2(Number(leg.km ?? 0)), N2(Number(leg.liters ?? 0)), N2(Number(leg.mileage ?? 0)), N2(Math.round(N(leg.amount))))));
     } else {
-      fuelRows.push(xlRow(S(bRef), S(driver), S(fmtDate(st.createdAt)), S("-"), S("-"), N2(0), N2(0), N2(0), N2(Math.round(N(st.financials?.fuelTotal)))));
+      fuelRows.push(xlRow(...leadCells(bId), S(fmtDate(st.createdAt)), S("-"), S("-"), N2(0), N2(0), N2(0), N2(Math.round(N(st.financials?.fuelTotal)))));
     }
   });
-  fuelRows.push(xlBlank(9), xlRow(SH(""), SH(""), SH(""), SH(""), SH(""), SH(""), SH(""), SH("TOTAL", true), N2(Math.round(stats.fuelCost))));
+  fuelRows.push(xlBlank(12), xlRow(...blanks(10), SH("TOTAL", true), N2(Math.round(stats.fuelCost))));
 
   // ── Sheet 5: Council Levy ────────────────────────────────────────────────────
-  const levyRows = [xlRow(H("Booking Ref"), H("Driver"), H("Date"), H("Council Levy (NGN)"))];
+  const levyRows = [xlRow(...leadHeaders, H("Date"), H("Council Levy (ZMW)"))];
   filteredSettlements.forEach(st => {
     const bId = typeof st.bookingId === "string" ? st.bookingId : st.bookingId?._id;
     const levy = N(st.financials?.councilLevy);
     if (!levy) return;
-    levyRows.push(xlRow(S(bId ? bId.slice(-8).toUpperCase() : "-"), S(cleanName(driverByBooking[bId])), S(fmtDate(st.createdAt)), N2(Math.round(levy))));
+    levyRows.push(xlRow(...leadCells(bId), S(fmtDate(st.createdAt)), N2(Math.round(levy))));
   });
-  levyRows.push(xlBlank(4), xlRow(SH(""), SH(""), SH("TOTAL", true), N2(Math.round(stats.councilLevy))));
+  levyRows.push(xlBlank(7), xlRow(...blanks(5), SH("TOTAL", true), N2(Math.round(stats.councilLevy))));
 
   // ── Sheet 6: Damages ─────────────────────────────────────────────────────────
-  const dmgRows = [xlRow(H("Trip"), H("Driver"), H("Truck"), H("Date"), H("Damage Item"), H("Quantity"), H("Amount (NGN)"))];
+  const dmgRows = [xlRow(H("Trip"), H("Client name"), H("Driver"), H("Truck"), H("Date"), H("Damage Item"), H("Quantity"), H("Amount (ZMW)"))];
   damageRecords.forEach(rec => {
     rec.items.forEach((d: any) => dmgRows.push(xlRow(
-      S(rec.tripId), S(cleanName(rec.driverName)), S(rec.truckLabel),
+      S(rec.tripId), S(tripInfo(rec.bookingId).client), S(cleanName(rec.driverName)), S(rec.truckLabel),
       S(fmtDate(rec.date)), S(d.description || "-"), S(d.quantity ?? "-"), N2(Math.round(N(d.amount))),
     )));
   });
-  dmgRows.push(xlBlank(7), xlRow(SH(""), SH(""), SH(""), SH(""), SH(""), SH("TOTAL", true), N2(Math.round(stats.totalDamages))));
+  dmgRows.push(xlBlank(8), xlRow(...blanks(6), SH("TOTAL", true), N2(Math.round(stats.totalDamages))));
 
   // ── Build workbook XML ───────────────────────────────────────────────────────
   const xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -166,7 +189,8 @@ function exportReport(
   const blob = new Blob([xml], { type: "application/vnd.ms-excel;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `report_${from}_to_${to}.xls`;
+  const partySlug = partyLabel.replace(/[^a-z0-9]+/gi, "_").replace(/^_|_$/g, "");
+  a.download = `report_${partySlug ? `${partySlug}_` : ""}${from}_to_${to}.xls`;
   a.click();
 }
 
@@ -261,6 +285,9 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
   const currentYear = new Date().getFullYear();
   const [from, setFrom] = useState(`${currentYear}-01-01`);
   const [to,   setTo]   = useState(todayAppDateKey());
+  // Narrow the whole report to one company, or one client ("all" = everyone).
+  const [companyFilter, setCompanyFilter] = useState("all");
+  const [clientFilter,  setClientFilter]  = useState("all");
 
   const loadAll = async () => {
     setIsLoading(true);
@@ -329,11 +356,51 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
     });
   }, [settlements, includeSecret, secretBookingIds]);
 
+  // ── company / client ───────────────────────────────────────────────────────────
+  // One company (or client) at a time: its trips, and every cost booked against
+  // them. A toll entry no trip claimed belongs to nobody, so it drops out of a
+  // single company's view.
+  const companyOptions = useMemo(
+    () => [...new Set(visibleBookings.map((b: any) => companyNameOf(b)).filter(Boolean))].sort(),
+    [visibleBookings]
+  );
+  const clientOptions = useMemo(
+    () => [...new Set(
+      visibleBookings
+        .filter((b: any) => companyFilter === "all" || companyNameOf(b) === companyFilter)
+        .map((b: any) => clientNameOf(b))
+        .filter(Boolean)
+    )].sort(),
+    [visibleBookings, companyFilter]
+  );
+  const partyActive = companyFilter !== "all" || clientFilter !== "all";
+  const partyLabel  = [companyFilter, clientFilter].filter(v => v !== "all").join(" · ");
+  const idOf = (x: any) => String((typeof x === "string" ? x : x?._id) || "");
+  const partyBookings = useMemo(
+    () => visibleBookings.filter((b: any) =>
+      (companyFilter === "all" || companyNameOf(b) === companyFilter) &&
+      (clientFilter === "all" || clientNameOf(b) === clientFilter)),
+    [visibleBookings, companyFilter, clientFilter]
+  );
+  const partyBookingIds = useMemo(() => new Set(partyBookings.map((b: any) => String(b._id))), [partyBookings]);
+  const partySettlements = useMemo(
+    () => partyActive ? visibleSettlements.filter((s: any) => partyBookingIds.has(idOf(s.bookingId))) : visibleSettlements,
+    [visibleSettlements, partyActive, partyBookingIds]
+  );
+  const partyTollEntries = useMemo(
+    () => partyActive ? tollEntries.filter((e: any) => partyBookingIds.has(idOf(e.bookingId))) : tollEntries,
+    [tollEntries, partyActive, partyBookingIds]
+  );
+  const partyInspections = useMemo(
+    () => partyActive ? inspections.filter((i: any) => partyBookingIds.has(idOf(i.bookingId))) : inspections,
+    [inspections, partyActive, partyBookingIds]
+  );
+
   // ── filtered ─────────────────────────────────────────────────────────────────
-  const filteredBookings    = useMemo(() => visibleBookings.filter(b  => inPeriod(b.cargoDetails?.loadingDate || b.createdAt, from, to)), [visibleBookings, from, to]);
-  const filteredSettlements = useMemo(() => visibleSettlements.filter(s => inPeriod(s.createdAt, from, to)), [visibleSettlements, from, to]);
-  const filteredInspections = useMemo(() => inspections.filter(i => inPeriod(i.createdAt, from, to)), [inspections, from, to]);
-  const filteredTollEntries = useMemo(() => tollEntries.filter(e => inPeriod(e.date, from, to)), [tollEntries, from, to]);
+  const filteredBookings    = useMemo(() => partyBookings.filter(b  => inPeriod(b.cargoDetails?.loadingDate || b.createdAt, from, to)), [partyBookings, from, to]);
+  const filteredSettlements = useMemo(() => partySettlements.filter(s => inPeriod(s.createdAt, from, to)), [partySettlements, from, to]);
+  const filteredInspections = useMemo(() => partyInspections.filter(i => inPeriod(i.createdAt, from, to)), [partyInspections, from, to]);
+  const filteredTollEntries = useMemo(() => partyTollEntries.filter(e => inPeriod(e.date, from, to)), [partyTollEntries, from, to]);
 
   // Damages are recorded on the booking by the offloading receipt — not on the
   // truck inspection, which has no damages field at all. One shaped list here so
@@ -394,8 +461,29 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
       allocationCost, fuelCost, tollAmount, councilLevy, otherExpenses,
       totalDamages, damageIncidents, totalCosts, netPnL,
       categoryTotals, totalBookings: filteredBookings.length, totalSettlements: filteredSettlements.length,
+      // A truck is the unit that is counted, so each plate once however many trips it ran.
+      uniqueTrucks: new Set(
+        filteredBookings
+          .map(b => String(truckByBooking[String(b._id)] || "").trim().toUpperCase())
+          .filter(Boolean)
+      ).size,
     };
-  }, [filteredBookings, filteredSettlements, filteredTollEntries, damageRecords]);
+  }, [filteredBookings, filteredSettlements, filteredTollEntries, damageRecords, truckByBooking]);
+
+  // What every export sheet says about a trip: its ref, trip no, client, truck and driver.
+  const bookingById = useMemo(() => new Map(bookings.map((b: any) => [String(b._id), b])), [bookings]);
+  const tripInfo = (bookingId: string) => {
+    const id = String(bookingId || "");
+    const b = bookingById.get(id);
+    return {
+      ref:    id ? id.slice(-8).toUpperCase() : "-",
+      tripNo: b?.tripId || "-",
+      // The company it was billed to, else the person — as the invoice addresses it.
+      client: b ? (companyNameOf(b) || clientNameOf(b) || "-") : "-",
+      truck:  truckByBooking[id] || "-",
+      driver: cleanName(driverByBooking[id]),
+    };
+  };
 
   // ── Secret (without-tax) sub-totals — only meaningful on the secret report ──────
   const secretStats = useMemo(() => {
@@ -504,6 +592,28 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
               <input type="date" value={to} min={from} max={todayAppDateKey()} onChange={e => setTo(e.target.value)}
                 className="border border-neutral-200 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary bg-white" />
             </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Company</label>
+              <select
+                value={companyFilter}
+                onChange={e => { setCompanyFilter(e.target.value); setClientFilter("all"); }}
+                className="border border-neutral-200 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary bg-white max-w-[180px] cursor-pointer"
+              >
+                <option value="all">All Companies</option>
+                {companyOptions.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">Client</label>
+              <select
+                value={clientFilter}
+                onChange={e => setClientFilter(e.target.value)}
+                className="border border-neutral-200 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary bg-white max-w-[180px] cursor-pointer"
+              >
+                <option value="all">All Clients</option>
+                {clientOptions.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
             <button onClick={loadAll} disabled={isLoading}
               className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-primary transition-all disabled:opacity-50">
               <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? "animate-spin" : ""}`} />
@@ -522,7 +632,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
               {compare ? "Comparing" : "Compare"}
             </button>
             <button
-              onClick={() => exportReport(from, to, stats, filteredBookings, filteredSettlements, driverByBooking, damageRecords)}
+              onClick={() => exportReport(from, to, stats, filteredBookings, filteredSettlements, tripInfo, damageRecords, partyLabel)}
               disabled={isLoading || (!filteredBookings.length && !filteredSettlements.length && !filteredInspections.length)}
               className="flex items-center gap-2 px-4 py-2.5 bg-emerald-600 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-700 transition-all disabled:opacity-40"
             >
@@ -553,7 +663,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
                   {stats.netPnL >= 0 ? <TrendingUp className="w-6 h-6" /> : <TrendingDown className="w-6 h-6" />}
                 </div>
                 <div>
-                  <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Net P&amp;L · {from} → {to}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-neutral-400">Net P&amp;L{partyLabel ? ` · ${partyLabel}` : ""} · {from} → {to}</p>
                   <p className={`text-[28px] font-bold leading-none mt-0.5 ${stats.netPnL >= 0 ? "text-emerald-700" : "text-rose-600"}`}>
                     {stats.netPnL >= 0 ? "+" : ""}{naira(stats.netPnL)}
                   </p>
@@ -637,7 +747,7 @@ export default function ReportView({ includeSecret = false }: { includeSecret?: 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <SummaryCard label="Driver Allocation" value={cmpValue(stats.allocationCost, routePlanned.allocation)} sub={cmpSub(`${stats.totalSettlements} settlements`, stats.allocationCost, routePlanned.allocation)} icon={<Wallet className="w-5 h-5" />}     accent="blue"   onClick={() => setDetail("allocation")} />
                 <SummaryCard label="Fuel Cost"         value={naira(stats.fuelCost)}       sub="Total fuel across all trips"                                          icon={<Fuel className="w-5 h-5" />}       accent="amber"  onClick={() => setDetail("fuel")} />
-                <SummaryCard label="Toll Charges"      value={cmpValue(stats.tollAmount, routePlanned.toll)} sub={cmpSub(`eToll sheet total · ${filteredTollEntries.length} entries (matched + unmatched)`, stats.tollAmount, routePlanned.toll)} icon={<Landmark className="w-5 h-5" />}   accent="orange" onClick={() => setDetail("toll")} />
+                <SummaryCard label="Toll Charges"      value={cmpValue(stats.tollAmount, routePlanned.toll)} sub={cmpSub(partyActive ? `eToll entries matched to these trips · ${filteredTollEntries.length}` : `eToll sheet total · ${filteredTollEntries.length} entries (matched + unmatched)`, stats.tollAmount, routePlanned.toll)} icon={<Landmark className="w-5 h-5" />}   accent="orange" onClick={() => setDetail("toll")} />
                 <SummaryCard label="Damages"           value={naira(stats.totalDamages)}   sub={`${stats.damageIncidents} incident${stats.damageIncidents !== 1 ? "s" : ""}`} icon={<ShieldAlert className="w-5 h-5" />} accent="rose"   onClick={() => setDetail("damages")} />
                 <SummaryCard label="Council Levy"      value={cmpValue(stats.councilLevy, routePlanned.levy)} sub={cmpSub("Municipal / council taxes", stats.councilLevy, routePlanned.levy)}                          icon={<Landmark className="w-5 h-5" />}   accent="violet" onClick={() => setDetail("levy")} />
                 <SummaryCard label="Other Expenses"    value={naira(stats.otherExpenses)}  sub="Misc trip expenses"                                                   icon={<ReceiptText className="w-5 h-5" />} accent="slate" />
