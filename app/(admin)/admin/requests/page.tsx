@@ -168,6 +168,8 @@ export default function BookingRequestsPage() {
     weight: req.cargoDetails?.weight ? `${req.cargoDetails.weight} KG` : "",
     price: req.finalAmount ? `K${req.finalAmount}` : "TBD",
     date: formatDate(req.createdAt || req.metadata?.createdAt || Date.now()),
+    // The loading day chosen on the booking form — same column Operations shows.
+    scheduleDate: formatDate(req.cargoDetails?.loadingDate) || req.cargoDetails?.loadingDate || "—",
     status: getStatusLabel(req),
     raw: req
   }));
@@ -182,6 +184,12 @@ export default function BookingRequestsPage() {
       // The day the booking was created.
       label: "Date",
       key: "date",
+      render: (val: string) => <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">{val}</span>
+    },
+    {
+      // The day the cargo is to be loaded (booking form's Loading Date).
+      label: "Schedule",
+      key: "scheduleDate",
       render: (val: string) => <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">{val}</span>
     },
     {

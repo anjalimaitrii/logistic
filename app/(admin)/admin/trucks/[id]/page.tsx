@@ -96,7 +96,12 @@ export default function TruckProfilePage() {
       { label: "Health Index", value: health.label, icon: "🛡️", subText: "Based on compliance", trend: health.variant === "success" ? "Good" : health.variant === "warning" ? "Watch" : "Action", variant: health.variant },
    ];
 
-   const routeLog = assignments.map(a => {
+   // Chronological for THIS truck: ordered by when the truck got each job, not by
+   // when the booking was made — a job handed over from another truck joins this
+   // truck's history on the day of the handover.
+   const routeLog = [...assignments]
+      .sort((a, b) => new Date(a.assignedAt || 0).getTime() - new Date(b.assignedAt || 0).getTime())
+      .map(a => {
       const b = a.bookingId || {};
       const fromCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "N/A";
       const toCity = b.dropoffLocations?.[b.dropoffLocations.length - 1]?.address?.city || b.dropoff?.address?.city || "N/A";
@@ -106,6 +111,9 @@ export default function TruckProfilePage() {
          : "—";
       return {
          id: b.tripId || "N/A",
+         // Two different days: when the booking was made, and when THIS truck got
+         // it. They differ whenever a job is handed over from another truck/driver.
+         createdDate: b.createdAt ? formatDate(b.createdAt) : "N/A",
          date: a.assignedAt ? formatDate(a.assignedAt) : "N/A",
          route: `${fromCity} → ${toCity}`,
          driver: cleanDriverName(a.driverName),
@@ -176,8 +184,16 @@ export default function TruckProfilePage() {
 
    const columns = [
       {
-         label: "Date", key: "date", render: (val: string) => (
-            <div className="flex items-center gap-2 text-neutral-500 font-medium">
+         label: "Trip Created", key: "createdDate", render: (val: string) => (
+            <div className="flex items-center gap-2 text-neutral-500 font-medium whitespace-nowrap">
+               <Calendar className="w-3.5 h-3.5" />
+               {val}
+            </div>
+         )
+      },
+      {
+         label: "Assigned On", key: "date", render: (val: string) => (
+            <div className="flex items-center gap-2 text-neutral-500 font-medium whitespace-nowrap">
                <Calendar className="w-3.5 h-3.5" />
                {val}
             </div>

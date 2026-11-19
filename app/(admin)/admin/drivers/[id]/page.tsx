@@ -76,7 +76,12 @@ export default function DriverProfilePage() {
     { label: "Duty Status", value: duty.label, icon: "🛡️", subText: "Current state", trend: "Live", variant: duty.variant },
   ];
 
-  const tripHistory = assignments.map(a => {
+  // Chronological for THIS driver: ordered by when they got each job, not by when
+  // the booking was made — a job handed over from another driver joins this
+  // driver's history on the day of the handover.
+  const tripHistory = [...assignments]
+    .sort((a, b) => new Date(a.assignedAt || 0).getTime() - new Date(b.assignedAt || 0).getTime())
+    .map(a => {
     const b = a.bookingId || {};
     const fromCity = b.pickupLocations?.[0]?.address?.city || b.pickup?.address?.city || "N/A";
     const toCity = b.dropoffLocations?.[b.dropoffLocations.length - 1]?.address?.city || b.dropoff?.address?.city || "N/A";
@@ -86,6 +91,9 @@ export default function DriverProfilePage() {
       : "—";
     return {
       id: b.tripId || "N/A",
+      // Two different days: when the booking was made, and when THIS driver got
+      // it. They differ whenever a job is handed over from another driver.
+      createdDate: b.createdAt ? formatDate(b.createdAt) : "N/A",
       date: a.assignedAt ? formatDate(a.assignedAt) : "N/A",
       route: `${fromCity} → ${toCity}`,
       truck: a.truckNumber || "—",
@@ -95,8 +103,14 @@ export default function DriverProfilePage() {
   });
 
   const columns = [
-    { label: "Date", key: "date", render: (val: string) => (
-      <div className="flex items-center gap-2 text-neutral-500 font-medium">
+    { label: "Trip Created", key: "createdDate", render: (val: string) => (
+      <div className="flex items-center gap-2 text-neutral-500 font-medium whitespace-nowrap">
+        <Calendar className="w-3.5 h-3.5" />
+        {val}
+      </div>
+    )},
+    { label: "Assigned On", key: "date", render: (val: string) => (
+      <div className="flex items-center gap-2 text-neutral-500 font-medium whitespace-nowrap">
         <Calendar className="w-3.5 h-3.5" />
         {val}
       </div>

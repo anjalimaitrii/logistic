@@ -213,6 +213,8 @@ export default function AdminJobsPage() {
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Assign Driver",
       truck: truckNo || "Unassigned",
       date: formatDate(b?.createdAt || b?.metadata?.createdAt) || "—",
+      // The loading day chosen on the booking form — same column Operations shows.
+      scheduleDate: formatDate(b?.cargoDetails?.loadingDate) || b?.cargoDetails?.loadingDate || "—",
       route,
       gpsStatus,
       isComplete,
@@ -319,6 +321,12 @@ export default function AdminJobsPage() {
       // The day the booking was created.
       label: "DATE",
       key: "date",
+      render: (val: string) => <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">{val}</span>
+    },
+    {
+      // The day the cargo is to be loaded (booking form's Loading Date).
+      label: "SCHEDULE",
+      key: "scheduleDate",
       render: (val: string) => <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">{val}</span>
     },
     {

@@ -179,6 +179,8 @@ export default function AdminAccountant() {
       companyName: companyNameOf(b, "Direct Booking"),
       clientName: clientNameOf(b, "N/A"),
       date: formatDate(b.createdAt || b.metadata?.createdAt) || "—",
+      // The loading day chosen on the booking form — same column Operations shows.
+      scheduleDate: formatDate(b.cargoDetails?.loadingDate) || b.cargoDetails?.loadingDate || "—",
       route: routeStops.length ? routeStops : ["N/A"],
       status: isApproved ? "Approved" : "Assigned",
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Unassigned",
@@ -208,6 +210,12 @@ export default function AdminAccountant() {
       // The day the booking was created.
       label: "Date",
       key: "date",
+      render: (val: string) => <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">{val}</span>
+    },
+    {
+      // The day the cargo is to be loaded (booking form's Loading Date).
+      label: "Schedule",
+      key: "scheduleDate",
       render: (val: string) => <span className="text-[11px] font-medium text-slate-500 whitespace-nowrap">{val}</span>
     },
     {

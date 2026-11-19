@@ -119,6 +119,8 @@ export default function SecretJobsPage() {
     finalAmount: b.finalAmount ? `K${b.finalAmount.toLocaleString()}` : "TBD",
     advancePaid: b.advancePaid ? `K${b.advancePaid.toLocaleString()}` : "TBD",
     date: b.createdAt ? formatDate(b.createdAt) : "—",
+    // The loading day chosen on the booking form — same column Operations shows.
+    scheduleDate: formatDate(b.cargoDetails?.loadingDate) || b.cargoDetails?.loadingDate || "—",
     withTax: b.withTax === true,
     // Payment flags (same as normal completed-jobs page)
     isPaymentFinalized: (b?.finalAmount || 0) > 0,
@@ -172,6 +174,12 @@ export default function SecretJobsPage() {
       label: "Date",
       key: "date",
       render: (val: string) => <span className="text-[11px] text-neutral-400 font-medium">{val}</span>,
+    },
+    {
+      // The day the cargo is to be loaded (booking form's Loading Date).
+      label: "Schedule",
+      key: "scheduleDate",
+      render: (val: string) => <span className="text-[11px] text-neutral-400 font-medium whitespace-nowrap">{val}</span>,
     },
     {
       label: "Tax",
