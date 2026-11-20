@@ -18,7 +18,13 @@ import {
    AlertTriangle,
 } from "lucide-react";
 import { truckService } from "@/services/truckService";
-import { TYRE_POSITIONS } from "@/lib/tyrePositions";
+import { TYRE_POSITION_GROUPS, TYRE_POSITIONS } from "@/lib/tyrePositions";
+
+// Unknown labels (anything not on the sheet) sort after the known ones.
+const sheetOrder = (position: string) => {
+   const i = TYRE_POSITIONS.indexOf(position);
+   return i === -1 ? TYRE_POSITIONS.length : i;
+};
 
 interface TruckComplianceDrawerProps {
    isOpen: boolean;
@@ -399,22 +405,30 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                                 {/* Dropdown list */}
                                                 {tyreDropdownOpen && (
                                                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-neutral-100 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto">
-                                                      {TYRE_POSITIONS.map((pos) => {
-                                                         const selected = tyres.some(t => t.position === pos);
-                                                         return (
-                                                            <button
-                                                               key={pos}
-                                                               type="button"
-                                                               onClick={() => toggleTyrePosition(pos)}
-                                                               className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-[12px] font-medium transition-colors hover:bg-neutral-50 ${selected ? "text-primary" : "text-slate-700"}`}
-                                                            >
-                                                               <span className={`w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-all ${selected ? "bg-primary border-primary" : "border-neutral-200"}`}>
-                                                                  {selected && <Check className="w-2.5 h-2.5 text-white" />}
-                                                               </span>
-                                                               {pos}
-                                                            </button>
-                                                         );
-                                                      })}
+                                                      {TYRE_POSITION_GROUPS.map(({ group, positions }) => (
+                                                         <div key={group}>
+                                                            {/* Section heading, as on the tyre inspection sheet */}
+                                                            <div className="sticky top-0 px-4 py-1.5 bg-neutral-50 text-[9px] font-bold uppercase tracking-widest text-neutral-400">
+                                                               {group}
+                                                            </div>
+                                                            {positions.map((pos) => {
+                                                               const selected = tyres.some(t => t.position === pos);
+                                                               return (
+                                                                  <button
+                                                                     key={pos}
+                                                                     type="button"
+                                                                     onClick={() => toggleTyrePosition(pos)}
+                                                                     className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-[12px] font-medium transition-colors hover:bg-neutral-50 ${selected ? "text-primary" : "text-slate-700"}`}
+                                                                  >
+                                                                     <span className={`w-4 h-4 rounded flex items-center justify-center border shrink-0 transition-all ${selected ? "bg-primary border-primary" : "border-neutral-200"}`}>
+                                                                        {selected && <Check className="w-2.5 h-2.5 text-white" />}
+                                                                     </span>
+                                                                     {pos}
+                                                                  </button>
+                                                               );
+                                                            })}
+                                                         </div>
+                                                      ))}
                                                    </div>
                                                 )}
                                              </div>
@@ -423,7 +437,11 @@ export default function TruckComplianceDrawer({ isOpen, onClose, truckId }: Truc
                                                  serial is stamped on the tyre itself, so it is typed. */}
                                              {tyres.length > 0 && (
                                                 <div className="space-y-2 pt-1">
-                                                   {tyres.map(tyre => (
+                                                   {/* In sheet order, whatever order they were ticked in, so the
+                                                       rows read down the same way as the paper form. */}
+                                                   {[...tyres]
+                                                      .sort((a, b) => sheetOrder(a.position) - sheetOrder(b.position))
+                                                      .map(tyre => (
                                                       <div key={tyre.position} className="flex items-center gap-2">
                                                          <span className="w-[11rem] shrink-0 px-2 py-2 bg-primary/10 text-primary rounded-lg text-[10px] font-bold leading-tight">
                                                             {tyre.position}

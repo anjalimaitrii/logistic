@@ -39,7 +39,7 @@ import { completionService } from "@/services/completionService";
 import JobRouteMap from "@/components/admin/JobRouteMap";
 import { uploadService } from "@/services/uploadService";
 import React from "react";
-import { TYRE_POSITIONS, TYRE_CONDITIONS } from "@/lib/tyrePositions";
+import { TYRE_POSITION_GROUPS, TYRE_CONDITIONS } from "@/lib/tyrePositions";
 import { truckService } from "@/services/truckService";
 import { isLastOffloading, stopCounts, statusLabel } from "@/lib/tripStage";
 
@@ -1843,9 +1843,13 @@ export default function JobDetailReport() {
                               className="w-[10.5rem] shrink-0 bg-neutral-50 border border-neutral-100 rounded-xl px-2.5 py-2.5 text-[12px] font-semibold text-slate-900 outline-none focus:border-primary/30 transition-all appearance-none cursor-pointer"
                             >
                               <option value="">Position...</option>
-                              {TYRE_POSITIONS.filter(
-                                pos => pos === tyre.position || !completionForm.tyres.some(t => t.position === pos)
-                              ).map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                              {TYRE_POSITION_GROUPS.map(({ group, positions }) => (
+                                <optgroup key={group} label={group}>
+                                  {positions
+                                    .filter(pos => pos === tyre.position || !completionForm.tyres.some(t => t.position === pos))
+                                    .map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                                </optgroup>
+                              ))}
                             </select>
                           )}
                           <input
