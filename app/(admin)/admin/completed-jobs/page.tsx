@@ -11,7 +11,8 @@ import {
   ChevronRight,
   Eye,
   Search,
-  X
+  X,
+  Paperclip
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { assignmentService } from "@/services/assignmentService";
@@ -21,7 +22,8 @@ import { cleanDriverName } from "@/services/liveTrackingService";
 import FinalizeDealDrawer from "@/components/admin/FinalizeDealDrawer";
 import InvoiceDrawer from "@/components/admin/InvoiceDrawer";
 import ReceivePaymentDrawer from "@/components/admin/ReceivePaymentDrawer";
-import { isTripCompleted } from "@/lib/tripCompletion";
+import PodReceiptViewer from "@/components/admin/PodReceiptViewer";
+import { isTripCompleted, hasPodNumber } from "@/lib/tripCompletion";
 import { clientNameOf, companyNameOf, invoicePartyOf } from "@/lib/bookingParty";
 import { formatDate, inDateRange } from "@/lib/datetime";
 import { getAdminAccountType, type AdminAccountType } from "@/lib/adminRole";
@@ -59,6 +61,8 @@ export default function AdminCompletedJobsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [invoiceGroup, setInvoiceGroup] = useState<any[] | null>(null);
   const [payTrip, setPayTrip] = useState<any | null>(null);
+  // Trip whose offloading receipt (POD, damages, attachments) is open.
+  const [podFor, setPodFor] = useState<any | null>(null);
   // Employees can view completed jobs; finalize, payments and invoices stay with the admin.
   const [accountType, setAccountType] = useState<AdminAccountType>("admin");
 
@@ -181,7 +185,7 @@ export default function AdminCompletedJobsPage() {
       client: clientNameOf(b, "Direct Client"),
       companyName: companyNameOf(b, "Direct Booking"),
       tpin: tpinOf(b),
-      // The POD number: the delivery order(s) recorded at offloading — what the invoice prints as "DN No".
+      // The POD number(s) recorded at offloading — what the invoice prints as "POD No".
       podNo: (b?.deliveryOrders || []).filter(Boolean).join(", "),
       status: getStatusType(effectiveStatus),
       driver: assignment?.driverName ? cleanDriverName(assignment.driverName) : "Assign Driver",
@@ -208,8 +212,9 @@ export default function AdminCompletedJobsPage() {
     };
   });
 
-  // Only completed trips show on this page
-  const completedRows = jobsData.filter(j => j.isComplete);
+  // Only completed trips that carry a POD number show on this page. A finished
+  // trip without one stays on Jobs until its offloading receipt is filled in.
+  const completedRows = jobsData.filter(j => j.isComplete && hasPodNumber(j.raw));
   // The stages overlap — an invoiced trip can still be waiting on its payment.
   const displayedData = stageFilter === "all" ? completedRows : completedRows.filter(STAGES[stageFilter].test);
 
@@ -299,9 +304,37 @@ export default function AdminCompletedJobsPage() {
     {
       label: "POD NO",
       key: "podNo",
-      render: (val: string) => val
-        ? <span className="text-[11px] font-semibold text-slate-600 whitespace-nowrap">{val}</span>
-        : <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Missing</span>
+      // Opens the offloading receipt: POD numbers, damages and attachments.
+      render: (val: string, row: any) => {
+        const files = (row.raw?.attachments || []).filter((a: any) => a?.url).length;
+        const damages = (row.raw?.damages || []).filter((d: any) => String(d?.quantity || "").trim()).length;
+        return (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setPodFor(row.raw); }}
+            title="View POD, damages and attachments"
+            className="flex flex-col items-start gap-1 text-left group"
+          >
+            {val
+              ? <span className="text-[11px] font-semibold text-slate-600 whitespace-nowrap underline decoration-dotted underline-offset-2 group-hover:text-primary">{val}</span>
+              : <span className="text-[10px] font-bold text-amber-500 uppercase tracking-wider">Missing</span>}
+            {(files > 0 || damages > 0) && (
+              <span className="flex items-center gap-1.5">
+                {files > 0 && (
+                  <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-slate-400">
+                    <Paperclip className="w-2.5 h-2.5" />{files}
+                  </span>
+                )}
+                {damages > 0 && (
+                  <span className="text-[9px] font-bold text-rose-500 uppercase tracking-wider">
+                    {damages} damage{damages > 1 ? "s" : ""}
+                  </span>
+                )}
+              </span>
+            )}
+          </button>
+        );
+      }
     },
     {
       label: "STATUS",
@@ -602,6 +635,19 @@ export default function AdminCompletedJobsPage() {
             await loadBookings();
           }}
         />
+
+        {podFor && (() => {
+          const a = assignments.find(x => (x.bookingId?._id || x.bookingId) === podFor._id);
+          const tripLabel = newIdByBooking[podFor._id] || podFor.tripId || "This trip";
+          const driver = a?.driverName ? cleanDriverName(a.driverName) : "Driver";
+          return (
+            <PodReceiptViewer
+              booking={podFor}
+              subtitle={`${tripLabel} · ${driver} · ${a?.truckNumber || "N/A"}`}
+              onClose={() => setPodFor(null)}
+            />
+          );
+        })()}
       </div>
     </AdminLayout>
   );

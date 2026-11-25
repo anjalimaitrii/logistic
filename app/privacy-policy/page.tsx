@@ -67,7 +67,7 @@ export default function PrivacyPolicyPage() {
                      </li>
                      <li>
                         <span className="font-semibold text-slate-900">Trip &amp; activity data</span> — trip statuses,
-                        timestamps, delivery order numbers, reported damages, and related records.
+                        timestamps, proof of delivery (POD) numbers, reported damages, and related records.
                      </li>
                      <li>
                         <span className="font-semibold text-slate-900">Photos</span> — images you capture or upload as

@@ -13,18 +13,20 @@ import {
   Eye,
   Edit2,
   Search,
-  RotateCcw
+  RotateCcw,
+  FileText
 } from "lucide-react";
 import { bookingService } from "@/services/bookingService";
 import { warehouseService } from "@/services/warehouseService";
 import { assignmentService } from "@/services/assignmentService";
 import { settlementService } from "@/services/settlementService";
-import { completionService } from "@/services/completionService";
 import { cleanDriverName } from "@/services/liveTrackingService";
 import { fetchLiveVehicles } from "@/services/liveTrackingService";
 import EditJobDrawer from "@/components/admin/EditJobDrawer";
-import { isTripCompleted } from "@/lib/tripCompletion";
-import { isLastOffloading, stopCounts, statusLabel } from "@/lib/tripStage";
+import OffloadingReceiptModal, { type OffloadingReceipt } from "@/components/admin/OffloadingReceiptModal";
+import { uploadService } from "@/services/uploadService";
+import { isTripCompleted, hasPodNumber } from "@/lib/tripCompletion";
+import { isLastOffloading, isCargoDone, stopCounts, statusLabel } from "@/lib/tripStage";
 import { clientNameOf, companyNameOf } from "@/lib/bookingParty";
 import { formatDate, inDateRange } from "@/lib/datetime";
 
@@ -44,38 +46,25 @@ export default function AdminJobsPage() {
   const [gpsStatusMap, setGpsStatusMap] = useState<Record<string, string>>({});
   // Booking currently being marked as returning, so its button can show progress.
   const [returningId, setReturningId] = useState<string | null>(null);
-  // bookingId → new completion id (inv-001 / cash-001) shown once the trip completes
-  const [newIdByBooking, setNewIdByBooking] = useState<Record<string, string>>({});
 
   useEffect(() => {
     loadBookings();
   }, []);
 
+  // No INV/CASH ids here: a trip takes one only when it becomes a Completed Job
+  // (finished with a POD number), and those leave this page. Every row on Jobs
+  // reads by its TRIP id.
   const loadBookings = async () => {
     try {
       setIsLoading(true);
-      const [bookingsData, assignmentsData, settlementsData, invoicesData, cashData] = await Promise.all([
+      const [bookingsData, assignmentsData, settlementsData] = await Promise.all([
         bookingService.getAll(),
         assignmentService.getAll(),
         settlementService.getAll().catch(() => []),
-        completionService.getInvoices().catch(() => []),
-        completionService.getCash().catch(() => []),
       ]);
 
       const assignments = assignmentsData || [];
       const settlements = settlementsData || [];
-
-      // bookingId → new id (inv-xxx / cash-xxx) filed at completion
-      const idMap: Record<string, string> = {};
-      (invoicesData || []).forEach((r: any) => {
-        const bId = (r.bookingId?._id || r.bookingId)?.toString();
-        if (bId && r.invoiceId) idMap[bId] = String(r.invoiceId).toUpperCase();
-      });
-      (cashData || []).forEach((r: any) => {
-        const bId = (r.bookingId?._id || r.bookingId)?.toString();
-        if (bId && r.cashId) idMap[bId] = String(r.cashId).toUpperCase();
-      });
-      setNewIdByBooking(idMap);
 
       // Only jobs that have been approved by accountant (settlement exists)
       const approvedBookingIds = new Set(
@@ -145,11 +134,24 @@ export default function AdminJobsPage() {
     return 'bg-blue-50 text-blue-500 border-blue-100';
   };
 
-  // Phase of each approved job: notStarted (before start) · active (start→returning) · completed
-  const phaseOf = (b: any): "notStarted" | "active" | "completed" => {
+  // A trip is done by its own status; a legacy booking may carry "delivered" on
+  // `status` with no tripStatus at all.
+  const isDone = (b: any): boolean =>
+    isTripCompleted(b) || (b?.tripStatus || b?.status || "").toLowerCase() === "delivered";
+
+  // Phase of each approved job: notStarted (before start) · active (start→returning)
+  // · awaitingPOD (done, but no POD number yet) · completed (done with a POD number).
+  const phaseOf = (b: any): "notStarted" | "active" | "awaitingPOD" | "completed" => {
     const ts = (b?.tripStatus || "").toLowerCase();
-    if (isTripCompleted(b)) return "completed";
+    if (isDone(b)) return hasPodNumber(b) ? "completed" : "awaitingPOD";
     return ts && ts !== "pending" ? "active" : "notStarted";
+  };
+
+  // From the last drop on (offloaded → returning → completed) the POD number can
+  // be filled from the row. A finished trip without one is held on this page.
+  const needsPOD = (b: any): boolean => {
+    const { pickups, dropoffs } = stopCounts(b);
+    return (isDone(b) || isCargoDone(b?.tripStatus, pickups, dropoffs)) && !hasPodNumber(b);
   };
 
   // A booking does not carry its own assignment, so anything that wants the driver
@@ -164,7 +166,8 @@ export default function AdminJobsPage() {
   };
 
   // Completed jobs leave this page entirely — table, cards and filters all
-  // count from this same set.
+  // count from this same set. A finished trip with no POD number is not completed
+  // yet: it stays here until its offloading receipt is filled in.
   const pageBookings = bookings.filter(b => phaseOf(b) !== "completed");
 
   // Derive unique companies and clients for filter dropdowns
@@ -204,9 +207,9 @@ export default function AdminJobsPage() {
     // A reassigned trip is NOT done — it is driving the empty leg to the next
     // job's pickup, and it completes on arrival there.
     const effectiveStatus = b?.tripStatus || b?.status;
-    const isComplete = isTripCompleted(b) || effectiveStatus?.toLowerCase() === "delivered";
+    const isComplete = isDone(b);
     return {
-      id: newIdByBooking[b?._id] || b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
+      id: b?.tripId || `#FL-${b?._id?.substring(b._id.length - 4).toUpperCase()}`,
       client: clientNameOf(b, "Direct Client"),
       companyName: companyNameOf(b, "Direct Booking"),
       status: getStatusType(effectiveStatus),
@@ -218,12 +221,42 @@ export default function AdminJobsPage() {
       route,
       gpsStatus,
       isComplete,
+      needsPOD: needsPOD(b),
       raw: b
     };
   });
 
-  // Only in-progress trips show here: approved → returning, never completed.
-  const displayedData = jobsData.filter(j => !j.isComplete);
+  // In-progress trips (approved → returning), plus finished trips still waiting
+  // on their POD number. Completed trips with a POD live on Completed Jobs.
+  const displayedData = jobsData.filter(j => !j.isComplete || j.needsPOD);
+
+  // The offloading receipt for a finished trip that never got its POD number.
+  // Saving it with a POD is what moves the trip on to Completed Jobs.
+  const [receiptFor, setReceiptFor] = useState<any>(null);
+
+  const submitReceipt = async (receipt: OffloadingReceipt) => {
+    const bookingId = receiptFor?._id || receiptFor?.id;
+    if (!bookingId) return;
+    try {
+      const uploaded = receipt.files.length > 0
+        ? await uploadService.uploadToS3(receipt.files, "job-attachments")
+        : [];
+      // Files the driver already sent stay; the new ones are added after them.
+      const existing = (receiptFor?.attachments || []).map((a: any) => ({
+        name: a.name, url: a.url, size: a.size, type: a.type,
+      }));
+      await bookingService.update(bookingId, {
+        deliveryOrders: receipt.deliveryOrders,
+        damages: receipt.damages,
+        attachments: [...existing, ...uploaded],
+      });
+      setReceiptFor(null);
+      await loadBookings();
+    } catch (error: any) {
+      console.error("Failed to save offloading receipt:", error);
+      alert(error?.message || "Could not save the offloading receipt.");
+    }
+  };
 
   // Offered once the cargo is off and the trip has not already been diverted to
   // another job's pickup — a diverted trip is not going back to the yard.
@@ -342,14 +375,21 @@ export default function AdminJobsPage() {
     {
       label: "STATUS",
       key: "status",
-      render: (val: string) => (
-        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(val)}`}>
-          <div className={`w-1 h-1 rounded-full mr-1.5 ${val === 'IN TRANSIT' ? 'bg-orange-500' :
-            val === 'DELIVERED' ? 'bg-emerald-500' :
-              val === 'DELAYED' ? 'bg-rose-500' : 'bg-indigo-500'
-            }`} />
-          {val}
-        </span>
+      render: (val: string, row: any) => (
+        <div className="flex flex-col items-start gap-1">
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[9px] font-bold uppercase tracking-widest border ${getStatusStyles(val)}`}>
+            <div className={`w-1 h-1 rounded-full mr-1.5 ${val === 'IN TRANSIT' ? 'bg-orange-500' :
+              val === 'DELIVERED' ? 'bg-emerald-500' :
+                val === 'DELAYED' ? 'bg-rose-500' : 'bg-indigo-500'
+              }`} />
+            {val}
+          </span>
+          {row.needsPOD && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[8px] font-bold uppercase tracking-widest border bg-amber-50 text-amber-600 border-amber-100">
+              POD Pending
+            </span>
+          )}
+        </div>
       )
     },
     {
@@ -393,6 +433,21 @@ export default function AdminJobsPage() {
       align: "center" as const,
       render: (_: any, row: any) => (
         <div className="flex gap-2 justify-center">
+          {/* Cargo is off but no POD number was given. A finished trip waits
+              here until this is filled; that is what sends it to Completed Jobs. */}
+          {row.needsPOD && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setReceiptFor(row.raw);
+              }}
+              className="px-2.5 py-1.5 rounded-lg border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 transition-all flex items-center gap-1.5"
+              title="Fill the offloading receipt (POD number) to complete this job"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span className="text-[10px] font-bold uppercase tracking-widest">Fill POD</span>
+            </button>
+          )}
           {/* Returning is not a step in the trip's status flow — at offloading
               time nobody knows whether the truck heads home or gets a new job.
               It is this button instead, offered only once the cargo is off and
@@ -440,6 +495,9 @@ export default function AdminJobsPage() {
 
   const notStartedCount = pageBookings.filter(b => phaseOf(b) === "notStarted").length;
   const activeCount     = pageBookings.filter(b => phaseOf(b) === "active").length;
+  // Every trip whose cargo is off with no POD number — offloaded, returning, or
+  // already finished. An action count, so it overlaps In Progress.
+  const podPendingCount = pageBookings.filter(needsPOD).length;
 
   const kpis = [
     {
@@ -459,10 +517,18 @@ export default function AdminJobsPage() {
       variant: "primary" as const
     },
     {
+      label: "POD PENDING",
+      value: podPendingCount.toString(),
+      icon: <FileText className="w-5 h-5 text-amber-500" />,
+      subText: "Offloaded · POD number missing",
+      trend: "Action",
+      variant: "warning" as const
+    },
+    {
       label: "TOTAL JOBS",
       value: pageBookings.length.toString(),
       icon: <Package className="w-5 h-5 text-indigo-500" />,
-      subText: "Queue + in progress",
+      subText: "Queue + in progress + done without POD",
       trend: "Overall",
       variant: "indigo" as const
     },
@@ -483,7 +549,7 @@ export default function AdminJobsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {kpis.map((kpi, i) => (
             <div key={i} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative overflow-hidden group hover:border-primary/20 transition-all">
               <div className="flex items-start justify-between">
@@ -585,6 +651,17 @@ export default function AdminJobsPage() {
           onUpdate={handleUpdateJob}
         />
       </div>
+
+      {receiptFor && (
+        <OffloadingReceiptModal
+          subtitle={`${receiptFor?.tripId || "This trip"} · ${driverNameFor(receiptFor)} · ${assignmentFor(receiptFor)?.truckNumber || "N/A"}`}
+          requireDeliveryOrder
+          initialDamages={receiptFor?.damages}
+          existingAttachmentCount={(receiptFor?.attachments || []).length}
+          onClose={() => setReceiptFor(null)}
+          onSubmit={submitReceipt}
+        />
+      )}
 
       {/* Return to the yard — status and distance together, because a return with
           no distance is a status nobody can cost. */}

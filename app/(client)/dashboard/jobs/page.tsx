@@ -142,7 +142,7 @@ const getLabel = (idx: number, offset = 0) => String.fromCharCode(65 + offset + 
 interface ModalProps { booking: any; onClose: () => void; }
 
 // What a trip's proof of delivery is made of: the photos and receipts uploaded
-// when the cargo came off, and the delivery note numbers recorded with them.
+// when the cargo came off, and the POD numbers recorded with them.
 const podFiles = (b: any): any[] => (b?.attachments || []).filter((f: any) => f?.url);
 const podNotes = (b: any): string[] => (b?.deliveryOrders || []).filter(Boolean);
 
@@ -188,7 +188,7 @@ function PodModal({ booking, onClose }: ModalProps) {
             <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
                {notes.length > 0 && (
                   <div className="bg-slate-50 rounded-2xl p-4">
-                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Delivery Note No</p>
+                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">POD No</p>
                      <p className="text-[13px] font-bold text-slate-900 mt-1">{notes.join(", ")}</p>
                   </div>
                )}
@@ -519,7 +519,7 @@ export default function JobsPage() {
       if (b.status === "cancelled") return false;
       if (!inDateRange(b.cargoDetails?.loadingDate || b.createdAt, startDate, endDate)) return false;
       if (!query) return true;
-      // Trip ID, route, cargo, who booked it and the POD (delivery note) numbers.
+      // Trip ID, route, cargo, who booked it and the POD numbers.
       const haystack = [
          b.tripId,
          ...(b.pickupLocations || []).map((p: any) => p?.address?.city),

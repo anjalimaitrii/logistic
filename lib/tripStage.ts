@@ -25,6 +25,16 @@ export function isLastOffloading(
   return ts === (multi ? `offloading_${dropoffCount}` : "offloading");
 }
 
+/** All cargo delivered: the last drop is done, or the truck is already unladen. */
+export function isCargoDone(
+  tripStatus: string | undefined,
+  pickupCount: number,
+  dropoffCount: number
+): boolean {
+  const ts = norm(tripStatus);
+  return ts === "returning" || ts === "repositioning" || isLastOffloading(tripStatus, pickupCount, dropoffCount);
+}
+
 /**
  * A trip or driver status as people read it. The stored value names the step
  * ("offloading"), but it is only recorded once the cargo is off, so on screen

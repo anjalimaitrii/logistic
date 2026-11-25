@@ -7,8 +7,6 @@ import {
   MapPin,
   Truck,
   Fuel,
-  Paperclip,
-  X as XIcon,
   Receipt,
   CheckCircle2,
   ChevronRight,
@@ -37,6 +35,7 @@ import { settlementService } from "@/services/settlementService";
 import { warehouseService, type WarehouseConfig } from "@/services/warehouseService";
 import { completionService } from "@/services/completionService";
 import JobRouteMap from "@/components/admin/JobRouteMap";
+import OffloadingReceiptModal, { type OffloadingReceipt } from "@/components/admin/OffloadingReceiptModal";
 import { uploadService } from "@/services/uploadService";
 import React from "react";
 import { TYRE_POSITION_GROUPS, TYRE_CONDITIONS } from "@/lib/tyrePositions";
@@ -191,13 +190,6 @@ export default function JobDetailReport() {
   // Offloading Modal State
   const [showOffloadingModal, setShowOffloadingModal] = useState(false);
   const [offloadingTargetStatus, setOffloadingTargetStatus] = useState("");
-  const [offloadingForm, setOffloadingForm] = useState({
-    deliveryOrders: [""],
-    damages: [{ quantity: "", amount: "" }],
-  });
-  const [isSubmittingOffloading, setIsSubmittingOffloading] = useState(false);
-  const [offloadingFiles, setOffloadingFiles] = useState<File[]>([]);
-  const offloadingFileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Earlier trips auto-completed while this driver was returning (truck never came
   // back for inspection) — their damages/DO are collected in this completion modal.
@@ -475,11 +467,6 @@ export default function JobDetailReport() {
 
       if (isLastDropoff) {
         setOffloadingTargetStatus(newStatus);
-        setOffloadingForm({
-          deliveryOrders: [""],
-          damages: [{ quantity: "", amount: "" }],
-        });
-        setOffloadingFiles([]);
         setShowOffloadingModal(true);
         return;
       }
@@ -546,35 +533,24 @@ export default function JobDetailReport() {
     }
   };
 
-  const handleSubmitOffloading = async () => {
-    setIsSubmittingOffloading(true);
+  const handleSubmitOffloading = async (receipt: OffloadingReceipt) => {
     try {
       // Upload files to S3
-      const attachments = offloadingFiles.length > 0
-        ? await uploadService.uploadToS3(offloadingFiles, "job-attachments")
+      const attachments = receipt.files.length > 0
+        ? await uploadService.uploadToS3(receipt.files, "job-attachments")
         : [];
 
-      const payload = {
-        tripStatus: offloadingTargetStatus.toLowerCase(),
-        deliveryOrders: offloadingForm.deliveryOrders.filter(d => d.trim()),
-        damages: offloadingForm.damages.filter(d => d.quantity.trim()),
+      await bookingService.updateTripStatus(id, offloadingTargetStatus.toLowerCase(), {
+        deliveryOrders: receipt.deliveryOrders,
+        damages: receipt.damages,
         attachments,
-      };
-
-      await bookingService.updateTripStatus(id, payload.tripStatus, {
-        deliveryOrders: payload.deliveryOrders,
-        damages: payload.damages,
-        attachments: payload.attachments,
       });
 
       setShowOffloadingModal(false);
-      setOffloadingFiles([]);
       await loadData();
     } catch (error) {
       console.error("Offloading submission failed:", error);
       alert("Failed to submit offloading data");
-    } finally {
-      setIsSubmittingOffloading(false);
     }
   };
 
@@ -1640,124 +1616,11 @@ export default function JobDetailReport() {
       </div>
       {/* Offloading Modal */}
       {showOffloadingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-slate-950/50 backdrop-blur-sm" onClick={() => setShowOffloadingModal(false)} />
-          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg flex flex-col max-h-[90vh]">
-            <div className="px-6 pt-6 pb-4 border-b border-neutral-100 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-100 flex items-center justify-center">
-                  <ArrowDownCircle className="w-5 h-5 text-orange-600" />
-                </div>
-                <div>
-                  <h2 className="text-[15px] font-bold text-slate-900">Cargo Offloading Receipt</h2>
-                  <p className="text-[11px] text-neutral-400 font-medium">
-                    {assignment?.driverName ? cleanDriverName(assignment.driverName) : "Driver"} · {assignment?.truckNumber || "N/A"}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Delivery Orders</label>
-                  <button type="button" onClick={() => setOffloadingForm(f => ({ ...f, deliveryOrders: [...f.deliveryOrders, ""] }))} className="text-[9px] font-bold text-primary uppercase tracking-widest hover:underline">+ Add</button>
-                </div>
-                {offloadingForm.deliveryOrders.map((do_, i) => (
-                  <div key={i} className="flex gap-2">
-                    <input type="text" value={do_} onChange={e => { const arr = [...offloadingForm.deliveryOrders]; arr[i] = e.target.value; setOffloadingForm(f => ({ ...f, deliveryOrders: arr })); }} placeholder={`DO #${i + 1}`} className="flex-1 bg-neutral-50 border border-neutral-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-primary/30 transition-all" />
-                    {offloadingForm.deliveryOrders.length > 1 && <button type="button" onClick={() => setOffloadingForm(f => ({ ...f, deliveryOrders: f.deliveryOrders.filter((_, idx) => idx !== i) }))} className="px-2 text-rose-400 hover:text-rose-600 text-[11px] font-bold">✕</button>}
-                  </div>
-                ))}
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-[10px] font-bold text-rose-500 uppercase tracking-widest">Damages</label>
-                  <button type="button" onClick={() => setOffloadingForm(f => ({ ...f, damages: [...f.damages, { quantity: "", amount: "" }] }))} className="text-[9px] font-bold text-rose-500 uppercase tracking-widest hover:underline">+ Add</button>
-                </div>
-                {offloadingForm.damages.map((dmg, i) => (
-                  <div key={i} className="flex gap-2 items-start">
-                    <input type="text" value={dmg.quantity} onChange={e => { const arr = offloadingForm.damages.map((d, idx) => idx === i ? { ...d, quantity: e.target.value } : d); setOffloadingForm(f => ({ ...f, damages: arr })); }} placeholder="Qty with units (e.g. 2 bags)" className="flex-1 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-rose-300 transition-all" />
-                    <input type="number" value={dmg.amount} onChange={e => { const arr = offloadingForm.damages.map((d, idx) => idx === i ? { ...d, amount: e.target.value } : d); setOffloadingForm(f => ({ ...f, damages: arr })); }} placeholder="Amount" className="w-24 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2 text-[12px] text-slate-900 outline-none focus:border-rose-300 transition-all" />
-                    {offloadingForm.damages.length > 1 && <button type="button" onClick={() => setOffloadingForm(f => ({ ...f, damages: f.damages.filter((_, idx) => idx !== i) }))} className="px-2 pt-2 text-rose-400 hover:text-rose-600 text-[11px] font-bold">✕</button>}
-                  </div>
-                ))}
-              </div>
-
-              {/* File Upload */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Offloading Attachments</label>
-                <div
-                  onClick={() => offloadingFileInputRef.current?.click()}
-                  className="border-2 border-dashed border-neutral-200 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-all"
-                >
-                  <Paperclip className="w-5 h-5 text-neutral-300" />
-                  <p className="text-[11px] font-semibold text-neutral-400">Click to attach files</p>
-                  <p className="text-[9px] text-neutral-300">PDF, Images, Docs — any format</p>
-                </div>
-                <input
-                  ref={offloadingFileInputRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={e => {
-                    const selected = Array.from(e.target.files || []);
-                    setOffloadingFiles(prev => {
-                      const existing = new Set(prev.map(f => f.name));
-                      return [...prev, ...selected.filter(f => !existing.has(f.name))];
-                    });
-                    e.target.value = "";
-                  }}
-                />
-                {offloadingFiles.length > 0 && (
-                  <div className="space-y-1.5">
-                    {offloadingFiles.map((file, i) => (
-                      <div key={i} className="flex items-center gap-2 px-3 py-2 bg-neutral-50 border border-neutral-100 rounded-xl">
-                        <Paperclip className="w-3 h-3 text-neutral-400 shrink-0" />
-                        <span className="text-[11px] font-medium text-slate-700 truncate flex-1">{file.name}</span>
-                        <span className="text-[9px] text-neutral-400 shrink-0">{(file.size / 1024).toFixed(0)} KB</span>
-                        <button
-                          type="button"
-                          onClick={() => setOffloadingFiles(prev => prev.filter((_, idx) => idx !== i))}
-                          className="text-neutral-300 hover:text-rose-500 transition-colors shrink-0"
-                        >
-                          <XIcon className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="px-6 py-4 border-t border-neutral-100 flex items-center justify-end gap-3 shrink-0">
-              <button
-                type="button"
-                disabled={isSubmittingOffloading}
-                onClick={() => setShowOffloadingModal(false)}
-                className="px-5 py-2.5 rounded-xl border border-neutral-100 text-[12px] font-bold text-slate-500 hover:bg-neutral-50 transition-colors uppercase tracking-widest disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={isSubmittingOffloading}
-                onClick={handleSubmitOffloading}
-                className="px-6 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-[12px] font-bold uppercase tracking-widest transition-all disabled:opacity-50 flex items-center gap-2"
-              >
-                {isSubmittingOffloading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Submitting…
-                  </>
-                ) : (
-                  "Submit Offloading"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+        <OffloadingReceiptModal
+          subtitle={`${assignment?.driverName ? cleanDriverName(assignment.driverName) : "Driver"} · ${assignment?.truckNumber || "N/A"}`}
+          onClose={() => setShowOffloadingModal(false)}
+          onSubmit={handleSubmitOffloading}
+        />
       )}
       {/* Completion Inspection Modal */}
       {showCompletionModal && (

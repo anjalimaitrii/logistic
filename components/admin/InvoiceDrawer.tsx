@@ -37,9 +37,9 @@ const money = (n: number) =>
 const esc = (v: string) =>
   String(v ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
 
-// The editable invoice fields as the trips hold them. Anyone can forget the DN
+// The editable invoice fields as the trips hold them. Anyone can forget the POD number
 // or the client's TPIN at the time, so the drawer edits a copy and writes back
-// only what changed. ZRA no, date and TPIN are one per invoice; the DN is one
+// only what changed. ZRA no, date and TPIN are one per invoice; the POD number is one
 // per trip. The date defaults to today until the invoice is raised.
 type InvoiceFields = { zraNo: string; tpin: string; date: string; dn: Record<string, string> };
 
@@ -144,7 +144,7 @@ export default function InvoiceDrawer({
   const grandTotal = subtotal + vat;
 
   // A printed invoice is a tax document: it needs its ZRA number, the client's
-  // TPIN and every trip's DN. The date always has one — today, by default.
+  // TPIN and every trip's POD number. The date always has one — today, by default.
   const missing = {
     zraNo: !fields.zraNo.trim(),
     tpin: !fields.tpin.trim(),
@@ -153,7 +153,7 @@ export default function InvoiceDrawer({
   const missingLabels = [
     missing.zraNo && "ZRA Invoice No",
     missing.tpin && "Client TPIN",
-    missing.dn.size > 0 && (isCombined ? `DN No (${missing.dn.size} trip${missing.dn.size > 1 ? "s" : ""})` : "DN No"),
+    missing.dn.size > 0 && (isCombined ? `POD No (${missing.dn.size} trip${missing.dn.size > 1 ? "s" : ""})` : "POD No"),
   ].filter(Boolean) as string[];
 
   // Once printed, the invoice has gone to the client: it reads back as it was
@@ -269,7 +269,7 @@ export default function InvoiceDrawer({
             <tr><td class="c b" colspan="4">Description</td><td></td><td></td><td class="c b">Amount</td></tr>
             <tr>
               <td class="c b">INV No</td><td class="c b">Commodity</td><td class="c b">Truck No</td><td class="c b">Delivery Location</td>
-              <td class="c b">DN No</td><td class="c b">Date</td><td class="c b">Zambia Kwacha</td>
+              <td class="c b">POD No</td><td class="c b">Date</td><td class="c b">Zambia Kwacha</td>
             </tr>
 
             ${rows.map((r) => `
@@ -367,8 +367,8 @@ export default function InvoiceDrawer({
             </div>
             {!isCombined && (
               <div>
-                <label className={labelClass}>DN No</label>
-                <input type="text" value={fields.dn[rows[0].id] ?? ""} onChange={(e) => setDn(rows[0].id, e.target.value)} onBlur={() => saveFields()} disabled={isLocked} placeholder="e.g. DO123, DO124" className={`mt-1.5 ${inputClass(missing.dn.size > 0)}`} />
+                <label className={labelClass}>POD No</label>
+                <input type="text" value={fields.dn[rows[0].id] ?? ""} onChange={(e) => setDn(rows[0].id, e.target.value)} onBlur={() => saveFields()} disabled={isLocked} placeholder="e.g. POD123, POD124" className={`mt-1.5 ${inputClass(missing.dn.size > 0)}`} />
               </div>
             )}
             <div>
@@ -377,15 +377,15 @@ export default function InvoiceDrawer({
             </div>
           </div>
 
-          {/* One DN per trip — each load has its own delivery note. */}
+          {/* One POD number per trip — each load has its own proof of delivery. */}
           {isCombined && (
             <div className="mt-2.5">
-              <label className={labelClass}>DN No</label>
+              <label className={labelClass}>POD No</label>
               <div className="mt-1.5 space-y-1.5 max-h-36 overflow-y-auto custom-scrollbar pr-1">
                 {rows.map((r) => (
                   <div key={r.id} className="flex items-center gap-2">
                     <span className="w-20 shrink-0 text-[10px] font-bold text-slate-500">{r.invNo}</span>
-                    <input type="text" value={fields.dn[r.id] ?? ""} onChange={(e) => setDn(r.id, e.target.value)} onBlur={() => saveFields()} disabled={isLocked} placeholder="e.g. DO123" className={inputClass(missing.dn.has(r.id))} />
+                    <input type="text" value={fields.dn[r.id] ?? ""} onChange={(e) => setDn(r.id, e.target.value)} onBlur={() => saveFields()} disabled={isLocked} placeholder="e.g. POD123" className={inputClass(missing.dn.has(r.id))} />
                   </div>
                 ))}
               </div>
@@ -435,7 +435,7 @@ export default function InvoiceDrawer({
                 <Cell className="text-center font-bold">Commodity</Cell>
                 <Cell className="text-center font-bold">Truck No</Cell>
                 <Cell className="text-center font-bold">Delivery Location</Cell>
-                <Cell className="text-center font-bold">DN No</Cell>
+                <Cell className="text-center font-bold">POD No</Cell>
                 <Cell className="text-center font-bold">Date</Cell>
                 <Cell className="text-center font-bold">Zambia Kwacha</Cell>
               </tr>
