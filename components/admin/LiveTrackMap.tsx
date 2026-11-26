@@ -8,12 +8,10 @@ import {
   getDriverName,
   hasValidCoords,
 } from "@/services/liveTrackingService";
+import { addBaseTiles } from "@/lib/mapTiles";
 
 const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const LEAFLET_JS  = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-
-// CartoDB Voyager — English labels everywhere in the world
-const TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -129,7 +127,7 @@ export default function LiveTrackMap({ vehicles, selectedVehicle, onSelectVehicl
         attributionControl: false,
       });
 
-      L.tileLayer(TILE_URL, { maxZoom: 19 }).addTo(map);
+      addBaseTiles(L, map);
 
       mapRef.current = map;
 

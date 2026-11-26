@@ -8,10 +8,10 @@ import {
   getVehicleStatus,
   hasValidCoords,
 } from "@/services/liveTrackingService";
+import { addBaseTiles } from "@/lib/mapTiles";
 
 const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const LEAFLET_JS  = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-const TILE_URL    = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
 
 declare global { var L: any; }
 
@@ -89,7 +89,8 @@ export default function DashboardMiniMap() {
         touchZoom: false,
         keyboard: false,
       });
-      L.tileLayer(TILE_URL, { maxZoom: 19 }).addTo(map);
+      // Bottom-left: the "View full map" button sits bottom-right.
+      addBaseTiles(L, map, "bottomleft");
       mapRef.current = map;
       setTimeout(() => { if (mapRef.current) mapRef.current.invalidateSize(); }, 300);
       setMapReady(true);

@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { fetchLiveVehicles, getVehicleStatus, hasValidCoords, getDriverName } from "@/services/liveTrackingService";
+import { addBaseTiles } from "@/lib/mapTiles";
 
 const LEAFLET_CSS = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 const LEAFLET_JS  = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
-const TILE_URL    = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
 
 declare global { var L: any; }
 
@@ -87,7 +87,8 @@ export default function JobRouteMap({ truckNumber }: Props) {
           zoomControl: true,
           attributionControl: false,
         });
-        L.tileLayer(TILE_URL, { maxZoom: 19 }).addTo(map);
+        // Top-right: a full-width stats bar covers the bottom of this map.
+        addBaseTiles(L, map, "topright");
         mapRef.current = map;
         setTimeout(() => map.invalidateSize(), 200);
 
